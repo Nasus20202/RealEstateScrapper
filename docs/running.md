@@ -46,7 +46,7 @@ Pozostałe sekcje opisują uruchomienie **lokalne bez Dockera** (wygodne do dewe
 
 ## 1. Baza danych
 
-Projekt używa obrazu `pgvector/pgvector:pg18` (PostgreSQL 18 z rozszerzeniem pgvector).
+Projekt używa obrazu `pgvector/pgvector:0.8.3-pg18-trixie` (PostgreSQL 18 + pgvector, baza Debian 13).
 
 ```bash
 docker compose up -d db

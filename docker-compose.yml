@@ -1,6 +1,6 @@
 services:
   db:
-    image: pgvector/pgvector:pg18
+    image: pgvector/pgvector:0.8.3-pg18-trixie
     environment:
       POSTGRES_USER: realestate
       POSTGRES_PASSWORD: realestate

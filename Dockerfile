@@ -1,5 +1,7 @@
 # Backend API (FastAPI + Playwright/chromium) — Python 3.14 via uv.
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+# Pinned: uv 0.11.23 on Debian 13 (trixie). Deliberately NOT Alpine — Playwright's
+# Chromium binaries are glibc-only and `playwright install --with-deps` uses apt.
+FROM ghcr.io/astral-sh/uv:0.11.23-python3.14-trixie-slim
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
