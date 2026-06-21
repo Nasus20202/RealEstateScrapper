@@ -655,17 +655,17 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.models.sour
 
 - [ ] **Step 3: Zaimplementuj enumy i model**
 
-`src/realestate/models/enums.py`:
+`src/realestate/models/enums.py` (użyj `StrEnum` — ruleset ruff `UP` wymusza to przez UP042; `(str, Enum)` nie przeszłoby lintu):
 ```python
-from enum import Enum
+from enum import StrEnum
 
 
-class MarketType(str, Enum):
+class MarketType(StrEnum):
     PRIMARY = "primary"
     SECONDARY = "secondary"
 
 
-class ListingStatus(str, Enum):
+class ListingStatus(StrEnum):
     ACTIVE = "active"
     GONE = "gone"
 ```
