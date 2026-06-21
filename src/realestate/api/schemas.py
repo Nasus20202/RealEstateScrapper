@@ -8,6 +8,45 @@ from pydantic import BaseModel
 from realestate.models.listing import Listing
 
 
+class SavedSearchIn(BaseModel):
+    name: str
+    filters: dict = {}
+    nl_query: str | None = None
+
+
+class SavedSearchOut(BaseModel):
+    id: int
+    name: str
+    filters: dict
+    nl_query: str | None
+    created_at: datetime
+
+
+class FavoriteIn(BaseModel):
+    listing_id: int
+
+
+class FavoriteOut(BaseModel):
+    id: int
+    listing_id: int
+    created_at: datetime
+
+
+class SettingsOut(BaseModel):
+    llm_enabled: bool
+    llm_base_url: str
+    llm_model: str | None
+    llm_embedding_model: str | None
+    llm_api_key_set: bool
+    scheduler_interval_minutes: int | None
+    sources: list[str]
+
+
+class SettingsUpdate(BaseModel):
+    scheduler_interval_minutes: int | None = None
+    enabled_source_ids: list[str] | None = None
+
+
 class ListingOut(BaseModel):
     id: int
     source_id: str
