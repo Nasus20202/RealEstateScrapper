@@ -74,6 +74,10 @@ describe("ListingsPage", () => {
     await userEvent.type(screen.getByLabelText("Miasto"), "Gdansk");
     await userEvent.type(screen.getByLabelText("Cena maks."), "500000");
     await userEvent.type(screen.getByLabelText("Pokoje min."), "2");
+
+    // Expand hidden filters
+    await userEvent.click(screen.getByRole("button", { name: /Więcej filtrów/i }));
+
     await userEvent.type(
       screen.getByLabelText("Dzielnice (przecinki)"),
       "Wrzeszcz, Oliwa",

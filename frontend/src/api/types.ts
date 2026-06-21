@@ -51,6 +51,8 @@ export interface ListingsQuery {
   max_rooms?: number;
   market?: string;
   q?: string;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
   limit?: number;
   offset?: number;
 }

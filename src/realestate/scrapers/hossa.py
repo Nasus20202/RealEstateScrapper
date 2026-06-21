@@ -1,18 +1,21 @@
 """Hossa.gda.pl scraper — Tricity property developer, parses DOM via selectolax.
 
-The home page (hossa_home fixture) renders investment listings via Vue/custom web
-components (<investments-slider>, <offers-page>) which are not present in the static
-HTML.  The only statically-rendered offer-category links point to city landing pages:
+The home page renders investment cards via Vue/custom web components
+(<investments-slider>, <offers-page>) which are not present in the static HTML.
+The only statically-rendered offer-category links point to city landing pages:
 
-  https://www.hossa.gda.pl/mieszkania/          — all apartments
   https://www.hossa.gda.pl/nowe-mieszkania-gdansk/  — Gdańsk
   https://www.hossa.gda.pl/nowe-mieszkania-gdynia/  — Gdynia
+  https://www.hossa.gda.pl/mieszkania/              — all apartments (fallback)
 
-parse_search therefore extracts these category links as RawListing entries
-(market="primary", price=None — developer site rarely shows prices upfront).
-external_id is derived from the URL slug.
+build_search_url targets the city-specific page directly so scraped results stay
+relevant to the requested city.  parse_search extracts offer-category links as
+RawListing entries (market="primary", price=None).  external_id is the URL slug.
 """
 from __future__ import annotations
+
+import re
+import unicodedata
 
 from selectolax.parser import HTMLParser
 
@@ -26,6 +29,21 @@ _CITY_MAP: dict[str, str] = {
     "gdynia": "Gdynia",
     "sopot": "Sopot",
 }
+
+# Maps ASCII-folded city slug → hossa URL path
+_CITY_URL_PATH: dict[str, str] = {
+    "gdansk": "nowe-mieszkania-gdansk",
+    "gdynia": "nowe-mieszkania-gdynia",
+    "sopot": "mieszkania",
+}
+
+
+def _city_path(city: str) -> str:
+    """Return the hossa URL path for the given city (ASCII-folded match)."""
+    normalized = unicodedata.normalize("NFKD", city.strip().lower().replace("ł", "l"))
+    slug = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"\s+", "-", slug.strip())
+    return _CITY_URL_PATH.get(slug, "mieszkania")
 
 # Navigation/utility paths to exclude (these are never real estate offers)
 _EXCLUDED_PATHS: frozenset[str] = frozenset(
@@ -111,8 +129,9 @@ class HossaScraper:
     display_name = "Hossa"
 
     def build_search_url(self, criteria: SearchCriteria, page: int = 1) -> str:
-        """Return the Hossa offers listing page URL (city ignored — single market)."""
-        return f"{_BASE_URL}/mieszkania/"
+        """Return the Hossa city-specific offers page URL for the given criteria."""
+        path = _city_path(criteria.city)
+        return f"{_BASE_URL}/{path}/"
 
     def parse_search(self, html: str) -> list[RawListing]:
         """Parse the Hossa home page and return investment/offer category RawListings.

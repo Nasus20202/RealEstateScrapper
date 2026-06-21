@@ -59,6 +59,8 @@ function buildListingsQuery(query: ListingsQuery): string {
   if (query.max_rooms != null) params.set("max_rooms", String(query.max_rooms));
   if (query.market) params.set("market", query.market);
   if (query.q) params.set("q", query.q);
+  if (query.sort_by) params.set("sort_by", query.sort_by);
+  if (query.sort_dir) params.set("sort_dir", query.sort_dir);
   params.set("limit", String(query.limit ?? 50));
   params.set("offset", String(query.offset ?? 0));
   return params.toString();

@@ -34,13 +34,15 @@ async def list_listings(
     max_rooms: int | None = None,
     market: str | None = None,
     q: str | None = None,
+    sort_by: str = "date",
+    sort_dir: str = "desc",
     limit: int = 50,
     offset: int = 0,
 ) -> ListingsResponse:
     filters = ListingFilters(
         city=city, districts=district, min_price=min_price, max_price=max_price,
         min_area=min_area, max_area=max_area, min_rooms=min_rooms, max_rooms=max_rooms,
-        market=market, nl_query=q,
+        market=market, nl_query=q, sort_by=sort_by, sort_dir=sort_dir,
     )
     svc = SearchService(session, client=client)
     items, total = await svc.search_hybrid(filters, limit=limit, offset=offset)

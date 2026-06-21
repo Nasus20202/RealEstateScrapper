@@ -18,3 +18,11 @@ def test_build_search_url_returns_listing_page():
     url = HossaScraper().build_search_url(SearchCriteria(city="gdansk"), page=1)
     assert url.startswith("https://")
     assert "hossa" in url
+
+
+def test_build_search_url_city_specific():
+    gdansk_url = HossaScraper().build_search_url(SearchCriteria(city="Gdańsk"), page=1)
+    gdynia_url = HossaScraper().build_search_url(SearchCriteria(city="Gdynia"), page=1)
+    assert "gdansk" in gdansk_url
+    assert "gdynia" in gdynia_url
+    assert gdansk_url != gdynia_url

@@ -1,15 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":dependencyDashboard",
-    ":semanticCommitsDisabled"
-  ],
-  "timezone": "Europe/Warsaw",
-  "schedule": ["before 6am on monday"],
-  "labels": ["dependencies"],
-  "prConcurrentLimit": 10,
-  "configMigration": true,
+  "extends": ["config:recommended"],
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 6am on monday"]

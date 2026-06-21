@@ -27,6 +27,14 @@ def test_listings_have_some_prices_and_areas():
     assert any(x.area_m2 is not None for x in listings)
 
 
+def test_parse_search_has_images():
+    html = load_fixture("nieruchomosci_online_search_gdansk")
+    listings = NieruchomosciOnlineScraper().parse_search(html)
+    with_images = [x for x in listings if x.images]
+    assert len(with_images) >= 1, "At least one tile should have a thumbnail image"
+    assert all(img.startswith("http") for x in with_images for img in x.images)
+
+
 def test_build_search_url_contains_city():
     url = NieruchomosciOnlineScraper().build_search_url(SearchCriteria(city="gdansk"), page=1)
     assert "gda" in url.lower()

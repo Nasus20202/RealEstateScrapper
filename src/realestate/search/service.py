@@ -9,6 +9,19 @@ from realestate.models.listing import Listing
 from realestate.search.filters import ListingFilters, apply_filters
 from realestate.search.llm_search import match_and_rank
 
+_SORT_COLS = {
+    "price_per_m2": Listing.price_per_m2,
+    "price": Listing.price,
+    "area": Listing.area_m2,
+    "date": Listing.last_seen,
+}
+
+
+def _build_order(filters: ListingFilters):
+    col = _SORT_COLS.get(filters.sort_by, Listing.last_seen)
+    primary = col.desc().nulls_last() if filters.sort_dir == "desc" else col.asc().nulls_last()
+    return [primary, Listing.id.desc()]
+
 
 class RankedListing(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -31,14 +44,7 @@ class SearchService:
         total = (await self.session.execute(
             select(func.count()).select_from(base.subquery())
         )).scalar_one()
-        stmt = (
-            base.order_by(
-                Listing.price_per_m2.asc().nulls_last(),
-                Listing.last_seen.desc(),
-            )
-            .limit(limit)
-            .offset(offset)
-        )
+        stmt = base.order_by(*_build_order(filters)).limit(limit).offset(offset)
         rows = (await self.session.execute(stmt)).scalars().all()
         return [RankedListing(listing=row) for row in rows], total
 

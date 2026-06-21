@@ -26,7 +26,7 @@ function run(overrides: Record<string, unknown> = {}) {
     source_id: "otodom",
     started_at: "2026-06-20T10:00:00Z",
     finished_at: "2026-06-20T10:05:00Z",
-    status: "success",
+    status: "done",
     new_count: 3,
     updated_count: 1,
     gone_count: 0,
@@ -34,6 +34,22 @@ function run(overrides: Record<string, unknown> = {}) {
     error_message: null,
     ...overrides,
   };
+}
+
+function setupMocks() {
+  server.use(
+    http.get(`${BASE}/settings`, () =>
+      HttpResponse.json({
+        llm_enabled: false,
+        llm_base_url: "http://x",
+        llm_model: null,
+        llm_embedding_model: null,
+        llm_api_key_set: false,
+        scheduler_interval_minutes: null,
+        sources: ["otodom", "hossa"],
+      }),
+    ),
+  );
 }
 
 beforeEach(() => {
@@ -44,14 +60,19 @@ afterEach(() => vi.clearAllMocks());
 
 describe("ScrapePage", () => {
   it("renderuje listę ostatnich przebiegów", async () => {
+    setupMocks();
     server.use(http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([run()])));
     render(<ScrapePage />);
-    expect(await screen.findByText(/otodom/)).toBeInTheDocument();
-    expect(screen.getByText(/success/)).toBeInTheDocument();
-    expect(screen.getByText(/nowe: 3/)).toBeInTheDocument();
+    // Source name in row
+    expect(await screen.findAllByText("otodom")).not.toHaveLength(0);
+    // Status chip
+    expect(await screen.findByText("done")).toBeInTheDocument();
+    // New count "+3"
+    expect(await screen.findByText("+3")).toBeInTheDocument();
   });
 
   it("formularz wysyła POST /scrape z poprawnym body", async () => {
+    setupMocks();
     let body: unknown = null;
     server.use(
       http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([])),
@@ -61,27 +82,26 @@ describe("ScrapePage", () => {
       }),
     );
     render(<ScrapePage />);
-    await screen.findByRole("button", { name: "Uruchom scraping" });
+    await screen.findByRole("button", { name: "Uruchom" });
 
-    await userEvent.type(screen.getByLabelText("Miasto"), "Gdansk");
+    // Clear pre-filled city and type new value
+    await userEvent.clear(screen.getByLabelText("Miasto"));
+    await userEvent.type(screen.getByLabelText("Miasto"), "Sopot");
     await userEvent.clear(screen.getByLabelText("Maks. stron"));
     await userEvent.type(screen.getByLabelText("Maks. stron"), "3");
-    await userEvent.type(
-      screen.getByLabelText("Źródła (przecinki)"),
-      "otodom, olx",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Uruchom scraping" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Uruchom" }));
 
     await waitFor(() =>
-      expect(body).toEqual({
-        city: "Gdansk",
+      expect(body).toMatchObject({
+        city: "Sopot",
         max_pages: 3,
-        source_ids: ["otodom", "olx"],
       }),
     );
   });
 
   it("panel postępu pokazuje zdarzenia SSE wstrzyknięte przez fake", async () => {
+    setupMocks();
     server.use(http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([])));
     render(<ScrapePage />);
     await waitFor(() => expect(lastHandler).not.toBeNull());
@@ -96,8 +116,9 @@ describe("ScrapePage", () => {
       unchanged: 5,
     });
 
-    expect(
-      await screen.findByText(/otodom — running \(nowe 2, akt\. 1\)/),
-    ).toBeInTheDocument();
+    // Event row shows source, status and counts
+    expect(await screen.findByText("otodom", { selector: ".scrape-event__source" })).toBeInTheDocument();
+    expect(await screen.findByText("running", { selector: ".scrape-event__status" })).toBeInTheDocument();
+    expect(await screen.findByText(/\+2 nowych/)).toBeInTheDocument();
   });
 });

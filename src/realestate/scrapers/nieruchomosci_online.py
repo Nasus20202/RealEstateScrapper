@@ -172,6 +172,14 @@ class NieruchomosciOnlineScraper:
             elif market_type == "secondary":
                 market = "secondary"
 
+            # --- Thumbnail image ---
+            images: list[str] = []
+            img_el = tile.css_first("img.state--fit-type--fill__main-photo")
+            if img_el:
+                src = img_el.attrs.get("src", "")
+                if src:
+                    images.append(_absolute_url(src))
+
             listings.append(
                 RawListing(
                     source_id=self.source_id,
@@ -185,6 +193,7 @@ class NieruchomosciOnlineScraper:
                     city=city_str,
                     district=district,
                     market=market,
+                    images=images,
                 )
             )
 

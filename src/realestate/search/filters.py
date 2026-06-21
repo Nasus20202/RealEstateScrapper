@@ -18,6 +18,8 @@ class ListingFilters(BaseModel):
     max_rooms: int | None = None
     market: str | None = None
     nl_query: str | None = None
+    sort_by: str = "date"
+    sort_dir: str = "desc"
 
 
 def apply_filters(stmt: Select, filters: ListingFilters) -> Select:
