@@ -1,0 +1,139 @@
+/* frontend/src/styles.css */
+:root {
+  --gap: 1rem;
+  --border: #d0d0d0;
+  --accent: #1a5276;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #222;
+}
+
+.app-nav {
+  display: flex;
+  gap: var(--gap);
+  padding: var(--gap);
+  border-bottom: 1px solid var(--border);
+  background: #f7f7f7;
+}
+
+.app-nav a {
+  text-decoration: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.app-nav a.active {
+  text-decoration: underline;
+}
+
+.app-main {
+  padding: var(--gap);
+}
+
+.filters,
+.scrape-form,
+.settings-page form,
+.searches-page form {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  max-width: 520px;
+  margin-bottom: var(--gap);
+}
+
+.filters button,
+.scrape-form button,
+.settings-page form button,
+.searches-page form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 0.5rem 1rem;
+}
+
+.listings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--gap);
+}
+
+.listing-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--gap);
+}
+
+.listing-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.listing-card__meta dt {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.listing-card__meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.badge--source {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.7rem;
+}
+
+.listing-card__score {
+  margin-top: 0.5rem;
+  color: var(--accent);
+}
+
+.pagination {
+  display: flex;
+  gap: var(--gap);
+  align-items: center;
+  margin-top: var(--gap);
+}
+
+.listing-detail__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+}
+
+.listing-detail__gallery {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.listing-detail__gallery img {
+  max-width: 200px;
+  height: auto;
+  border-radius: 4px;
+}
+
+.price-sparkline {
+  color: var(--accent);
+}
+
+.error {
+  color: #b03a2e;
+}
+
+.loading {
+  color: #666;
+}
