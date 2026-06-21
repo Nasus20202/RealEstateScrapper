@@ -17,6 +17,19 @@ def get_embedding_dim() -> int:
     return int(os.getenv("EMBEDDING_DIM", str(EMBEDDING_DIM_DEFAULT)))
 
 
+def get_cors_origins() -> list[str]:
+    """Allowed CORS origins for the API, from the CORS_ALLOW_ORIGINS env var.
+
+    Comma-separated list; default ``*`` (allow all — fine for a local tool).
+    Read via os.getenv (not Settings) so ``create_app()`` does not require
+    DATABASE_URL at construction time.
+    """
+    raw = os.getenv("CORS_ALLOW_ORIGINS", "*").strip()
+    if not raw or raw == "*":
+        return ["*"]
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
