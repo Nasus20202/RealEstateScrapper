@@ -12,6 +12,8 @@ dependencies = [
     "pgvector>=0.3.6",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
+    "playwright>=1.60.0",
+    "selectolax>=0.4.10",
 ]
 
 [project.optional-dependencies]
