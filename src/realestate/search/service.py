@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from realestate.models.enums import ListingStatus
 from realestate.models.listing import Listing
 from realestate.search.filters import ListingFilters, apply_filters
+from realestate.search.llm_search import match_and_rank
 
 
 class RankedListing(BaseModel):
@@ -40,3 +41,44 @@ class SearchService:
         )
         rows = (await self.session.execute(stmt)).scalars().all()
         return [RankedListing(listing=row) for row in rows], total
+
+    async def search_hybrid(
+        self,
+        filters: ListingFilters,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        top_k: int = 50,
+    ) -> tuple[list[RankedListing], int]:
+        if self.client is None or not filters.nl_query:
+            return await self.search(filters, limit=limit, offset=offset)
+
+        qvec = (await self.client.embed([filters.nl_query]))[0]
+        base = apply_filters(
+            select(Listing).where(Listing.status == ListingStatus.ACTIVE), filters
+        )
+        total = (await self.session.execute(
+            select(func.count()).select_from(base.subquery())
+        )).scalar_one()
+        cand_stmt = (
+            base.where(Listing.embedding.isnot(None))
+            .order_by(Listing.embedding.cosine_distance(qvec))
+            .limit(top_k)
+        )
+        candidates = list((await self.session.execute(cand_stmt)).scalars().all())
+
+        matches = await match_and_rank(self.client, candidates, filters.nl_query)
+        by_id = {c.id: c for c in candidates}
+        ranked: list[RankedListing] = []
+        used: set[int] = set()
+        for m in matches:
+            listing = by_id.get(m.listing_id)
+            if listing is None:
+                continue
+            ranked.append(RankedListing(listing=listing, score=m.score, reason=m.reason))
+            used.add(m.listing_id)
+        for c in candidates:
+            if c.id not in used:
+                ranked.append(RankedListing(listing=c, score=None, reason=None))
+
+        return ranked[offset : offset + limit], total
