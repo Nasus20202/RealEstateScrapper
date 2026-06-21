@@ -1,4 +1,6 @@
-from sqlalchemy import func, select
+from datetime import datetime
+
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from realestate.models.enums import ListingStatus
@@ -36,3 +38,28 @@ class ListingRepository:
             Listing.status == ListingStatus.ACTIVE
         )
         return (await self.session.execute(stmt)).scalar_one()
+
+    async def active_external_ids(self, source_id: str) -> set[str]:
+        stmt = select(Listing.external_id).where(
+            Listing.source_id == source_id,
+            Listing.status == ListingStatus.ACTIVE,
+        )
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return set(rows)
+
+    async def mark_gone(
+        self, source_id: str, keep_ids: set[str], *, now: datetime
+    ) -> int:
+        stmt = (
+            update(Listing)
+            .where(
+                Listing.source_id == source_id,
+                Listing.status == ListingStatus.ACTIVE,
+            )
+            .values(status=ListingStatus.GONE, last_seen=now)
+            .execution_options(synchronize_session=False)
+        )
+        if keep_ids:
+            stmt = stmt.where(Listing.external_id.notin_(keep_ids))
+        result = await self.session.execute(stmt)
+        return result.rowcount

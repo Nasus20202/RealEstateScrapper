@@ -9,3 +9,9 @@ class MarketType(StrEnum):
 class ListingStatus(StrEnum):
     ACTIVE = "active"
     GONE = "gone"
+
+
+class ScrapeRunStatus(StrEnum):
+    SUCCESS = "success"
+    BLOCKED = "blocked"
+    FAILED = "failed"
