@@ -9,3 +9,8 @@ def _isolate_registry():
     yield
     base._REGISTRY.clear()
     base._REGISTRY.update(saved)
+
+
+@pytest.fixture(autouse=True)
+def _set_database_url(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")

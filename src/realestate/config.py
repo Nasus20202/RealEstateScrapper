@@ -22,6 +22,12 @@ class Settings(BaseSettings):
 
     database_url: str
     embedding_dim: int = EMBEDDING_DIM_DEFAULT
+    scraper_user_agent: str = (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    )
+    scraper_min_delay_seconds: float = 1.5
+    scraper_nav_timeout_ms: int = 30000
 
 
 @lru_cache
