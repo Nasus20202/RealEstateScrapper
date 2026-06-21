@@ -49,7 +49,7 @@ class DedupService:
             return []
         if not isinstance(data, dict):
             return []
-        raw_groups = data.get("groups", [])
+        raw_groups = data.get("groups") or []
         groups: list[list[int]] = []
         for grp in raw_groups:
             if not isinstance(grp, list):

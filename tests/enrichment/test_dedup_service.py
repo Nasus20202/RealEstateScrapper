@@ -59,6 +59,28 @@ async def test_filters_singletons_and_unknown_ids(engine):
         assert groups == []  # [l1] singleton odpada; [l2,99999] -> [l2] singleton odpada
 
 
+async def test_null_groups_returns_empty(engine):
+    """LLM returning {"groups": null} must not raise TypeError."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        l1 = await _listing(s, "a")
+        l2 = await _listing(s, "b")
+
+        class _NullGroupsClient:
+            async def complete(  # type: ignore[override]
+                self, messages: list[ChatMessage], *, response_format=None
+            ) -> LLMResult:
+                return LLMResult(content='{"groups": null}')
+
+            async def embed(self, texts):  # pragma: no cover
+                return [[0.0] for _ in texts]
+
+        svc = DedupService(s, _NullGroupsClient())
+        result = await svc.find_duplicate_groups([l1, l2])
+        assert result == []
+
+
 async def test_noop_without_client(engine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
