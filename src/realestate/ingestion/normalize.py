@@ -79,6 +79,8 @@ def to_listing(raw: RawListing, *, now: datetime) -> Listing:
         city=raw.city,
         district=raw.district,
         street=raw.street,
+        lat=raw.lat,
+        lon=raw.lon,
         market=market,
         description=raw.description,
         images=raw.images,

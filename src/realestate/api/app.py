@@ -35,10 +35,14 @@ def create_app() -> FastAPI:
         app.state.event_bus = EventBus()
         app.state.scheduler = None
         if settings.scheduler_enabled:
+            from realestate.ingestion.geocode import get_geocoder
             from realestate.scrapers.browser import BrowserFetcher
 
             scheduler = ScrapeScheduler(
-                app.state.session_factory, BrowserFetcher(), app.state.event_bus
+                app.state.session_factory,
+                BrowserFetcher(),
+                app.state.event_bus,
+                geocoder=get_geocoder(),
             )
             scheduler.start(interval_minutes=settings.scheduler_default_interval_minutes)
             app.state.scheduler = scheduler

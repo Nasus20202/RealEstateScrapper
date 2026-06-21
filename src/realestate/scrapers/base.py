@@ -31,6 +31,8 @@ class RawListing(BaseModel):
     city: str | None = None
     district: str | None = None
     street: str | None = None
+    lat: float | None = None
+    lon: float | None = None
     market: str | None = None
     description: str | None = None
     images: list[str] = Field(default_factory=list)

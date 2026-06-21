@@ -23,7 +23,7 @@ def _criteria_from_filters(filters: dict) -> SearchCriteria | None:
 
 
 async def run_scheduled_scrape(
-    session_factory, fetcher, bus: EventBus, *, max_pages: int = 1
+    session_factory, fetcher, bus: EventBus, *, geocoder=None, max_pages: int = 1
 ) -> int:
     async with session_factory() as session:
         searches = await SavedSearchRepository(session).list_all()
@@ -35,7 +35,7 @@ async def run_scheduled_scrape(
             "gone": run.gone_count, "unchanged": run.unchanged_count,
         })
 
-    service = IngestionService(session_factory, fetcher)
+    service = IngestionService(session_factory, fetcher, geocoder=geocoder)
     processed = 0
     for search in searches:
         criteria = _criteria_from_filters(search.filters or {})

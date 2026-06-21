@@ -29,5 +29,11 @@ def get_fetcher_dep():
     return BrowserFetcher()
 
 
+def get_geocoder_dep():
+    from realestate.ingestion.geocode import get_geocoder
+
+    return get_geocoder()
+
+
 def get_event_bus_dep(request: Request):
     return request.app.state.event_bus

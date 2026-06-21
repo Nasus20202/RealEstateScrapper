@@ -62,6 +62,8 @@ class ListingOut(BaseModel):
     city: str | None = None
     district: str | None = None
     street: str | None = None
+    lat: float | None = None
+    lon: float | None = None
     market: str | None = None
     images: list[str] = []
     posted_at: datetime | None = None
@@ -77,6 +79,7 @@ class ListingOut(BaseModel):
             price_per_m2=listing.price_per_m2, area_m2=listing.area_m2, rooms=listing.rooms,
             floor=listing.floor, total_floors=listing.total_floors, city=listing.city,
             district=listing.district, street=listing.street,
+            lat=listing.lat, lon=listing.lon,
             market=listing.market.value if listing.market else None,
             images=list(listing.images or []), posted_at=listing.posted_at,
             status=listing.status.value, score=score, reason=reason,

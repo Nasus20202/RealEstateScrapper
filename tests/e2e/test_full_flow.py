@@ -6,6 +6,7 @@ from realestate.api.app import create_app
 from realestate.api.deps import (
     get_event_bus_dep,
     get_fetcher_dep,
+    get_geocoder_dep,
     get_llm_client_dep,
     get_session,
     get_session_factory,
@@ -53,6 +54,7 @@ def _app(engine):
     app.dependency_overrides[get_session] = _session
     app.dependency_overrides[get_session_factory] = lambda: factory
     app.dependency_overrides[get_fetcher_dep] = lambda: _OneSourceFetcher()
+    app.dependency_overrides[get_geocoder_dep] = lambda: None
     app.dependency_overrides[get_event_bus_dep] = lambda: EventBus()
     app.dependency_overrides[get_llm_client_dep] = lambda: None  # degradacja regułowa
     return app

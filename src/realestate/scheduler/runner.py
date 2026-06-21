@@ -8,14 +8,17 @@ from realestate.scheduler.job import run_scheduled_scrape
 
 class ScrapeScheduler:
     def __init__(self, session_factory, fetcher, bus: EventBus, *,
-                 scheduler: AsyncIOScheduler | None = None) -> None:
+                 geocoder=None, scheduler: AsyncIOScheduler | None = None) -> None:
         self.session_factory = session_factory
         self.fetcher = fetcher
         self.bus = bus
+        self.geocoder = geocoder
         self._scheduler = scheduler or AsyncIOScheduler()
 
     async def _job(self) -> None:
-        await run_scheduled_scrape(self.session_factory, self.fetcher, self.bus)
+        await run_scheduled_scrape(
+            self.session_factory, self.fetcher, self.bus, geocoder=self.geocoder
+        )
 
     def start(self, *, interval_minutes: int) -> None:
         self._scheduler.add_job(self._job, "interval", minutes=interval_minutes,

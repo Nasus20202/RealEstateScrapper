@@ -3,7 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from realestate.api.deps import get_event_bus_dep, get_fetcher_dep, get_session, get_session_factory
+from realestate.api.deps import (
+    get_event_bus_dep,
+    get_fetcher_dep,
+    get_geocoder_dep,
+    get_session,
+    get_session_factory,
+)
 from realestate.api.schemas import ScrapeRequest, ScrapeResponse, ScrapeRunOut
 from realestate.events.bus import EventBus
 from realestate.ingestion.service import IngestionService
@@ -18,6 +24,7 @@ async def trigger_scrape(
     body: ScrapeRequest,
     session_factory=Depends(get_session_factory),  # noqa: B008
     fetcher=Depends(get_fetcher_dep),  # noqa: B008
+    geocoder=Depends(get_geocoder_dep),  # noqa: B008
     bus: EventBus = Depends(get_event_bus_dep),  # noqa: B008
 ) -> ScrapeResponse:
     criteria = SearchCriteria(
@@ -42,7 +49,7 @@ async def trigger_scrape(
             "unchanged": run.unchanged_count,
         })
 
-    service = IngestionService(session_factory, fetcher)
+    service = IngestionService(session_factory, fetcher, geocoder=geocoder)
     runs = await service.ingest(
         criteria, source_ids=body.source_ids, max_pages=body.max_pages, on_run=on_run
     )

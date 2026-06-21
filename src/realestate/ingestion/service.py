@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from realestate.ingestion.geocode import build_address_query
 from realestate.ingestion.incremental import IncrementalEngine
 from realestate.ingestion.normalize import to_listing
 from realestate.models.enums import ScrapeRunStatus
@@ -17,9 +18,29 @@ from realestate.scrapers.runner import run_search
 
 
 class IngestionService:
-    def __init__(self, session_factory: async_sessionmaker, fetcher) -> None:
+    def __init__(self, session_factory: async_sessionmaker, fetcher, geocoder=None) -> None:
         self.session_factory = session_factory
         self.fetcher = fetcher
+        self.geocoder = geocoder
+
+    async def _geocode(self, listings: list) -> None:
+        """Best-effort fill listing.lat/lon from the address. Never raises."""
+        if self.geocoder is None:
+            return
+        for listing in listings:
+            if listing.lat is not None:
+                continue
+            query = build_address_query(
+                street=listing.street, district=listing.district, city=listing.city
+            )
+            if not query:
+                continue
+            try:
+                coords = await self.geocoder.geocode(query)
+            except Exception:
+                coords = None
+            if coords:
+                listing.lat, listing.lon = coords
 
     async def ingest(
         self,
@@ -70,6 +91,7 @@ class IngestionService:
                 try:
                     raws = await run_search(scraper, fetcher, criteria, max_pages=max_pages)
                     listings = [to_listing(r, now=now) for r in raws]
+                    await self._geocode(listings)
                     stats = await IncrementalEngine(session).sync_source(
                         source_id, listings, now=now, mark_missing_gone=True
                     )
