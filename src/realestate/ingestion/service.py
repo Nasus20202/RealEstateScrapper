@@ -1,6 +1,7 @@
 """IngestionService — orchestrates per-source scrape, normalize, sync, ScrapeRun."""
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
@@ -35,6 +36,28 @@ class IngestionService:
         else:
             scrapers = get_scrapers()
 
+        # Real fetchers (BrowserFetcher) are async context managers that launch
+        # Playwright in __aenter__; fetch() asserts it was entered. Enter the
+        # context once for the whole ingest. Plain test fetchers without
+        # __aenter__ are used directly via the null-context branch below.
+        async with contextlib.AsyncExitStack() as stack:
+            fetcher = self.fetcher
+            if hasattr(fetcher, "__aenter__"):
+                fetcher = await stack.enter_async_context(fetcher)
+            return await self._ingest_with(
+                fetcher, scrapers, criteria, now, max_pages=max_pages, on_run=on_run
+            )
+
+    async def _ingest_with(
+        self,
+        fetcher,
+        scrapers: dict,
+        criteria: SearchCriteria,
+        now: datetime,
+        *,
+        max_pages: int,
+        on_run: Callable[[ScrapeRun], Awaitable[None]] | None,
+    ) -> list[ScrapeRun]:
         runs: list[ScrapeRun] = []
 
         for source_id, scraper in scrapers.items():
@@ -45,7 +68,7 @@ class IngestionService:
             )
             async with self.session_factory() as session:
                 try:
-                    raws = await run_search(scraper, self.fetcher, criteria, max_pages=max_pages)
+                    raws = await run_search(scraper, fetcher, criteria, max_pages=max_pages)
                     listings = [to_listing(r, now=now) for r in raws]
                     stats = await IncrementalEngine(session).sync_source(
                         source_id, listings, now=now, mark_missing_gone=True
