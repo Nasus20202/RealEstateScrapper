@@ -3,8 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from realestate.api.deps import get_fetcher_dep, get_session, get_session_factory
+from realestate.api.deps import get_event_bus_dep, get_fetcher_dep, get_session, get_session_factory
 from realestate.api.schemas import ScrapeRequest, ScrapeResponse, ScrapeRunOut
+from realestate.events.bus import EventBus
 from realestate.ingestion.service import IngestionService
 from realestate.repositories.scrape_runs import ScrapeRunRepository
 from realestate.scrapers.base import SearchCriteria
@@ -17,6 +18,7 @@ async def trigger_scrape(
     body: ScrapeRequest,
     session_factory=Depends(get_session_factory),  # noqa: B008
     fetcher=Depends(get_fetcher_dep),  # noqa: B008
+    bus: EventBus = Depends(get_event_bus_dep),  # noqa: B008
 ) -> ScrapeResponse:
     criteria = SearchCriteria(
         city=body.city,
@@ -28,8 +30,22 @@ async def trigger_scrape(
         max_rooms=body.max_rooms,
         market=body.market,
     )
+
+    async def on_run(run) -> None:
+        bus.publish({
+            "type": "scrape",
+            "source_id": run.source_id,
+            "status": run.status.value,
+            "new": run.new_count,
+            "updated": run.updated_count,
+            "gone": run.gone_count,
+            "unchanged": run.unchanged_count,
+        })
+
     service = IngestionService(session_factory, fetcher)
-    runs = await service.ingest(criteria, source_ids=body.source_ids, max_pages=body.max_pages)
+    runs = await service.ingest(
+        criteria, source_ids=body.source_ids, max_pages=body.max_pages, on_run=on_run
+    )
     return ScrapeResponse(runs=[ScrapeRunOut.from_run(r) for r in runs])
 
 
