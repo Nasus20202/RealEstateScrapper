@@ -4,12 +4,12 @@ Revision ID: 0003
 Revises: 0002
 Create Date: 2026-06-21
 """
-import os
-
 import sqlalchemy as sa
 from alembic import op
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects import postgresql
+
+from realestate.config import get_embedding_dim
 
 revision = "0003"
 down_revision = "0002"
@@ -26,7 +26,7 @@ def upgrade() -> None:
     bind = op.get_bind()
     _market_create.create(bind, checkfirst=True)
     _status_create.create(bind, checkfirst=True)
-    dim = int(os.getenv("EMBEDDING_DIM", "1536"))
+    dim = get_embedding_dim()
     op.create_table(
         "listings",
         sa.Column("id", sa.Integer(), primary_key=True),

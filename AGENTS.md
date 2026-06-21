@@ -16,7 +16,7 @@ Instrukcje dla agentów/developerów pracujących w tym repozytorium.
 ## Komendy
 - Testy: `uv run pytest`
 - Lint: `uv run ruff check .`
-- Migracje: `uv run alembic upgrade head`
+- Migracje: `uv run alembic upgrade head` — Alembic nie ładuje `.env` automatycznie, więc `EMBEDDING_DIM` musi być ustawiony jako zmienna środowiskowa przed uruchomieniem tego polecenia; wartość musi być taka sama jak przy uruchomieniu aplikacji, inaczej wymiar kolumny `listings.embedding` będzie niezgodny.
 - App: `uv run uvicorn realestate.api.app:app --reload`
 
 Specyfikacje: `docs/superpowers/specs/`. Plany: `docs/superpowers/plans/`.

@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 from decimal import Decimal
 
@@ -19,12 +18,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from realestate.config import get_embedding_dim
 from realestate.models.base import Base
 from realestate.models.enums import ListingStatus, MarketType
 
 # Wymiar embeddingu czytany bezpośrednio z env, aby import modelu NIE wymagał
 # pełnej konfiguracji (Settings wymaga DATABASE_URL). Jedno źródło wartości: EMBEDDING_DIM.
-_EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "1536"))
+_EMBEDDING_DIM = get_embedding_dim()
 
 
 class Listing(Base):

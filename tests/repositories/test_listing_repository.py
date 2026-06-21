@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from realestate.db.engine import create_session_factory
@@ -52,3 +52,32 @@ async def test_list_active_and_count(engine):
         assert await repo.count_active() == 2
         rows = await repo.list_active()
         assert {r.external_id for r in rows} == {"a1", "a2"}
+
+
+async def test_list_active_ordering(engine):
+    factory = await _setup(engine)
+    now = datetime.now(UTC)
+    two_hours_ago = now - timedelta(hours=2)
+    one_hour_ago = now - timedelta(hours=1)
+    async with factory() as s:
+        repo = ListingRepository(s)
+        await repo.add(_listing(
+            external_id="oldest",
+            first_seen=two_hours_ago,
+            last_seen=two_hours_ago,
+        ))
+        await repo.add(_listing(
+            external_id="newest",
+            first_seen=now,
+            last_seen=now,
+        ))
+        await repo.add(_listing(
+            external_id="middle",
+            first_seen=one_hour_ago,
+            last_seen=one_hour_ago,
+        ))
+        await s.commit()
+    async with factory() as s:
+        repo = ListingRepository(s)
+        rows = await repo.list_active()
+        assert [r.external_id for r in rows] == ["newest", "middle", "oldest"]
