@@ -3,9 +3,9 @@
 Instrukcje dla agentów/developerów pracujących w tym repozytorium.
 
 ## Stack
-- Python 3.12, uv. Uruchamianie: `uv run <cmd>`.
+- Python 3.14 (najnowszy stabilny), uv. Uruchamianie: `uv run <cmd>`.
 - FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, pgvector.
-- PostgreSQL+pgvector przez docker compose (`docker compose up -d db`).
+- PostgreSQL 18 + pgvector przez docker compose (`docker compose up -d db`), obraz `pgvector/pgvector:pg18`.
 
 ## Zasady
 - TDD: test → implementacja → commit.

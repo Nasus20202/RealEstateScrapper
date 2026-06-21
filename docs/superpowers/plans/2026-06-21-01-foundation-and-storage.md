@@ -6,11 +6,11 @@
 
 **Architecture:** Modularny monolit. Pakiet `src/realestate/` z warstwami: `config`, `db`, `models`, `repositories`, `api`. SQLAlchemy 2.0 (async, asyncpg) + Alembic do migracji, rozszerzenie `pgvector` dla kolumny embeddingów. FastAPI udostępnia healthcheck. Testy integracyjne bazy na realnym Postgresie w kontenerze (testcontainers).
 
-**Tech Stack:** Python 3.12, uv, FastAPI, Uvicorn, SQLAlchemy 2.0 (asyncio), asyncpg, Alembic, pgvector, Pydantic v2, pydantic-settings, pytest, pytest-asyncio, httpx, testcontainers[postgres], ruff. Docker Compose (obraz `pgvector/pgvector:pg16`).
+**Tech Stack:** Python 3.14, uv, FastAPI, Uvicorn, SQLAlchemy 2.0 (asyncio), asyncpg, Alembic, pgvector, Pydantic v2, pydantic-settings, pytest, pytest-asyncio, httpx, testcontainers[postgres], ruff. Docker Compose (obraz `pgvector/pgvector:pg18`).
 
 ## Global Constraints
 
-- Python: **3.12**; zarządzanie zależnościami i uruchamianie przez **uv** (`uv run ...`).
+- Python: **3.14** (najnowszy stabilny); zarządzanie zależnościami i uruchamianie przez **uv** (`uv run ...`). Biblioteki w najnowszych wersjach (floory `>=` w `pyproject.toml`).
 - Brak hardcodowanych sekretów/konfiguracji — wszystko przez `pydantic-settings` (env / `.env`). `.env.example` jako wzór, `.env` w `.gitignore`.
 - ORM: **SQLAlchemy 2.0** styl deklaratywny `Mapped[...]` / `mapped_column(...)`, w pełni **async** (`asyncpg`).
 - Migracje schematu **wyłącznie przez Alembic** (żadnego `create_all` w kodzie produkcyjnym).
@@ -61,25 +61,25 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'realestate'` (lub bł�
 name = "realestate-aggregator"
 version = "0.1.0"
 description = "Agregator ofert nieruchomości (Trójmiasto)"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.29",
-    "sqlalchemy[asyncio]>=2.0.29",
-    "asyncpg>=0.29",
-    "alembic>=1.13",
-    "pgvector>=0.2.5",
-    "pydantic>=2.6",
-    "pydantic-settings>=2.2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "pgvector>=0.3.6",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.1",
-    "pytest-asyncio>=0.23",
-    "httpx>=0.27",
-    "testcontainers[postgres]>=4.0",
-    "ruff>=0.3",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "testcontainers[postgres]>=4.9",
+    "ruff>=0.8",
 ]
 
 [build-system]
@@ -96,7 +96,7 @@ pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -152,7 +152,7 @@ Lokalna aplikacja agregująca oferty mieszkań z wielu portali. Patrz `docs/`.
 Instrukcje dla agentów/developerów pracujących w tym repozytorium.
 
 ## Stack
-- Python 3.12, uv. Uruchamianie: `uv run <cmd>`.
+- Python 3.14, uv. Uruchamianie: `uv run <cmd>`.
 - FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, pgvector.
 - PostgreSQL+pgvector przez docker compose (`docker compose up -d db`).
 
@@ -288,7 +288,7 @@ git commit -m "feat: konfiguracja przez pydantic-settings"
 ```yaml
 services:
   db:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_USER: realestate
       POSTGRES_PASSWORD: realestate
@@ -320,7 +320,7 @@ from realestate.db.engine import create_engine
 
 @pytest.fixture(scope="session")
 def pg_url() -> str:
-    with PostgresContainer("pgvector/pgvector:pg16") as pg:
+    with PostgresContainer("pgvector/pgvector:pg18") as pg:
         raw = pg.get_connection_url()  # postgresql+psycopg2://...
         yield raw.replace("postgresql+psycopg2", "postgresql+asyncpg")
 

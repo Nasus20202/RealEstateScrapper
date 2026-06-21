@@ -15,7 +15,7 @@ def _clear_settings_cache():
 
 @pytest.fixture(scope="session")
 def pg_url() -> str:
-    with PostgresContainer("pgvector/pgvector:pg16") as pg:
+    with PostgresContainer("pgvector/pgvector:pg18") as pg:
         raw = pg.get_connection_url()  # postgresql+psycopg2://...
         yield raw.replace("postgresql+psycopg2", "postgresql+asyncpg")
 
