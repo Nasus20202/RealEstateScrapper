@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode, urljoin
 
@@ -44,6 +45,16 @@ _FLOOR_MAP: dict[str, int] = {
 }
 
 _BASE_URL = "https://www.otodom.pl"
+
+
+def _parse_dt(v: object) -> datetime | None:
+    """Defensively parse a dateCreated string like '2026-06-21 16:37:27' into datetime."""
+    if not isinstance(v, str):
+        return None
+    try:
+        return datetime.fromisoformat(v)
+    except ValueError:
+        return None
 
 
 def _extract_next_data(html: str) -> dict:
@@ -144,18 +155,16 @@ def _build_url(item: dict) -> str:
 
 
 def _map_market(item: dict) -> str | None:
-    """Map transaction/market to 'primary'/'secondary'; None if unknown."""
-    # 'market' key not present in search results; use 'transaction' or 'source'
-    transaction = item.get("transaction")
-    if transaction == "SELL":
-        # Can't distinguish primary/secondary from transaction alone without more info
-        # 'source' contains partner info (obidointegration = primary market)
-        source = item.get("source") or ""
-        if "obidointegration" in source:
-            return "primary"
-        if source == "urn:site:local":
-            return "secondary"
-    # Also check if the item has an explicit 'market' key (future-proofing)
+    """Map transaction/market to 'primary'/'secondary'; None if unknown.
+
+    Heuristic (best-effort, not authoritative):
+      - source URN contains "obido"  → primary market (developer via Obido)
+      - source present but not obido → secondary market (agency/partner partner)
+      - source absent/None           → None (cannot determine)
+
+    Falls back to an explicit 'market' key when present (future-proofing).
+    """
+    # Check for an explicit 'market' key first (future-proofing)
     market_raw = item.get("market")
     if isinstance(market_raw, str):
         m = market_raw.lower()
@@ -163,6 +172,15 @@ def _map_market(item: dict) -> str | None:
             return "primary"
         if m in ("secondary", "wtorny", "secondary_market"):
             return "secondary"
+
+    # Infer from 'source' URN
+    source = item.get("source")
+    if isinstance(source, str) and source:
+        if "obido" in source.lower():
+            return "primary"
+        # Any other non-empty partner/site source → secondary market
+        return "secondary"
+
     return None
 
 
@@ -224,6 +242,7 @@ class OtodomScraper:
                     ),
                     district=_extract_district(item),
                     market=_map_market(item),
+                    posted_at=_parse_dt(item.get("dateCreated")),
                     images=_extract_images(item),
                     raw=item,
                 )

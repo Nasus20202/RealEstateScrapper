@@ -31,3 +31,23 @@ def test_build_search_url_contains_city():
     url = OtodomScraper().build_search_url(SearchCriteria(city="gdansk"), page=2)
     assert "gdansk" in url.lower()
     assert "page=2" in url or "/2" in url
+
+
+def test_market_heuristic_few_nones():
+    """After the obido/source heuristic, nearly all listings should have a market value."""
+    html = load_fixture("otodom_search_gdansk")
+    listings = OtodomScraper().parse_search(html)
+    none_count = sum(1 for x in listings if x.market is None)
+    # Only listings with source=None remain unresolved; fixture has exactly 1 such item
+    assert none_count <= 2, f"Too many market=None listings: {none_count}"
+    # Non-obido sourced items should be secondary, not None
+    secondary = [x for x in listings if x.market == "secondary"]
+    assert len(secondary) >= 8, f"Expected at least 8 secondary listings, got {len(secondary)}"
+
+
+def test_posted_at_populated():
+    """At least one listing should have a non-None posted_at from dateCreated."""
+    html = load_fixture("otodom_search_gdansk")
+    listings = OtodomScraper().parse_search(html)
+    with_posted = [x for x in listings if x.posted_at is not None]
+    assert len(with_posted) >= 1, "Expected at least one listing with posted_at set"

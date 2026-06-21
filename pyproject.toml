@@ -36,6 +36,7 @@ packages = ["src/realestate"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src", "."]
+markers = ["live: tests that hit real external sites (excluded by default)"]
 
 [tool.ruff]
 line-length = 100

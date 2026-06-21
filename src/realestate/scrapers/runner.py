@@ -1,3 +1,12 @@
+"""Scraper orchestration — run_search paginates and deduplicates listings.
+
+``run_search`` contract:
+- Iterates pages 1..max_pages, calling ``scraper.build_search_url(criteria, page)``
+  and ``await fetcher.fetch(url)`` for each page.
+- Stops early on the first page that returns zero listings (empty page).
+- Deduplicates by ``(source_id, external_id)`` across all pages.
+- Propagates ``ScraperBlocked`` to the caller without catching it.
+"""
 from __future__ import annotations
 
 from realestate.scrapers.base import RawListing, Scraper, SearchCriteria
