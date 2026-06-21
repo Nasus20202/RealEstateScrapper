@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     )
     scraper_min_delay_seconds: float = 1.5
     scraper_nav_timeout_ms: int = 30000
+    scraper_wait_until: str = "domcontentloaded"
 
 
 @lru_cache

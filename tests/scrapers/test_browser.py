@@ -1,13 +1,10 @@
 import functools
 import http.server
 import threading
-from pathlib import Path
 
 import pytest
 
 from realestate.scrapers.browser import BrowserFetcher, is_blocked
-
-FIXT = Path(__file__).parent.parent / "fixtures" / "data"
 
 
 def test_is_blocked_detects_captcha_page():
@@ -17,6 +14,20 @@ def test_is_blocked_detects_captcha_page():
 
 def test_is_blocked_passes_normal_page():
     assert not is_blocked("<html><body><h1>Mieszkania Gdańsk</h1></body></html>")
+
+
+def test_is_blocked_false_positive_legit_otodom_page():
+    # Regression: legit otodom page — DataDome SDK script deep in body,
+    # but real listing content (__NEXT_DATA__ / oferta) near the top.
+    # Must NOT be flagged as blocked.
+    top = (
+        '<html><head><title>Oferta mieszkania – otodom.pl</title></head>'
+        '<body><script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>'
+        '<h1>oferta</h1>'
+    )
+    deep_sdk = " x" * 5000 + '<script src="https://cdn.datadome.com/tags.js"></script>'
+    html = top + deep_sdk + "</body></html>"
+    assert not is_blocked(html)
 
 
 @pytest.fixture
