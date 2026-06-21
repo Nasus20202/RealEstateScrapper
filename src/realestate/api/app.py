@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 
 from realestate.api.routes_listings import router as listings_router
+from realestate.api.routes_scrape import router as scrape_router
 from realestate.config import get_settings
 from realestate.db.engine import create_engine, create_session_factory
 from realestate.db.health import check_database
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
         return JSONResponse({"status": "degraded", "database": False}, status_code=503)
 
     app.include_router(listings_router)
+    app.include_router(scrape_router)
     return app
 
 

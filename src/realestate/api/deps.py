@@ -21,3 +21,9 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
 
 def get_llm_client_dep() -> LLMClient | None:
     return get_llm_client()
+
+
+def get_fetcher_dep():
+    from realestate.scrapers.browser import BrowserFetcher
+
+    return BrowserFetcher()

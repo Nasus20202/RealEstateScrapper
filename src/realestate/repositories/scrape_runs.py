@@ -21,3 +21,10 @@ class ScrapeRunRepository:
             .limit(1)
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def list_recent(self, limit: int = 50) -> list[ScrapeRun]:
+        stmt = select(ScrapeRun).order_by(ScrapeRun.started_at.desc()).limit(limit)
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def get(self, run_id: int) -> ScrapeRun | None:
+        return await self.session.get(ScrapeRun, run_id)

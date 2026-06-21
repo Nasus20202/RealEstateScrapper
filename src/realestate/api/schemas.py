@@ -59,3 +59,48 @@ class ListingDetailOut(ListingOut):
 class ListingsResponse(BaseModel):
     items: list[ListingOut]
     total: int
+
+
+class ScrapeRunOut(BaseModel):
+    id: int
+    source_id: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    status: str
+    new_count: int
+    updated_count: int
+    gone_count: int
+    unchanged_count: int
+    error_message: str | None = None
+
+    @classmethod
+    def from_run(cls, run) -> ScrapeRunOut:
+        return cls(
+            id=run.id,
+            source_id=run.source_id,
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+            status=run.status.value,
+            new_count=run.new_count,
+            updated_count=run.updated_count,
+            gone_count=run.gone_count,
+            unchanged_count=run.unchanged_count,
+            error_message=run.error_message,
+        )
+
+
+class ScrapeRequest(BaseModel):
+    city: str
+    min_price: int | None = None
+    max_price: int | None = None
+    min_area: float | None = None
+    max_area: float | None = None
+    min_rooms: int | None = None
+    max_rooms: int | None = None
+    market: str | None = None
+    source_ids: list[str] | None = None
+    max_pages: int = 1
+
+
+class ScrapeResponse(BaseModel):
+    runs: list[ScrapeRunOut]
