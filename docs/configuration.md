@@ -31,6 +31,29 @@ Konfiguracja aplikacji odbywa się przez zmienne środowiskowe lub plik `.env` w
 
 ---
 
+## Geokodowanie (mapa)
+
+Dane ze scraperów nie zawierają współrzędnych, więc adres oferty (ulica/dzielnica/
+miasto) jest geokodowany **przy ingestii** i zapisywany do kolumn `listings.lat`/
+`listings.lon`. Dzięki temu oferty pojawiają się jako pinezki na mapie we frontendzie.
+Domyślny dostawca to [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org)
+(darmowy, bez klucza API). Geokodowanie jest **best-effort** — błąd lub brak wyniku
+nie przerywa scrapowania (oferta po prostu nie ma pinezki).
+
+| Zmienna | Domyślna | Opis |
+|---|---|---|
+| `GEOCODING_ENABLED` | `true` | Włącz geokodowanie adresów przy ingestii (`true`/`false`). Wyłączenie pomija pinezki na mapie. |
+| `GEOCODING_BASE_URL` | `https://nominatim.openstreetmap.org` | URL bazowy usługi geokodującej (API zgodne z Nominatim). |
+| `GEOCODING_USER_AGENT` | `RealEstateAggregator/1.0 (local tool)` | User-Agent wymagany przez politykę Nominatim. |
+| `GEOCODING_MIN_DELAY_SECONDS` | `1.0` | Minimalne opóźnienie między żądaniami (throttling — Nominatim wymaga ≤ 1 req/s). |
+| `GEOCODING_TIMEOUT_SECONDS` | `10.0` | Timeout pojedynczego żądania geokodowania (sekundy). |
+
+> **Uwaga:** wyniki są cache'owane w pamięci procesu wg adresu, więc ponowne
+> scrapowanie tych samych ofert nie odpytuje usługi ponownie. Przy dużych wolumenach
+> rozważ własną instancję Nominatim (`GEOCODING_BASE_URL`).
+
+---
+
 ## LLM
 
 Aplikacja korzysta z OpenAI-compatible API. Domyślny dostawca: [OpenRouter](https://openrouter.ai). LLM jest **wyłączony** (tryb degradacji) jeśli nie są ustawione **wszystkie trzy**: `LLM_API_KEY`, `LLM_MODEL`, `LLM_EMBEDDING_MODEL`.
@@ -90,4 +113,7 @@ LLM_EMBEDDING_MODEL=openai/text-embedding-3-small
 # Scheduler — domyślnie wyłączony
 # SCHEDULER_ENABLED=true
 # SCHEDULER_DEFAULT_INTERVAL_MINUTES=360
+
+# Geokodowanie — domyślnie włączone (Nominatim/OSM). Wyłącz, by pominąć pinezki.
+# GEOCODING_ENABLED=false
 ```

@@ -33,6 +33,20 @@ def test_build_search_url_contains_city():
     assert "page=2" in url or "/2" in url
 
 
+def test_build_search_url_ascii_folds_polish_diacritics():
+    # Regression: a diacritic city slug ("gdańsk") makes otodom 301-redirect to
+    # /cala-polska?fromInvalidLocation=true (all of Poland). The slug must be
+    # ASCII-folded so users typing "Gdańsk"/"Gdynia" get the right city.
+    url = OtodomScraper().build_search_url(SearchCriteria(city="Gdańsk"), page=1)
+    assert "/pomorskie/gdansk" in url
+    assert "gdańsk" not in url and "gdańsk" not in url
+
+
+def test_build_search_url_slugifies_multiword_city():
+    url = OtodomScraper().build_search_url(SearchCriteria(city="Gdańsk Wrzeszcz"), page=1)
+    assert "/pomorskie/gdansk-wrzeszcz" in url
+
+
 def test_market_heuristic_few_nones():
     """After the obido/source heuristic, nearly all listings should have a market value."""
     html = load_fixture("otodom_search_gdansk")

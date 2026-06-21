@@ -3,11 +3,25 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode, urljoin
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+
+
+def _slugify_city(city: str) -> str:
+    """ASCII-fold a Polish city name into an otodom URL slug.
+
+    Otodom location slugs are ASCII (e.g. "gdansk"). A diacritic slug such as
+    "gdańsk" makes otodom 301-redirect to /cala-polska?fromInvalidLocation=true
+    (all of Poland), silently breaking the city filter. ``ł`` has no Unicode
+    decomposition, so map it explicitly before NFKD folding.
+    """
+    city = city.strip().lower().replace("ł", "l")
+    folded = unicodedata.normalize("NFKD", city).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"\s+", "-", folded.strip())
 
 _NEXT_DATA_RE = re.compile(
     r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>',
@@ -190,7 +204,7 @@ class OtodomScraper:
 
     def build_search_url(self, criteria: SearchCriteria, page: int = 1) -> str:
         """Build an Otodom search URL for the given criteria and page number."""
-        city = criteria.city.lower().replace(" ", "-")
+        city = _slugify_city(criteria.city)
         base = f"{_BASE_URL}/pl/wyniki/sprzedaz/mieszkanie/pomorskie/{city}"
         params: dict[str, str | int] = {"page": page}
         if criteria.min_price is not None:
