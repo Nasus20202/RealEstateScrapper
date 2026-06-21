@@ -3,7 +3,7 @@
 ## Wymagania
 
 - **Python 3.14** + **uv** — menedżer pakietów i środowisk wirtualnych.
-- **Node.js 20+** (do frontendu) — `npm` wbudowane.
+- **Node.js 20+** (do frontendu; rozwijane na Node 26) — `npm` wbudowane.
 - **Docker** — do uruchomienia bazy danych PostgreSQL (i testów integracyjnych via testcontainers).
 
 ---

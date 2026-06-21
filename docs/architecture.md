@@ -74,7 +74,7 @@ System zbudowany jest z kilku wyraźnie oddzielonych warstw:
 - Schemat zarządzany przez Alembic (`migrations/`); aktualny head: `0007`.
 - Kolumna `listings.embedding` — wektor pgvector. Wymiar kontrolowany przez jedyne źródło prawdy: `get_embedding_dim()` w `src/realestate/config.py` (domyślnie 1536). Wymiar **musi** być taki sam przy migracji i przy uruchomieniu aplikacji.
 - Modele SQLAlchemy 2.0 async: `Source`, `Listing`, `PriceHistory`, `ScrapeRun`, `LLMAnalysis`, `DedupGroup`, `DedupMember`, `SavedSearch`, `Favorite`, `AppSetting`.
-- Lokalizacja modeli: `src/realestate/db/models.py`.
+- Lokalizacja modeli: pakiet `src/realestate/models/` (pliki `base.py`, `listing.py`, `source.py`, `scrape_run.py`, `llm_analysis.py`, `dedup.py`, `user_data.py`); `Base` eksportowane z `realestate.models`.
 
 ### Wzbogacanie LLM
 
