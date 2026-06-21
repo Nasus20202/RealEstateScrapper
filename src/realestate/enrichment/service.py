@@ -44,6 +44,8 @@ class EnrichmentService:
         )
         try:
             data = json.loads(result.content)
+            if not isinstance(data, dict):
+                data = {}
         except (ValueError, TypeError):
             data = {}
         summary = str(data.get("summary", ""))
