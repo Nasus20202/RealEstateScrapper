@@ -18,9 +18,11 @@ def _money(text: str | None) -> Decimal | None:
     """Parse a Polish price string like '568\xa0292\xa0zł' into a Decimal."""
     if not text:
         return None
-    # Strip non-breaking spaces, regular spaces, 'zł' and any other non-digit/separator chars
-    cleaned = re.sub(r"[^\d,.]", "", text.replace("\xa0", "").replace(" ", ""))
-    # Polish decimal separator is comma; replace with dot
+    # Strip non-breaking spaces and regular spaces first
+    cleaned = text.replace("\xa0", "").replace(" ", "")
+    # Keep only digits and commas; drop dots (thousands separators)
+    cleaned = re.sub(r"[^\d,]", "", cleaned)
+    # Polish decimal separator is comma; replace with dot for parsing
     cleaned = cleaned.replace(",", ".")
     if not cleaned:
         return None
@@ -41,7 +43,12 @@ def _area(text: str | None) -> float | None:
         .replace("m2", "")
         .strip()
     )
+    # Keep only digits and commas; drop dots (thousands separators)
+    cleaned = re.sub(r"[^\d,]", "", cleaned)
+    # Polish decimal separator is comma; replace with dot for parsing
     cleaned = cleaned.replace(",", ".")
+    if not cleaned:
+        return None
     try:
         return float(cleaned)
     except (ValueError, TypeError):
