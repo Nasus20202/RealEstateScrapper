@@ -22,6 +22,10 @@ def pg_url() -> str:
 
 @pytest_asyncio.fixture
 async def engine(pg_url):
+    from sqlalchemy import text
+
     eng = create_engine(pg_url)
+    async with eng.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     yield eng
     await eng.dispose()
