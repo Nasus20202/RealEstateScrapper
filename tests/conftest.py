@@ -24,8 +24,15 @@ def pg_url() -> str:
 async def engine(pg_url):
     from sqlalchemy import text
 
+    from realestate.models import Base
+
     eng = create_engine(pg_url)
     async with eng.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     yield eng
+    async with eng.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
+        await conn.execute(text("DROP TYPE IF EXISTS markettype CASCADE"))
+        await conn.execute(text("DROP TYPE IF EXISTS listingstatus CASCADE"))
     await eng.dispose()

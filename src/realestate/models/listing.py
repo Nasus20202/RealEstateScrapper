@@ -4,7 +4,6 @@ from decimal import Decimal
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    ARRAY,
     DateTime,
     Float,
     ForeignKey,
@@ -17,6 +16,7 @@ from sqlalchemy import (
 from sqlalchemy import (
     Enum as SAEnum,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from realestate.models.base import Base
