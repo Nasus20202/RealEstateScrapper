@@ -12,6 +12,8 @@ dependencies = [
     "pgvector>=0.3.6",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
+    "playwright>=1.60.0",
+    "selectolax>=0.4.10",
 ]
 
 [project.optional-dependencies]
@@ -33,7 +35,8 @@ packages = ["src/realestate"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
+markers = ["live: tests that hit real external sites (excluded by default)"]
 
 [tool.ruff]
 line-length = 100
