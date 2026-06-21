@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -11,6 +12,7 @@ from realestate.config import get_settings
 from realestate.db.engine import create_engine, create_session_factory
 from realestate.db.health import check_database
 from realestate.events.bus import EventBus
+from realestate.scheduler.runner import ScrapeScheduler
 
 
 async def get_db_health() -> bool:
@@ -25,12 +27,27 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Startup: build engine from config (requires DATABASE_URL in real usage).
-        engine = create_engine(get_settings().database_url)
+        settings = get_settings()
+        engine = create_engine(settings.database_url)
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
         app.state.event_bus = EventBus()
-        yield
-        await engine.dispose()
+        app.state.scheduler = None
+        if settings.scheduler_enabled:
+            from realestate.scrapers.browser import BrowserFetcher
+
+            scheduler = ScrapeScheduler(
+                app.state.session_factory, BrowserFetcher(), app.state.event_bus
+            )
+            scheduler.start(interval_minutes=settings.scheduler_default_interval_minutes)
+            app.state.scheduler = scheduler
+        try:
+            yield
+        finally:
+            if app.state.scheduler is not None:
+                app.state.scheduler.shutdown()
+                await asyncio.sleep(0)  # let AsyncIOScheduler process shutdown callback
+            await engine.dispose()
 
     app = FastAPI(title="Agregator nieruchomości", lifespan=lifespan)
 
