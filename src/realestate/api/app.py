@@ -2,13 +2,14 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from realestate.api.routes_events import router as events_router
 from realestate.api.routes_listings import router as listings_router
 from realestate.api.routes_scrape import router as scrape_router
 from realestate.api.routes_user import router as user_router
-from realestate.config import get_settings
+from realestate.config import get_cors_origins, get_settings
 from realestate.db.engine import create_engine, create_session_factory
 from realestate.db.health import check_database
 from realestate.events.bus import EventBus
@@ -50,6 +51,13 @@ def create_app() -> FastAPI:
             await engine.dispose()
 
     app = FastAPI(title="Agregator nieruchomości", lifespan=lifespan)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=get_cors_origins(),
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/health")
     async def health(db_ok: bool = Depends(get_db_health)) -> JSONResponse:  # noqa: B008

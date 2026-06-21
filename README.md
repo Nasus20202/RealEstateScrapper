@@ -21,6 +21,19 @@ Krótki przegląd:
 
 ## Uruchomienie
 
+### Najszybciej: cały stack przez Docker Compose
+
+Wymaga tylko Dockera. Stawia bazę (pgvector pg18), backend (FastAPI + Playwright, migracje uruchamiane automatycznie) i frontend (nginx):
+
+```bash
+docker compose up -d --build
+# Frontend: http://localhost:8080   API: http://localhost:8000   (health: /health)
+```
+
+LLM jest opcjonalny (bez klucza działa ranking regułowy). Aby włączyć, dodaj `LLM_API_KEY`/`LLM_MODEL`/`LLM_EMBEDDING_MODEL` do pliku `.env` (Compose ładuje go automatycznie). Szczegóły: [`docs/running.md`](docs/running.md).
+
+### Lokalnie (dev, z hot-reload)
+
 Skrócona instrukcja dla środowiska deweloperskiego. Pełna dokumentacja: [`docs/running.md`](docs/running.md).
 
 ```bash

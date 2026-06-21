@@ -20,7 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from realestate.config import get_embedding_dim
 from realestate.models.base import Base
-from realestate.models.enums import ListingStatus, MarketType
+from realestate.models.enums import ListingStatus, MarketType, enum_values
 
 # Wymiar embeddingu czytany bezpośrednio z env, aby import modelu NIE wymagał
 # pełnej konfiguracji (Settings wymaga DATABASE_URL). Jedno źródło wartości: EMBEDDING_DIM.
@@ -50,14 +50,16 @@ class Listing(Base):
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lon: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    market: Mapped[MarketType | None] = mapped_column(SAEnum(MarketType), nullable=True)
+    market: Mapped[MarketType | None] = mapped_column(
+        SAEnum(MarketType, values_callable=enum_values), nullable=True
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     images: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     raw_hash: Mapped[str] = mapped_column(String(64), index=True)
     status: Mapped[ListingStatus] = mapped_column(
-        SAEnum(ListingStatus), default=ListingStatus.ACTIVE
+        SAEnum(ListingStatus, values_callable=enum_values), default=ListingStatus.ACTIVE
     )
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True))

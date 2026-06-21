@@ -8,6 +8,42 @@
 
 ---
 
+## 0. Najszybszy start: cały stack przez Docker Compose
+
+Jednym poleceniem stawiasz bazę (pgvector pg18), backend (FastAPI + Playwright) i frontend (nginx). Wymaga tylko Dockera (nie potrzebujesz lokalnie Pythona/Node):
+
+```bash
+docker compose up -d --build
+```
+
+Serwisy:
+
+| Serwis | URL | Opis |
+| --- | --- | --- |
+| `web` | http://localhost:8080 | Frontend SPA (nginx) |
+| `api` | http://localhost:8000 | REST API + SSE; migracje uruchamiane automatycznie przy starcie |
+| `db`  | localhost:5432 | PostgreSQL 18 + pgvector (wolumen `pgdata`) |
+
+Sprawdzenie: `curl http://localhost:8000/health` → `{"status":"ok","database":true}`, a w przeglądarce `http://localhost:8080`.
+
+**LLM (opcjonalnie).** Bez klucza aplikacja działa w trybie degradacji (ranking regułowy). Aby włączyć LLM, utwórz plik `.env` w katalogu projektu (Docker Compose ładuje go automatycznie do interpolacji zmiennych):
+
+```bash
+LLM_API_KEY=sk-or-...
+LLM_MODEL=openai/gpt-4o-mini
+LLM_EMBEDDING_MODEL=openai/text-embedding-3-small
+# opcjonalnie: SCHEDULER_ENABLED=true, SCHEDULER_DEFAULT_INTERVAL_MINUTES=360
+# opcjonalnie: CORS_ALLOW_ORIGINS=http://localhost:8080  (domyślnie "*")
+```
+
+> **Uwaga o embeddingu:** `EMBEDDING_DIM` (domyślnie 1536) musi pasować do modelu embeddingów. Jeśli go zmienisz po pierwszym uruchomieniu, usuń wolumen i zbuduj schemat na nowo: `docker compose down -v && docker compose up -d --build`.
+
+Zatrzymanie: `docker compose down` (zachowuje dane) lub `docker compose down -v` (usuwa wolumen z danymi).
+
+Pozostałe sekcje opisują uruchomienie **lokalne bez Dockera** (wygodne do dewelopmentu z hot-reload).
+
+---
+
 ## 1. Baza danych
 
 Projekt używa obrazu `pgvector/pgvector:pg18` (PostgreSQL 18 z rozszerzeniem pgvector).

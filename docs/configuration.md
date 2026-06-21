@@ -65,6 +65,14 @@ Gdy `SCHEDULER_ENABLED=true`, APScheduler startuje w lifespan FastAPI.
 
 ---
 
+## API / CORS
+
+| Zmienna | Domyślna | Opis |
+|---|---|---|
+| `CORS_ALLOW_ORIGINS` | `*` | Dozwolone originy CORS dla API (lista po przecinku albo `*`). Potrzebne, gdy frontend serwowany jest z innego originu niż API (np. `web` na `:8080` woła API na `:8000`). |
+
+---
+
 ## Przykładowy plik `.env`
 
 ```dotenv
