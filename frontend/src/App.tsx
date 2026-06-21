@@ -12,6 +12,10 @@ export function App() {
   return (
     <div className="app">
       <nav className="app-nav">
+        <NavLink to="/" end className="app-nav__brand">
+          <span className="app-nav__logo">◈</span>
+          Trójmiasto&nbsp;Estate
+        </NavLink>
         <NavLink to="/" end>
           Oferty
         </NavLink>

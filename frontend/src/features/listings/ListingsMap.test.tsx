@@ -1,0 +1,76 @@
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+
+import type { ListingOut } from "../../api/types";
+
+// react-leaflet renders real Leaflet (needs layout/DOM jsdom can't provide), so
+// mock it to lightweight passthrough components and assert our wiring instead.
+vi.mock("react-leaflet", () => ({
+  MapContainer: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="map">{children}</div>
+  ),
+  TileLayer: () => <div data-testid="tile" />,
+  CircleMarker: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="marker">{children}</div>
+  ),
+  Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+import { ListingsMap } from "./ListingsMap";
+
+function listing(over: Partial<ListingOut> = {}): ListingOut {
+  return {
+    id: 1,
+    source_id: "otodom",
+    external_id: "x",
+    url: "http://x",
+    title: "Oferta",
+    price: 400000,
+    price_per_m2: 8000,
+    area_m2: 50,
+    rooms: 2,
+    floor: null,
+    total_floors: null,
+    city: "Gdańsk",
+    district: "Wrzeszcz",
+    street: null,
+    lat: null,
+    lon: null,
+    market: "secondary",
+    images: [],
+    posted_at: null,
+    status: "active",
+    score: null,
+    reason: null,
+    ...over,
+  };
+}
+
+function renderMap(listings: ListingOut[]) {
+  return render(
+    <MemoryRouter>
+      <ListingsMap listings={listings} />
+    </MemoryRouter>,
+  );
+}
+
+describe("ListingsMap", () => {
+  it("pokazuje stan pusty, gdy żadna oferta nie ma współrzędnych", () => {
+    renderMap([listing({ id: 1 }), listing({ id: 2 })]);
+    expect(screen.getByText(/Brak ofert ze współrzędnymi/)).toBeInTheDocument();
+    expect(screen.queryByTestId("map")).not.toBeInTheDocument();
+  });
+
+  it("renderuje marker tylko dla ofert ze współrzędnymi", () => {
+    renderMap([
+      listing({ id: 1, lat: 54.35, lon: 18.65, title: "Z mapą" }),
+      listing({ id: 2, lat: 54.5, lon: 18.5, title: "Też z mapą" }),
+      listing({ id: 3, lat: null, lon: null, title: "Bez mapy" }),
+    ]);
+    expect(screen.getAllByTestId("marker")).toHaveLength(2);
+    const link = screen.getByText("Z mapą").closest("a");
+    expect(link).toHaveAttribute("href", "/listings/1");
+    expect(screen.queryByText("Bez mapy")).not.toBeInTheDocument();
+  });
+});

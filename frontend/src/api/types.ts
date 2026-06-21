@@ -13,6 +13,8 @@ export interface ListingOut {
   city: string | null;
   district: string | null;
   street: string | null;
+  lat: number | null;
+  lon: number | null;
   market: string | null;
   images: string[];
   posted_at: string | null;

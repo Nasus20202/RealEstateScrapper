@@ -4,8 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { getListings } from "../../api/client";
 import type { ListingOut, ListingsQuery } from "../../api/types";
 import { ListingCard } from "./ListingCard";
+import { ListingsMap } from "./ListingsMap";
 
 const PAGE_SIZE = 50;
+
+type View = "list" | "map";
 
 interface FormState {
   city: string;
@@ -63,6 +66,7 @@ export function ListingsPage() {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [view, setView] = useState<View>("list");
 
   const load = useCallback(async (current: FormState, currentOffset: number) => {
     setLoading(true);
@@ -95,82 +99,114 @@ export function ListingsPage() {
   return (
     <section className="listings-page">
       <form className="filters" onSubmit={onSubmit}>
-        <label htmlFor="f-city">Miasto</label>
-        <input
-          id="f-city"
-          value={form.city}
-          onChange={(e) => update("city", e.target.value)}
-        />
+        <label htmlFor="f-city">
+          Miasto
+          <input id="f-city" value={form.city} onChange={(e) => update("city", e.target.value)} />
+        </label>
 
-        <label htmlFor="f-min-price">Cena min.</label>
-        <input
-          id="f-min-price"
-          inputMode="numeric"
-          value={form.min_price}
-          onChange={(e) => update("min_price", e.target.value)}
-        />
+        <label htmlFor="f-min-price">
+          Cena min.
+          <input
+            id="f-min-price"
+            inputMode="numeric"
+            value={form.min_price}
+            onChange={(e) => update("min_price", e.target.value)}
+          />
+        </label>
 
-        <label htmlFor="f-max-price">Cena maks.</label>
-        <input
-          id="f-max-price"
-          inputMode="numeric"
-          value={form.max_price}
-          onChange={(e) => update("max_price", e.target.value)}
-        />
+        <label htmlFor="f-max-price">
+          Cena maks.
+          <input
+            id="f-max-price"
+            inputMode="numeric"
+            value={form.max_price}
+            onChange={(e) => update("max_price", e.target.value)}
+          />
+        </label>
 
-        <label htmlFor="f-min-rooms">Pokoje min.</label>
-        <input
-          id="f-min-rooms"
-          inputMode="numeric"
-          value={form.min_rooms}
-          onChange={(e) => update("min_rooms", e.target.value)}
-        />
+        <label htmlFor="f-min-rooms">
+          Pokoje min.
+          <input
+            id="f-min-rooms"
+            inputMode="numeric"
+            value={form.min_rooms}
+            onChange={(e) => update("min_rooms", e.target.value)}
+          />
+        </label>
 
-        <label htmlFor="f-max-rooms">Pokoje maks.</label>
-        <input
-          id="f-max-rooms"
-          inputMode="numeric"
-          value={form.max_rooms}
-          onChange={(e) => update("max_rooms", e.target.value)}
-        />
+        <label htmlFor="f-max-rooms">
+          Pokoje maks.
+          <input
+            id="f-max-rooms"
+            inputMode="numeric"
+            value={form.max_rooms}
+            onChange={(e) => update("max_rooms", e.target.value)}
+          />
+        </label>
 
-        <label htmlFor="f-districts">Dzielnice (przecinki)</label>
-        <input
-          id="f-districts"
-          value={form.districts}
-          onChange={(e) => update("districts", e.target.value)}
-        />
+        <label htmlFor="f-districts">
+          Dzielnice (przecinki)
+          <input
+            id="f-districts"
+            value={form.districts}
+            onChange={(e) => update("districts", e.target.value)}
+          />
+        </label>
 
-        <label htmlFor="f-market">Rynek</label>
-        <input
-          id="f-market"
-          value={form.market}
-          onChange={(e) => update("market", e.target.value)}
-        />
+        <label htmlFor="f-market">
+          Rynek
+          <input id="f-market" value={form.market} onChange={(e) => update("market", e.target.value)} />
+        </label>
 
-        <label htmlFor="f-q">Zapytanie (NL)</label>
-        <input
-          id="f-q"
-          value={form.q}
-          onChange={(e) => update("q", e.target.value)}
-        />
+        <label htmlFor="f-q">
+          Zapytanie (NL)
+          <input id="f-q" value={form.q} onChange={(e) => update("q", e.target.value)} />
+        </label>
 
         <button type="submit">Szukaj</button>
       </form>
 
-      <p className="listings-page__total">Znaleziono: {total}</p>
+      <div className="listings-toolbar">
+        <p className="listings-page__total">Znaleziono: {total}</p>
+        <div className="view-toggle" role="group" aria-label="Widok">
+          <button
+            type="button"
+            className={view === "list" ? "active" : ""}
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+          >
+            Lista
+          </button>
+          <button
+            type="button"
+            className={view === "map" ? "active" : ""}
+            aria-pressed={view === "map"}
+            onClick={() => setView("map")}
+          >
+            Mapa
+          </button>
+        </div>
+      </div>
+
       {error && <p className="error">{error}</p>}
       {loading && <p className="loading">Ładowanie…</p>}
 
-      <div className="listings-grid">
-        {items.map((item) => (
-          <ListingCard key={item.id} listing={item} />
-        ))}
-      </div>
+      {view === "map" ? (
+        <ListingsMap listings={items} />
+      ) : items.length === 0 && !loading ? (
+        <p className="empty-state">Brak ofert. Zmień filtry lub uruchom scraping.</p>
+      ) : (
+        <div className="listings-grid">
+          {items.map((item) => (
+            <ListingCard key={item.id} listing={item} />
+          ))}
+        </div>
+      )}
 
       <div className="pagination">
         <button
           type="button"
+          className="btn-ghost"
           disabled={offset === 0}
           onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
         >
@@ -182,6 +218,7 @@ export function ListingsPage() {
         </span>
         <button
           type="button"
+          className="btn-ghost"
           disabled={offset + PAGE_SIZE >= total}
           onClick={() => setOffset((o) => o + PAGE_SIZE)}
         >
