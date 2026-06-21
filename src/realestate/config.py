@@ -30,6 +30,18 @@ class Settings(BaseSettings):
     scraper_nav_timeout_ms: int = 30000
     scraper_wait_until: str = "domcontentloaded"
 
+    # --- LLM (konfigurowalny dostawca, OpenAI-compatible). Nic nie hardcodowane. ---
+    llm_base_url: str = "https://openrouter.ai/api/v1"
+    llm_api_key: str | None = None
+    llm_model: str | None = None
+    llm_embedding_model: str | None = None
+    llm_timeout_seconds: float = 30.0
+    llm_max_retries: int = 2
+
+    @property
+    def llm_enabled(self) -> bool:
+        return bool(self.llm_api_key and self.llm_model and self.llm_embedding_model)
+
 
 @lru_cache
 def get_settings() -> Settings:
