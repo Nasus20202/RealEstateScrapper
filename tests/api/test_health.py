@@ -20,4 +20,4 @@ async def test_health_degraded_when_db_down():
     async with AsyncClient(transport=transport, base_url="http://t") as client:
         resp = await client.get("/health")
     assert resp.status_code == 503
-    assert resp.json()["database"] is False
+    assert resp.json() == {"status": "degraded", "database": False}
