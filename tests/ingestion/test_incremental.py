@@ -214,3 +214,92 @@ async def test_mark_missing_gone_false_does_not_mark_gone(engine):
         listing_b = await repo.get_by_external("otodom", "ext-b")
         assert listing_b is not None
         assert listing_b.status == ListingStatus.ACTIVE
+
+
+async def test_gone_listing_reactivated_on_unchanged_hash_resync(engine):
+    """GONE listing that reappears byte-identical must be reactivated (status=ACTIVE).
+
+    Regression guard: the unchanged-hash branch must reactivate, not only the
+    changed-hash branch.  No new PriceHistory row should be added (price unchanged).
+    Counter must report unchanged==1 (content did not change).
+    """
+    factory = await _setup(engine)
+    t1 = datetime.now(UTC)
+    t2 = t1 + timedelta(hours=1)
+    t3 = t2 + timedelta(hours=1)
+    raw = _raw()
+
+    # Step 1: insert listing
+    async with factory() as session:
+        eng = IncrementalEngine(session)
+        await eng.sync_source("otodom", [to_listing(raw, now=t1)], now=t1)
+        await session.commit()
+
+    # Step 2: mark it GONE (sync with empty list, mark_missing_gone=True)
+    async with factory() as session:
+        eng = IncrementalEngine(session)
+        stats = await eng.sync_source("otodom", [], now=t2, mark_missing_gone=True)
+        await session.commit()
+    assert stats.gone == 1
+
+    async with factory() as session:
+        repo = ListingRepository(session)
+        listing = await repo.get_by_external("otodom", "ext-1")
+        assert listing is not None
+        assert listing.status == ListingStatus.GONE
+
+    # Step 3: re-sync with the SAME listing (identical raw_hash) — must reactivate
+    async with factory() as session:
+        eng = IncrementalEngine(session)
+        stats = await eng.sync_source("otodom", [to_listing(raw, now=t3)], now=t3)
+        await session.commit()
+
+    assert stats == SyncStats(new=0, updated=0, unchanged=1, gone=0)
+
+    async with factory() as session:
+        repo = ListingRepository(session)
+        listing = await repo.get_by_external("otodom", "ext-1")
+        assert listing is not None
+        assert listing.status == ListingStatus.ACTIVE  # reactivated
+
+        ph_result = await session.execute(
+            select(PriceHistory).where(PriceHistory.listing_id == listing.id)
+        )
+        history = ph_result.scalars().all()
+        # Only the original PriceHistory — no new entry on unchanged-hash re-sync
+        assert len(history) == 1
+
+
+async def test_updated_listing_preserves_first_seen(engine):
+    """Re-sync with changed content must preserve first_seen while advancing last_seen."""
+    factory = await _setup(engine)
+    t1 = datetime.now(UTC)
+    t2 = t1 + timedelta(hours=1)
+    raw1 = _raw(price=Decimal("500000"))
+    raw2 = _raw(price=Decimal("450000"))
+
+    async with factory() as session:
+        eng = IncrementalEngine(session)
+        await eng.sync_source("otodom", [to_listing(raw1, now=t1)], now=t1)
+        await session.commit()
+
+    # Capture first_seen before the update
+    async with factory() as session:
+        repo = ListingRepository(session)
+        listing = await repo.get_by_external("otodom", "ext-1")
+        assert listing is not None
+        original_first_seen = listing.first_seen
+
+    async with factory() as session:
+        eng = IncrementalEngine(session)
+        stats = await eng.sync_source("otodom", [to_listing(raw2, now=t2)], now=t2)
+        await session.commit()
+
+    assert stats == SyncStats(new=0, updated=1, unchanged=0, gone=0)
+
+    async with factory() as session:
+        repo = ListingRepository(session)
+        listing = await repo.get_by_external("otodom", "ext-1")
+        assert listing is not None
+        assert listing.first_seen == original_first_seen  # preserved
+        assert listing.last_seen == t2  # advanced

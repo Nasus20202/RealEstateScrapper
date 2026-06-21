@@ -52,7 +52,6 @@ class IngestionService:
                     run.updated_count = stats.updated
                     run.gone_count = stats.gone
                     run.unchanged_count = stats.unchanged
-                    run.status = ScrapeRunStatus.SUCCESS
                 except ScraperBlocked as e:
                     run.status = ScrapeRunStatus.BLOCKED
                     run.error_message = str(e)

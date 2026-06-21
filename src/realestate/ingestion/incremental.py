@@ -52,8 +52,9 @@ class IncrementalEngine:
                 stats.new += 1
 
             elif existing.raw_hash == incoming.raw_hash:
-                # Unchanged: just bump last_seen
+                # Unchanged: bump last_seen and reactivate if it was GONE
                 existing.last_seen = now
+                existing.status = ListingStatus.ACTIVE
                 stats.unchanged += 1
 
             else:

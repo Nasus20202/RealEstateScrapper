@@ -67,3 +67,5 @@ async def test_ingest_records_blocked_without_crashing(engine):
     runs = await svc.ingest(SearchCriteria(city="gdansk"), source_ids=["otodom"], max_pages=1)
     assert runs[0].status == ScrapeRunStatus.BLOCKED
     assert runs[0].error_message
+    async with factory() as s:
+        assert await ListingRepository(s).count_active() == 0
