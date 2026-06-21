@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 30.0
     llm_max_retries: int = 2
 
+    scheduler_enabled: bool = False
+    scheduler_default_interval_minutes: int = 360
+
     @property
     def llm_enabled(self) -> bool:
         return bool(self.llm_api_key and self.llm_model and self.llm_embedding_model)

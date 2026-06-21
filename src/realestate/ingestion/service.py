@@ -1,6 +1,7 @@
 """IngestionService — orchestrates per-source scrape, normalize, sync, ScrapeRun."""
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -25,6 +26,7 @@ class IngestionService:
         *,
         source_ids: list[str] | None = None,
         max_pages: int = 1,
+        on_run: Callable[[ScrapeRun], Awaitable[None]] | None = None,
     ) -> list[ScrapeRun]:
         now = datetime.now(UTC)
 
@@ -64,5 +66,10 @@ class IngestionService:
                     await session.commit()
 
             runs.append(run)
+            if on_run is not None:
+                try:
+                    await on_run(run)
+                except Exception:
+                    pass
 
         return runs

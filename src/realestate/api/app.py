@@ -3,12 +3,14 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 
+from realestate.api.routes_events import router as events_router
 from realestate.api.routes_listings import router as listings_router
 from realestate.api.routes_scrape import router as scrape_router
 from realestate.api.routes_user import router as user_router
 from realestate.config import get_settings
 from realestate.db.engine import create_engine, create_session_factory
 from realestate.db.health import check_database
+from realestate.events.bus import EventBus
 
 
 async def get_db_health() -> bool:
@@ -26,6 +28,7 @@ def create_app() -> FastAPI:
         engine = create_engine(get_settings().database_url)
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
+        app.state.event_bus = EventBus()
         yield
         await engine.dispose()
 
@@ -37,6 +40,7 @@ def create_app() -> FastAPI:
             return JSONResponse({"status": "ok", "database": True})
         return JSONResponse({"status": "degraded", "database": False}, status_code=503)
 
+    app.include_router(events_router)
     app.include_router(listings_router)
     app.include_router(scrape_router)
     app.include_router(user_router)

@@ -27,3 +27,7 @@ def get_fetcher_dep():
     from realestate.scrapers.browser import BrowserFetcher
 
     return BrowserFetcher()
+
+
+def get_event_bus_dep(request: Request):
+    return request.app.state.event_bus
