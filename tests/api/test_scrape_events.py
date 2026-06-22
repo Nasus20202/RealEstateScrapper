@@ -55,7 +55,11 @@ async def test_scrape_publishes_events(engine):
                 json={"city": "gdansk", "source_ids": ["otodom"], "max_pages": 2},
             )
             assert resp.status_code == 200
-            event = queue.get_nowait()
+            events = []
+            while not queue.empty():
+                events.append(queue.get_nowait())
+            event = next(event for event in events if event["type"] == "scrape")
+    assert any(event["type"] == "scrape_log" for event in events)
     assert event["type"] == "scrape"
     assert event["source_id"] == "otodom"
     assert event["status"] == "success"

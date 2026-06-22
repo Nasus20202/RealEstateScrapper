@@ -9,6 +9,8 @@
 """
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from realestate.scrapers.base import RawListing, Scraper, SearchCriteria
 
 
@@ -36,13 +38,18 @@ async def run_search(
     *,
     max_pages: int = 1,
     fetch_details: bool = False,
+    on_log: Callable[[str], Awaitable[None]] | None = None,
 ) -> list[RawListing]:
     seen: set[tuple[str, str]] = set()
     results: list[RawListing] = []
     for page in range(1, max_pages + 1):
         url = scraper.build_search_url(criteria, page)
+        if on_log is not None:
+            await on_log(f"Pobieram stronę {page}: {url}")
         html = await fetcher.fetch(url)
         page_listings = scraper.parse_search(html)
+        if on_log is not None:
+            await on_log(f"Strona {page}: znaleziono {len(page_listings)} ofert")
         if not page_listings:
             break
         for listing in page_listings:
@@ -51,6 +58,8 @@ async def run_search(
                 continue
             seen.add(key)
             if fetch_details:
+                if on_log is not None:
+                    await on_log(f"Pobieram szczegóły: {listing.url}")
                 detail_html = await fetcher.fetch(listing.url)
                 detail = scraper.parse_detail(detail_html, listing.url)
                 listing = _merge_detail(listing, detail)

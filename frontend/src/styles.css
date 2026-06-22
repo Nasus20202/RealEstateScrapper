@@ -746,6 +746,9 @@ button.btn-ghost:hover {
   color: var(--text-dim);
   margin: 0 0 0.85rem;
 }
+.scrape-section-title--logs {
+  margin-top: 1.2rem;
+}
 .scrape-form-wrapper {
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -843,6 +846,31 @@ button.btn-ghost:hover {
   letter-spacing: 0.04em;
 }
 .scrape-event__counts { color: var(--text-muted); margin-left: auto; }
+.scrape-logs {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 420px;
+  overflow: auto;
+}
+.scrape-log {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.65rem;
+  padding: 0.45rem 0.6rem;
+  background: #0f172a;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+}
+.scrape-log__source {
+  color: var(--accent);
+  font-weight: 800;
+}
 
 /* Runs table */
 .scrape-runs-section {

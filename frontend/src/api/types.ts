@@ -142,3 +142,9 @@ export interface ScrapeEvent {
   gone: number;
   unchanged: number;
 }
+
+export interface ScrapeLogEvent {
+  type: "scrape_log";
+  source_id: string;
+  message: string;
+}

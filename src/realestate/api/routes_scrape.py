@@ -45,6 +45,13 @@ async def trigger_scrape(
             "unchanged": run.unchanged_count,
         })
 
+    async def on_log(source_id: str, message: str) -> None:
+        bus.publish({
+            "type": "scrape_log",
+            "source_id": source_id,
+            "message": message,
+        })
+
     service = IngestionService(session_factory, fetcher, geocoder=geocoder)
     runs = []
     for city in cities:
@@ -64,6 +71,7 @@ async def trigger_scrape(
             max_pages=body.max_pages,
             mark_missing_gone=len(cities) == 1,
             on_run=on_run,
+            on_log=on_log,
         ))
     return ScrapeResponse(runs=[ScrapeRunOut.from_run(r) for r in runs])
 

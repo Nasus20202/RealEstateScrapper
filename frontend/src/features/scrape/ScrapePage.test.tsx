@@ -4,17 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ScrapeEvent } from "../../api/types";
+import type { ScrapeEvent, ScrapeLogEvent } from "../../api/types";
 import { ScrapePage } from "./ScrapePage";
 import { server } from "../../test/server";
 
 const BASE = "http://localhost:8000";
 
 // Podmiana izolowanego modułu SSE — test wstrzykuje fake.
-let lastHandler: ((event: ScrapeEvent) => void) | null = null;
+let lastHandler: ((event: ScrapeEvent | ScrapeLogEvent) => void) | null = null;
 const unsubscribe = vi.fn();
 vi.mock("../../api/events", () => ({
-  subscribeScrapeEvents: (onEvent: (event: ScrapeEvent) => void) => {
+  subscribeScrapeEvents: (onEvent: (event: ScrapeEvent | ScrapeLogEvent) => void) => {
     lastHandler = onEvent;
     return unsubscribe;
   },
@@ -123,5 +123,13 @@ describe("ScrapePage", () => {
     expect(await screen.findByText("otodom", { selector: ".scrape-event__source" })).toBeInTheDocument();
     expect(await screen.findByText("running", { selector: ".scrape-event__status" })).toBeInTheDocument();
     expect(await screen.findByText(/\+2 nowych/)).toBeInTheDocument();
+
+    lastHandler!({
+      type: "scrape_log",
+      source_id: "otodom",
+      message: "Pobieram stronę 1",
+    });
+
+    expect(await screen.findByText("Pobieram stronę 1")).toBeInTheDocument();
   });
 });

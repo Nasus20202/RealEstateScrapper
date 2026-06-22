@@ -6,14 +6,17 @@ from tests.fixtures.loader import load_fixture
 def test_parse_search_returns_items():
     html = """
     <html><body>
-      <article class="flat-card">
-        <a href="/inwestycje/osiedle/flats/a-12/">A-12</a>
-        <h3>A-12</h3>
-        <span>549 000 zł</span>
-        <span>42,5 m²</span>
-        <span>2 pokoje</span>
-        <img src="/media/a-12.jpg">
-      </article>
+      <div class="o-card type-a" data-src="/content/uploads/garnizon.jpg">
+        <div class="o-card__inner">
+          <div class="o-card__label">Nowa oferta</div>
+          <h2 class="o-card__name">Garnizon</h2>
+          <p class="o-card__place">Gdańsk Wrzeszcz</p>
+          <p class="o-card__address separated--slash">
+            ul. <span>M. Hemara</span><span>B. Leśmiana</span>
+          </p>
+          <a href="/garnizon-loftyapartamenty/" class="btn btn--light transparent">Więcej</a>
+        </div>
+      </div>
     </body></html>
     """
     listings = HossaScraper().parse_search(html)
@@ -21,12 +24,12 @@ def test_parse_search_returns_items():
     first = listings[0]
     assert first.source_id == "hossa"
     assert first.url.startswith("http")
-    assert first.title == "A-12"
+    assert first.title == "Garnizon"
     assert first.external_id
-    assert first.price == 549000
-    assert first.area_m2 == 42.5
-    assert first.rooms == 2
-    assert first.images == ["https://www.hossa.gda.pl/media/a-12.jpg"]
+    assert first.city == "Gdańsk"
+    assert first.district == "Wrzeszcz"
+    assert first.street == "M. Hemara, B. Leśmiana"
+    assert first.images == ["https://www.hossa.gda.pl/content/uploads/garnizon.jpg"]
 
 
 def test_parse_search_ignores_category_links():
@@ -46,6 +49,5 @@ def test_build_search_url_returns_listing_page():
 def test_build_search_url_city_specific():
     gdansk_url = HossaScraper().build_search_url(SearchCriteria(city="Gdańsk"), page=1)
     gdynia_url = HossaScraper().build_search_url(SearchCriteria(city="Gdynia"), page=1)
-    assert "gdansk" in gdansk_url
-    assert "gdynia" in gdynia_url
-    assert gdansk_url != gdynia_url
+    assert gdansk_url.endswith("/mieszkania/")
+    assert gdynia_url.endswith("/mieszkania/")

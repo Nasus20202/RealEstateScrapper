@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getRuns, getSettings, postScrape } from "../../api/client";
 import { subscribeScrapeEvents } from "../../api/events";
-import type { ScrapeEvent, ScrapeRequest, ScrapeRunOut } from "../../api/types";
+import type { ScrapeEvent, ScrapeLogEvent, ScrapeRequest, ScrapeRunOut } from "../../api/types";
 
 function toNumber(value: string): number | undefined {
   const trimmed = value.trim();
@@ -22,6 +22,10 @@ const STATUS_CLASS: Record<string, string> = {
   error: "run-status--error",
 };
 
+function isScrapeLogEvent(event: ScrapeEvent | ScrapeLogEvent): event is ScrapeLogEvent {
+  return event.type === "scrape_log";
+}
+
 export function ScrapePage() {
   const [city, setCity] = useState("Gdańsk");
   const [maxPages, setMaxPages] = useState("1");
@@ -30,6 +34,7 @@ export function ScrapePage() {
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [runs, setRuns] = useState<ScrapeRunOut[]>([]);
   const [events, setEvents] = useState<ScrapeEvent[]>([]);
+  const [logs, setLogs] = useState<ScrapeLogEvent[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +54,11 @@ export function ScrapePage() {
 
   useEffect(() => {
     const unsubscribe = subscribeScrapeEvents((event) => {
-      setEvents((prev) => [event, ...prev].slice(0, 50));
+      if (isScrapeLogEvent(event)) {
+        setLogs((prev) => [event, ...prev].slice(0, 200));
+      } else {
+        setEvents((prev) => [event, ...prev].slice(0, 50));
+      }
     });
     return unsubscribe;
   }, []);
@@ -65,6 +74,7 @@ export function ScrapePage() {
     setBusy(true);
     setError(null);
     setEvents([]);
+    setLogs([]);
     try {
       const body: ScrapeRequest = {
         max_pages: toNumber(maxPages) ?? 1,
@@ -149,6 +159,20 @@ export function ScrapePage() {
                   <span className="scrape-event__counts">
                     +{event.new} nowych · {event.updated} akt. · {event.gone} usun.
                   </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h2 className="scrape-section-title scrape-section-title--logs">Logi scrapingu</h2>
+          {logs.length === 0 ? (
+            <p className="scrape-empty">Brak logów w tej sesji.</p>
+          ) : (
+            <ul className="scrape-logs">
+              {logs.map((log, index) => (
+                <li key={index} className="scrape-log">
+                  <span className="scrape-log__source">{log.source_id}</span>
+                  <span>{log.message}</span>
                 </li>
               ))}
             </ul>

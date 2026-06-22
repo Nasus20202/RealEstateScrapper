@@ -77,9 +77,20 @@ describe("ListingsMap", () => {
 
   it("pokazuje ceny stale przy markerach i szczegóły w popupie", () => {
     renderMap([listing({ id: 1, lat: 54.35, lon: 18.65, price: 400000 })]);
-    expect(screen.getByTestId("tooltip")).toHaveTextContent("400 000 zł");
+    expect(screen.getByTestId("tooltip")).toHaveTextContent("400K");
     expect(screen.getByText(/8000 zł\/m²|8 000 zł\/m²/)).toBeInTheDocument();
     expect(screen.getByText("2 pok. · 50 m²")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Szczegóły" })).toHaveAttribute("href", "/listings/1");
+  });
+
+  it("grupuje bliskie oferty w jeden marker", () => {
+    renderMap([
+      listing({ id: 1, lat: 54.3501, lon: 18.6501, title: "Pierwsza" }),
+      listing({ id: 2, lat: 54.3502, lon: 18.6502, title: "Druga" }),
+    ]);
+    expect(screen.getAllByTestId("marker")).toHaveLength(1);
+    expect(screen.getByTestId("tooltip")).toHaveTextContent("2 ofert");
+    expect(screen.getByRole("link", { name: /Pierwsza/ })).toHaveAttribute("href", "/listings/1");
+    expect(screen.getByRole("link", { name: /Druga/ })).toHaveAttribute("href", "/listings/2");
   });
 });

@@ -95,12 +95,18 @@ async def test_run_search_propagates_blocked():
 
 @pytest.mark.asyncio
 async def test_run_search_can_enrich_from_detail_pages():
+    logs: list[str] = []
+
+    async def on_log(message: str) -> None:
+        logs.append(message)
+
     listings = await run_search(
         _DetailScraper(),
         _DetailFetcher(),
         SearchCriteria(city="Gdańsk"),
         max_pages=1,
         fetch_details=True,
+        on_log=on_log,
     )
     assert listings[0].title == "Search title"
     assert listings[0].street == "Morska"
@@ -109,3 +115,5 @@ async def test_run_search_can_enrich_from_detail_pages():
         "https://example.test/search.jpg",
         "https://example.test/detail.jpg",
     ]
+    assert any("Pobieram stronę 1" in log for log in logs)
+    assert any("Pobieram szczegóły" in log for log in logs)

@@ -54,6 +54,7 @@ class IngestionService:
         max_pages: int = 1,
         mark_missing_gone: bool = True,
         on_run: Callable[[ScrapeRun], Awaitable[None]] | None = None,
+        on_log: Callable[[str, str], Awaitable[None]] | None = None,
     ) -> list[ScrapeRun]:
         now = datetime.now(UTC)
 
@@ -78,6 +79,7 @@ class IngestionService:
                 max_pages=max_pages,
                 mark_missing_gone=mark_missing_gone,
                 on_run=on_run,
+                on_log=on_log,
             )
 
     async def _ingest_with(
@@ -90,16 +92,25 @@ class IngestionService:
         max_pages: int,
         mark_missing_gone: bool,
         on_run: Callable[[ScrapeRun], Awaitable[None]] | None,
+        on_log: Callable[[str, str], Awaitable[None]] | None,
     ) -> list[ScrapeRun]:
         runs: list[ScrapeRun] = []
 
         for source_id, scraper in scrapers.items():
+            async def emit(message: str, *, _source_id: str = source_id) -> None:
+                if on_log is not None:
+                    try:
+                        await on_log(_source_id, message)
+                    except Exception:
+                        logger.exception("Scrape log callback failed source=%s", _source_id)
+
             logger.info(
                 "Starting scrape source=%s city=%s max_pages=%s",
                 source_id,
                 criteria.city,
                 max_pages,
             )
+            await emit(f"Start: {criteria.city}, maks. stron: {max_pages}")
             run = ScrapeRun(
                 source_id=source_id,
                 started_at=now,
@@ -113,10 +124,14 @@ class IngestionService:
                         criteria,
                         max_pages=max_pages,
                         fetch_details=source_id in {"otodom", "nieruchomosci-online", "hossa"},
+                        on_log=emit,
                     )
                     logger.info("Parsed %s raw listings source=%s", len(raws), source_id)
+                    await emit(f"Normalizuję {len(raws)} ofert")
                     listings = [to_listing(r, now=now) for r in raws]
+                    await emit("Geokoduję adresy")
                     await self._geocode(listings)
+                    await emit("Zapisuję do bazy")
                     stats = await IncrementalEngine(session).sync_source(
                         source_id, listings, now=now, mark_missing_gone=mark_missing_gone
                     )
@@ -128,10 +143,12 @@ class IngestionService:
                     run.status = ScrapeRunStatus.BLOCKED
                     run.error_message = str(e)
                     logger.warning("Scraper blocked source=%s error=%s", source_id, e)
+                    await emit(f"Blokada scrapera: {e}")
                 except Exception as e:
                     run.status = ScrapeRunStatus.FAILED
                     run.error_message = str(e)
                     logger.exception("Scrape failed source=%s", source_id)
+                    await emit(f"Błąd: {e}")
                 finally:
                     run.finished_at = datetime.now(UTC)
                     await ScrapeRunRepository(session).add(run)
@@ -146,6 +163,11 @@ class IngestionService:
                 run.updated_count,
                 run.gone_count,
                 run.unchanged_count,
+            )
+            await emit(
+                f"Koniec: {run.status.value}; nowe={run.new_count}, "
+                f"aktualizacje={run.updated_count}, zniknęły={run.gone_count}, "
+                f"bez zmian={run.unchanged_count}"
             )
             if on_run is not None:
                 try:

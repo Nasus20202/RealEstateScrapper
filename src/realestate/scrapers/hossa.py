@@ -20,8 +20,8 @@ _CITY_MAP: dict[str, str] = {
 
 # Maps ASCII-folded city slug → hossa URL path
 _CITY_URL_PATH: dict[str, str] = {
-    "gdansk": "nowe-mieszkania-gdansk",
-    "gdynia": "nowe-mieszkania-gdynia",
+    "gdansk": "mieszkania",
+    "gdynia": "mieszkania",
     "sopot": "mieszkania",
 }
 
@@ -124,6 +124,10 @@ def _image_url(node) -> str:
         value = node.attributes.get(attr, "") or ""
         if value:
             return _absolute_url(value)
+    style = node.attributes.get("style", "") or ""
+    match = re.search(r"url\(['\"]?([^)'\"]+)", style)
+    if match:
+        return _absolute_url(match.group(1))
     srcset = node.attributes.get("srcset", "") or ""
     if srcset:
         return _absolute_url(srcset.split(",")[0].strip().split(" ")[0])
@@ -136,6 +140,19 @@ def _city_from_slug(slug: str) -> str | None:
         if key in slug:
             return name
     return None
+
+
+def _city_from_text(text: str) -> str | None:
+    for name in _CITY_MAP.values():
+        if name.lower() in text.lower():
+            return name
+    return None
+
+
+def _district_from_place(place: str | None, city: str | None) -> str | None:
+    if not place or not city:
+        return None
+    return place.replace(city, "", 1).strip() or None
 
 
 def _is_offer_link(href: str, text: str) -> bool:
@@ -177,27 +194,14 @@ class HossaScraper:
         listings: list[RawListing] = []
         seen_ids: set[str] = set()
 
-        card_selectors = (
-            "[data-flat-id]",
-            "[data-offer-id]",
-            ".flat-card",
-            ".offer-card",
-            ".apartment-card",
-            ".mieszkanie-card",
-            ".search-results__item",
-        )
-        cards = []
-        for selector in card_selectors:
-            cards.extend(tree.css(selector))
-
-        for card in cards:
-            link = card.css_first("a[href]")
+        for card in tree.css(".o-card__inner"):
+            outer_card = card.parent if card.parent is not None else card
+            link = card.css_first("a.btn[href], a[href]")
             href = link.attributes.get("href", "") if link else ""
-            text = (
-                (card.css_first("h1, h2, h3, .title, .name") or link or card).text(strip=True)
-            )
+            name_el = card.css_first(".o-card__name, h1, h2, h3")
+            text = name_el.text(strip=True) if name_el else ""
 
-            if not href or not text or not _is_offer_link(href, text):
+            if not href or not text:
                 continue
 
             url = _absolute_url(href.split("#")[0])
@@ -214,9 +218,20 @@ class HossaScraper:
             seen_ids.add(ext_id)
 
             card_text = card.text(separator=" ", strip=True)
-            city = _city_from_slug(ext_id)
+            place_el = card.css_first(".o-card__place")
+            place = place_el.text(strip=True) if place_el else None
+            address_el = card.css_first(".o-card__address")
+            street = None
+            if address_el:
+                street_parts = [span.text(strip=True) for span in address_el.css("span")]
+                street = ", ".join(part for part in street_parts if part) or None
+            city = _city_from_text(place or card_text) or _city_from_slug(ext_id)
+            district = _district_from_place(place, city)
             images: list[str] = []
-            for img in card.css("img"):
+            outer_image = _image_url(outer_card)
+            if outer_image and not outer_image.endswith(".svg"):
+                images.append(outer_image)
+            for img in outer_card.css("img"):
                 src = _image_url(img)
                 if src and not src.endswith(".svg") and src not in images:
                     images.append(src)
@@ -231,6 +246,8 @@ class HossaScraper:
                     area_m2=_area(card_text),
                     rooms=_rooms(card_text),
                     city=city,
+                    district=district,
+                    street=street,
                     market="primary",
                     images=images,
                 )

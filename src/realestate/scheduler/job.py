@@ -43,6 +43,9 @@ async def run_scheduled_scrape(
             "gone": run.gone_count, "unchanged": run.unchanged_count,
         })
 
+    async def on_log(source_id: str, message: str) -> None:
+        bus.publish({"type": "scrape_log", "source_id": source_id, "message": message})
+
     service = IngestionService(session_factory, fetcher, geocoder=geocoder)
     processed = 0
     for search in searches:
@@ -50,7 +53,9 @@ async def run_scheduled_scrape(
         if criteria is None:
             continue
         pages = (search.filters or {}).get("max_pages", max_pages)
-        await service.ingest(criteria, source_ids=source_ids, max_pages=pages, on_run=on_run)
+        await service.ingest(
+            criteria, source_ids=source_ids, max_pages=pages, on_run=on_run, on_log=on_log
+        )
         processed += 1
     if processed == 0:
         for city in default_cities:
@@ -60,6 +65,7 @@ async def run_scheduled_scrape(
                 max_pages=max_pages,
                 mark_missing_gone=False,
                 on_run=on_run,
+                on_log=on_log,
             )
             processed += 1
     return processed
