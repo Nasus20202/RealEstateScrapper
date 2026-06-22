@@ -18,11 +18,11 @@ docker compose up -d --build
 
 Serwisy:
 
-| Serwis | URL | Opis |
-| --- | --- | --- |
-| `web` | http://localhost:8080 | Frontend SPA (nginx) |
-| `api` | http://localhost:8000 | REST API + SSE; migracje uruchamiane automatycznie przy starcie |
-| `db`  | localhost:5432 | PostgreSQL 18.4 + pgvector + PostGIS (wolumen `pgdata`) |
+| Serwis | URL                   | Opis                                                            |
+| ------ | --------------------- | --------------------------------------------------------------- |
+| `web`  | http://localhost:8080 | Frontend SPA (nginx)                                            |
+| `api`  | http://localhost:8000 | REST API + SSE; migracje uruchamiane automatycznie przy starcie |
+| `db`   | localhost:5432        | PostgreSQL 18.4 + pgvector + PostGIS (wolumen `pgdata`)         |
 
 Sprawdzenie: `curl http://localhost:8000/health` → `{"status":"ok","database":true}`, a w przeglądarce `http://localhost:8080`.
 
@@ -36,7 +36,7 @@ LLM_EMBEDDING_MODEL=openai/text-embedding-3-small
 # opcjonalnie: CORS_ALLOW_ORIGINS=http://localhost:8080  (domyślnie "*")
 ```
 
-> **Uwaga o embeddingu:** `EMBEDDING_DIM` (domyślnie 1536) musi pasować do modelu embeddingów. Jeśli go zmienisz po pierwszym uruchomieniu, usuń wolumen i zbuduj schemat na nowo: `docker compose down -v && docker compose up -d --build`.
+> **Uwaga o embeddingu:** `EMBEDDING_DIM` (domyślnie 2048) musi pasować do modelu embeddingów. Jeśli go zmienisz po pierwszym uruchomieniu, usuń wolumen i zbuduj schemat na nowo: `docker compose down -v && docker compose up -d --build`.
 
 Zatrzymanie: `docker compose down` (zachowuje dane) lub `docker compose down -v` (usuwa wolumen z danymi).
 
@@ -69,7 +69,7 @@ Minimalne `.env` do uruchomienia bez LLM:
 
 ```
 DATABASE_URL=postgresql+asyncpg://realestate:realestate@localhost:5432/realestate
-EMBEDDING_DIM=1536
+EMBEDDING_DIM=2048
 ```
 
 Szczegóły wszystkich zmiennych: [`docs/configuration.md`](configuration.md).
@@ -79,6 +79,7 @@ Szczegóły wszystkich zmiennych: [`docs/configuration.md`](configuration.md).
 ## 3. Instalacja zależności
 
 ```bash
+cd backend
 uv sync --extra dev
 ```
 
@@ -89,7 +90,8 @@ uv sync --extra dev
 **Ważne:** Alembic **nie ładuje `.env` automatycznie**. Przed uruchomieniem migracji `EMBEDDING_DIM` musi być ustawiony jako zmienna środowiskowa i musi mieć tę samą wartość, co przy uruchomieniu aplikacji. Niezgodność wymiaru powoduje błąd przy zapisie embeddingów. Migracja PostGIS dodaje `listings.geom`, indeks GiST i trigger synchronizujący `geom` z `lat/lon`.
 
 ```bash
-EMBEDDING_DIM=1536 uv run alembic upgrade head
+cd backend
+EMBEDDING_DIM=2048 uv run alembic upgrade head
 ```
 
 Aktualny migration head: `0009`.
@@ -99,6 +101,7 @@ Aktualny migration head: `0009`.
 ## 5. Uruchomienie API (backend)
 
 ```bash
+cd backend
 uv run uvicorn realestate.api.app:app --reload
 ```
 
@@ -173,7 +176,8 @@ Scheduler startuje w lifespan FastAPI i zatrzymuje się przy zamknięciu aplikac
 docker compose up -d db
 
 # Terminal 2 — backend
-EMBEDDING_DIM=1536 uv run alembic upgrade head
+cd backend
+EMBEDDING_DIM=2048 uv run alembic upgrade head
 uv run uvicorn realestate.api.app:app --reload
 
 # Terminal 3 — frontend

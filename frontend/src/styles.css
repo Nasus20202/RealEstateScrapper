@@ -207,7 +207,7 @@ textarea:focus {
 
 /* Generic stacked forms (scrape / settings / searches) */
 .scrape-form,
-.settings-page form,
+.settings-page .settings-form,
 .searches-page form {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -258,13 +258,13 @@ button.btn-ghost:hover {
 
 .filters button[type="submit"],
 .scrape-form button,
-.settings-page form button,
+.settings-page .settings-form button,
 .searches-page form button {
   grid-column: auto;
   align-self: end;
 }
 .scrape-form button,
-.settings-page form button,
+.settings-page .settings-form button,
 .searches-page form button {
   grid-column: 1 / -1;
   justify-self: start;
@@ -1121,6 +1121,28 @@ button.btn-ghost:hover {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.stats-table__sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.stats-table__sortable:hover {
+  color: var(--accent);
+}
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge--ok {
+  background: color-mix(in srgb, #22c55e 15%, transparent);
+  color: #22c55e;
+}
+.badge--off {
+  background: color-mix(in srgb, #ef4444 15%, transparent);
+  color: #ef4444;
+}
 .stats-bars {
   display: grid;
   gap: 0.75rem;
@@ -1310,24 +1332,28 @@ button.btn-ghost:hover {
 }
 .settings-page .settings-form {
   display: grid;
-  grid-template-columns: minmax(320px, 0.8fr) minmax(520px, 1.2fr);
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
   gap: 1rem;
+  min-width: 0;
   max-width: none;
   padding: 0;
   background: none;
   border: none;
   box-shadow: none;
+  align-items: stretch;
 }
 .settings-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 340px);
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 .settings-card {
   display: grid;
   gap: 0.75rem;
   align-content: start;
+  align-self: stretch;
+  min-width: 0;
   padding: 1.1rem;
   background: linear-gradient(135deg, rgba(45, 212, 191, 0.06), transparent 42%), var(--bg-elev);
   border: 1px solid var(--border);
@@ -1348,7 +1374,7 @@ button.btn-ghost:hover {
 }
 .provider-settings__row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 90px minmax(220px, 1.2fr);
+  grid-template-columns: minmax(150px, 1fr) minmax(80px, 90px) minmax(0, 1.2fr);
   gap: 0.75rem;
   align-items: end;
   padding: 0.75rem;
@@ -1358,7 +1384,7 @@ button.btn-ghost:hover {
 }
 .settings-info {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.75rem;
   margin: 0 0 1rem;
 }
@@ -1394,13 +1420,14 @@ button.btn-ghost:hover {
   letter-spacing: 0.04em;
 }
 .settings-actions {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  margin-left: auto;
 }
 .danger-card {
   margin-top: 0;
+  align-self: start;
   border-color: rgba(248, 113, 113, 0.35);
 }
 .danger-card p {

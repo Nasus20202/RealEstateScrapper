@@ -16,6 +16,7 @@ import type {
   SettingsUpdate,
   CleanupResponse,
   StatsOut,
+  StatsQuery,
 } from "./types";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
@@ -98,8 +99,18 @@ export function getListing(id: number): Promise<ListingDetailOut> {
   return request<ListingDetailOut>(`/listings/${id}`);
 }
 
-export function getStats(): Promise<StatsOut> {
-  return request<StatsOut>("/stats");
+export function getStats(query?: StatsQuery): Promise<StatsOut> {
+  const params = new URLSearchParams();
+  if (query?.city) params.set("city", query.city);
+  for (const d of query?.district ?? []) params.append("district", d);
+  for (const s of query?.source_id ?? []) params.append("source_id", s);
+  if (query?.min_price != null) params.set("min_price", String(query.min_price));
+  if (query?.max_price != null) params.set("max_price", String(query.max_price));
+  if (query?.min_rooms != null) params.set("min_rooms", String(query.min_rooms));
+  if (query?.max_rooms != null) params.set("max_rooms", String(query.max_rooms));
+  if (query?.market) params.set("market", query.market);
+  const qs = params.toString();
+  return request<StatsOut>(`/stats${qs ? `?${qs}` : ""}`);
 }
 
 export function postScrape(body: ScrapeRequest): Promise<ScrapeResponse> {

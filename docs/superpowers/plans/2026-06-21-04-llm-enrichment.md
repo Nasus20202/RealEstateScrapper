@@ -15,7 +15,7 @@
 - Lint `uv run ruff check .` musi przechodzić. Reguły ruff: `E, F, I, UP, B`; `line-length=100`; StrEnum (nie `(str, Enum)`) bo UP042.
 - **Żaden dostawca/model LLM nie jest zaszyty w kodzie.** `base_url`/`api_key`/`model`/`embedding_model` pochodzą wyłącznie z konfiguracji (`pydantic-settings`, `.env`). Domyślny `base_url` może wskazywać OpenRouter, ale `model` i `embedding_model` NIE mają wartości domyślnej — bez nich LLM jest wyłączony.
 - Brak sekretów w repo. Zmiany schematu TYLKO przez Alembic.
-- Wymiar embeddingu: jedno źródło `realestate.config.get_embedding_dim()` (env `EMBEDDING_DIM`, default 1536). `FakeLLMClient.embed` MUSI zwracać wektory tej długości.
+- Wymiar embeddingu: jedno źródło `realestate.config.get_embedding_dim()` (env `EMBEDDING_DIM`, default 2048). `FakeLLMClient.embed` MUSI zwracać wektory tej długości.
 - Pyright/import-resolution błędy to znane false-positives (src-layout) — brama jakości to wyłącznie `ruff` + `pytest`.
 - Degradacja: gdy LLM nie jest skonfigurowany, fabryka zwraca `None`, a serwisy wzbogacania są no-op (nie rzucają).
 
@@ -24,12 +24,14 @@
 ### Task 1: Abstrakcja LLM (typy + `LLMClient` Protocol) + `FakeLLMClient`
 
 **Files:**
+
 - Create: `src/realestate/llm/__init__.py` (pusty)
 - Create: `src/realestate/llm/base.py`
 - Create: `src/realestate/llm/fake.py`
 - Test: `tests/llm/__init__.py` (pusty), `tests/llm/test_fake_client.py`
 
 **Interfaces:**
+
 - Consumes: `realestate.config.get_embedding_dim`.
 - Produces:
   - `class ChatMessage(BaseModel)`: `role: str`, `content: str`.
@@ -180,6 +182,7 @@ git commit -m "feat: abstrakcja LLM (LLMClient Protocol, LLMResult) + FakeLLMCli
 ### Task 2: Klient OpenAI-compatible (`OpenAICompatClient`) + fabryka + konfiguracja
 
 **Files:**
+
 - Modify: `pyproject.toml` (przenieś `httpx>=0.28` do runtime `dependencies`)
 - Modify: `src/realestate/config.py` (dodaj ustawienia LLM)
 - Create: `src/realestate/llm/openai_compat.py`
@@ -187,6 +190,7 @@ git commit -m "feat: abstrakcja LLM (LLMClient Protocol, LLMResult) + FakeLLMCli
 - Test: `tests/llm/test_openai_compat.py`, `tests/llm/test_factory.py`
 
 **Interfaces:**
+
 - Consumes: `Settings` (z `config.py`), `ChatMessage`, `LLMResult`, `LLMClient`.
 - Produces:
   - W `Settings`: `llm_base_url: str = "https://openrouter.ai/api/v1"`, `llm_api_key: str | None = None`, `llm_model: str | None = None`, `llm_embedding_model: str | None = None`, `llm_timeout_seconds: float = 30.0`, `llm_max_retries: int = 2`. Property `llm_enabled: bool` = wszystkie z (`llm_api_key`, `llm_model`, `llm_embedding_model`) ustawione (truthy).
@@ -464,6 +468,7 @@ git commit -m "feat: OpenAICompatClient (httpx, OpenRouter default) + fabryka + 
 ### Task 3: Model `LLMAnalysis` + repozytorium + migracja 0005
 
 **Files:**
+
 - Create: `src/realestate/models/llm_analysis.py`
 - Modify: `src/realestate/models/__init__.py` (eksport `LLMAnalysis`)
 - Create: `src/realestate/repositories/llm_analysis.py`
@@ -471,6 +476,7 @@ git commit -m "feat: OpenAICompatClient (httpx, OpenRouter default) + fabryka + 
 - Test: `tests/db/test_llm_analysis_model.py`, `tests/repositories/test_llm_analysis_repo.py`
 
 **Interfaces:**
+
 - Consumes: `Base`, `Listing` (FK), `ListingRepository` wzorzec.
 - Produces:
   - `class LLMAnalysis(Base)` tabela `llm_analysis`: `id PK`, `listing_id FK→listings.id (ondelete CASCADE, index)`, `content_hash: str(64)`, `summary: Text`, `features: JSONB` (typ `sqlalchemy.dialects.postgresql.JSONB`), `model: str(128)`, `created_at: datetime(tz)`. `UniqueConstraint("listing_id", "content_hash", name="uq_analysis_listing_hash")`.
@@ -605,6 +611,7 @@ class LLMAnalysis(Base):
 ```
 
 Dodaj do `src/realestate/models/__init__.py` import i `__all__`:
+
 ```python
 from realestate.models.llm_analysis import LLMAnalysis
 # ... w __all__: "LLMAnalysis",
@@ -636,6 +643,7 @@ class LLMAnalysisRepository:
 ```
 
 Migracja — wzoruj się na istniejącej `migrations/versions/0004_scrape_runs.py` (ten sam styl `op.create_table`):
+
 ```python
 # migrations/versions/0005_llm_analysis.py
 """llm_analysis
@@ -691,12 +699,14 @@ git commit -m "feat: model LLMAnalysis + repozytorium + migracja 0005"
 ### Task 4: `EnrichmentService` (summary + features + embedding, cache po hashu, degradacja)
 
 **Files:**
+
 - Create: `src/realestate/enrichment/__init__.py` (pusty)
 - Create: `src/realestate/enrichment/prompts.py`
 - Create: `src/realestate/enrichment/service.py`
 - Test: `tests/enrichment/__init__.py` (pusty), `tests/enrichment/test_enrichment_service.py`
 
 **Interfaces:**
+
 - Consumes: `LLMClient` (lub `None`), `LLMAnalysisRepository`, `LLMAnalysis`, `Listing`, `ListingRepository`, `ChatMessage`.
 - Produces:
   - `build_enrichment_messages(listing: Listing) -> list[ChatMessage]` (w `prompts.py`): system + user z polami oferty (title, description, city, district, rooms, area_m2, price). User prosi o JSON `{"summary": str, "features": object}`.
@@ -939,12 +949,14 @@ git commit -m "feat: EnrichmentService (summary+features+embedding, cache po has
 ### Task 5: Modele `DedupGroup`/`DedupMember` + migracja 0006
 
 **Files:**
+
 - Create: `src/realestate/models/dedup.py`
 - Modify: `src/realestate/models/__init__.py` (eksport `DedupGroup`, `DedupMember`)
 - Create: `migrations/versions/0006_dedup.py`
 - Test: `tests/db/test_dedup_models.py`
 
 **Interfaces:**
+
 - Consumes: `Base`, `Listing` (FK).
 - Produces:
   - `class DedupGroup(Base)` tabela `dedup_groups`: `id PK`, `created_at: datetime(tz)`. Relacja `members: list[DedupMember]` (cascade all, delete-orphan).
@@ -1052,6 +1064,7 @@ class DedupMember(Base):
 ```
 
 Dodaj do `src/realestate/models/__init__.py`:
+
 ```python
 from realestate.models.dedup import DedupGroup, DedupMember
 # ... w __all__: "DedupGroup", "DedupMember",
@@ -1114,10 +1127,12 @@ git commit -m "feat: modele DedupGroup/DedupMember + migracja 0006"
 ### Task 6: `DedupService.find_duplicates` + utrwalanie grup (degradacja)
 
 **Files:**
+
 - Create: `src/realestate/enrichment/dedup.py`
 - Test: `tests/enrichment/test_dedup_service.py`
 
 **Interfaces:**
+
 - Consumes: `LLMClient | None`, `Listing`, `DedupGroup`, `DedupMember`, `ChatMessage`.
 - Produces:
   - `build_dedup_messages(listings: list[Listing]) -> list[ChatMessage]`: prosi LLM o pogrupowanie ofert (po `id`) reprezentujących TĘ SAMĄ nieruchomość; format odpowiedzi JSON `{"groups": [[id, id], ...]}` (tylko grupy 2+).
@@ -1303,6 +1318,7 @@ git commit -m "feat: DedupService (grupowanie duplikatów przez LLM + utrwalanie
 ---
 
 ## Definicja ukończenia (Plan 4)
+
 - `uv run pytest` zielony; `uv run ruff check .` bez błędów.
 - `LLMClient` (Protocol) + dwie implementacje: `OpenAICompatClient` (httpx, base_url/api_key/model/embedding_model z konfiguracji, OpenRouter jako domyślny base_url, retry) oraz `FakeLLMClient` (deterministyczny). Żaden model/dostawca nie jest zaszyty.
 - Fabryka `get_llm_client()` zwraca `None` gdy LLM niewłączony (degradacja).

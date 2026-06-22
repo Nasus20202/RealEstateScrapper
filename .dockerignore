@@ -12,5 +12,5 @@ frontend/dist
 .env
 *.md
 docs
-tests
+backend/tests
 .worktrees

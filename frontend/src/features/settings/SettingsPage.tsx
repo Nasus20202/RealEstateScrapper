@@ -111,8 +111,16 @@ export function SettingsPage() {
   return (
     <section className="settings-page">
       <header className="settings-header">
-        <h2>Ustawienia</h2>
-        <p>Konfiguracja LLM, schedulera i providerów scrapingu.</p>
+        <div>
+          <h2>Ustawienia</h2>
+          <p>Konfiguracja LLM, schedulera i providerów scrapingu.</p>
+        </div>
+        <div className="settings-actions">
+          <button type="submit" form="settings-form">
+            Zapisz
+          </button>
+          {saved && <span className="saved">Zapisano</span>}
+        </div>
       </header>
       <dl className="settings-info">
         <div>
@@ -122,6 +130,10 @@ export function SettingsPage() {
         <div>
           <dt>Model</dt>
           <dd>{settings.llm_model ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Embedding</dt>
+          <dd>{settings.llm_embedding_model ?? "—"}</dd>
         </div>
         <div>
           <dt>Base URL</dt>
@@ -134,7 +146,7 @@ export function SettingsPage() {
       </dl>
 
       <div className="settings-grid">
-        <form className="settings-form" onSubmit={onSubmit}>
+        <form id="settings-form" className="settings-form" onSubmit={onSubmit}>
           <section className="settings-card">
             <h3>Scheduler globalny</h3>
             <label className="settings-check" htmlFor="set-scheduler-enabled">
@@ -211,11 +223,6 @@ export function SettingsPage() {
               </div>
             </fieldset>
           </section>
-
-          <div className="settings-actions">
-            <button type="submit">Zapisz</button>
-            {saved && <span className="saved">Zapisano</span>}
-          </div>
         </form>
 
         <section className="settings-card danger-card">

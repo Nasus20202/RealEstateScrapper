@@ -11,16 +11,16 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 
 # 1) Dependencies first (better layer caching) — no project, no dev deps.
-COPY pyproject.toml uv.lock ./
+COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # 2) Playwright chromium + its system libraries (needed for scraping).
 RUN uv run playwright install --with-deps chromium
 
 # 3) Application code + Alembic, then install the project itself.
-COPY src ./src
-COPY migrations ./migrations
-COPY alembic.ini ./
+COPY backend/src ./src
+COPY backend/migrations ./migrations
+COPY backend/alembic.ini ./
 RUN uv sync --frozen --no-dev
 
 # 4) Entrypoint: run migrations, then start the API.

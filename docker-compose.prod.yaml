@@ -19,7 +19,7 @@ services:
     image: ghcr.io/${GHCR_OWNER:-nasus20202}/realestate-api:${TAG:-latest}
     environment:
       DATABASE_URL: postgresql+asyncpg://realestate:realestate@db:5432/realestate
-      EMBEDDING_DIM: "${EMBEDDING_DIM:-1536}"
+      EMBEDDING_DIM: "${EMBEDDING_DIM:-2048}"
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-*}"
       LLM_BASE_URL: "${LLM_BASE_URL:-https://openrouter.ai/api/v1}"
       LLM_API_KEY: "${LLM_API_KEY:-}"

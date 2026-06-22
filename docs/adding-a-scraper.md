@@ -1,12 +1,12 @@
 # Dodawanie nowej wtyczki scrapera
 
-Scrapery są wtyczkami implementującymi protokół `Scraper` z `src/realestate/scrapers/base.py`. Rejestracja odbywa się przez wywołanie `register(scraper)` na poziomie modułu — framework wykrywa i ładuje zarejestrowane wtyczki automatycznie.
+Scrapery są wtyczkami implementującymi protokół `Scraper` z `backend/src/realestate/scrapers/base.py`. Rejestracja odbywa się przez wywołanie `register(scraper)` na poziomie modułu — framework wykrywa i ładuje zarejestrowane wtyczki automatycznie.
 
 ---
 
 ## 1. Zaimplementuj protokół `Scraper`
 
-Utwórz nowy plik w `src/realestate/scrapers/`, np. `src/realestate/scrapers/moj_portal.py`.
+Utwórz nowy plik w `backend/src/realestate/scrapers/`, np. `backend/src/realestate/scrapers/moj_portal.py`.
 
 ```python
 from realestate.scrapers.base import RawListing, Scraper, SearchCriteria, register
@@ -93,7 +93,7 @@ Wywołaj `register(scraper)` na poziomie modułu (poza klasą, po jej definicji)
 register(MojPortalScraper())
 ```
 
-Framework importuje moduły scrapera automatycznie — upewnij się, że plik jest w `src/realestate/scrapers/` i zaimportuj go w `src/realestate/scrapers/__init__.py` (lub sprawdź mechanizm auto-discovery).
+Framework importuje moduły scrapera automatycznie — upewnij się, że plik jest w `backend/src/realestate/scrapers/` i zaimportuj go w `backend/src/realestate/scrapers/__init__.py` (lub sprawdź mechanizm auto-discovery).
 
 ---
 

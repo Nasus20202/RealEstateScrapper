@@ -14,7 +14,7 @@
 - Brak hardcodowanych sekretów/konfiguracji — wszystko przez `pydantic-settings` (env / `.env`). `.env.example` jako wzór, `.env` w `.gitignore`.
 - ORM: **SQLAlchemy 2.0** styl deklaratywny `Mapped[...]` / `mapped_column(...)`, w pełni **async** (`asyncpg`).
 - Migracje schematu **wyłącznie przez Alembic** (żadnego `create_all` w kodzie produkcyjnym).
-- Embeddingi: kolumna `pgvector` o wymiarze z konfiguracji (`EMBEDDING_DIM`, domyślnie 1536).
+- Embeddingi: kolumna `pgvector` o wymiarze z konfiguracji (`EMBEDDING_DIM`, domyślnie 2048).
 - TDD: każdy task = czerwony test → minimalna implementacja → zielony test → commit.
 - Lint: `ruff` musi przechodzić przed commitem (`uv run ruff check .`).
 - Testy bazodanowe używają realnego Postgresa+pgvector (testcontainers), nie SQLite.
@@ -24,6 +24,7 @@
 ### Task 1: Scaffolding projektu (uv, struktura, AGENTS.md, narzędzia)
 
 **Files:**
+
 - Create: `pyproject.toml`
 - Create: `.gitignore`
 - Create: `.env.example`
@@ -34,12 +35,14 @@
 - Test: `tests/test_smoke.py`
 
 **Interfaces:**
+
 - Consumes: nic (pierwszy task).
 - Produces: pakiet importowalny `realestate` (`realestate.__version__: str`); działające `uv run pytest` i `uv run ruff check .`.
 
 - [ ] **Step 1: Napisz failujący test smoke**
 
 `tests/test_smoke.py`:
+
 ```python
 import realestate
 
@@ -105,11 +108,13 @@ select = ["E", "F", "I", "UP", "B"]
 - [ ] **Step 4: Utwórz pakiet i pliki pomocnicze**
 
 `src/realestate/__init__.py`:
+
 ```python
 __version__ = "0.1.0"
 ```
 
 `.gitignore`:
+
 ```gitignore
 __pycache__/
 *.py[cod]
@@ -124,15 +129,17 @@ node_modules/
 ```
 
 `.env.example`:
+
 ```dotenv
 # PostgreSQL
 DATABASE_URL=postgresql+asyncpg://realestate:realestate@localhost:5432/realestate
 
 # Embeddingi
-EMBEDDING_DIM=1536
+EMBEDDING_DIM=2048
 ```
 
 `README.md`:
+
 ```markdown
 # Agregator ofert nieruchomości (Trójmiasto)
 
@@ -146,23 +153,27 @@ Lokalna aplikacja agregująca oferty mieszkań z wielu portali. Patrz `docs/`.
 ```
 
 `AGENTS.md`:
+
 ```markdown
 # AGENTS.md
 
 Instrukcje dla agentów/developerów pracujących w tym repozytorium.
 
 ## Stack
+
 - Python 3.14, uv. Uruchamianie: `uv run <cmd>`.
 - FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, pgvector.
 - PostgreSQL+pgvector przez docker compose (`docker compose up -d db`).
 
 ## Zasady
+
 - TDD: test → implementacja → commit.
 - Lint: `uv run ruff check .` musi przechodzić.
 - Brak sekretów w repo — konfiguracja przez `pydantic-settings` (`.env`).
 - Migracje schematu tylko przez Alembic.
 
 ## Komendy
+
 - Testy: `uv run pytest`
 - Lint: `uv run ruff check .`
 - Migracje: `uv run alembic upgrade head`
@@ -174,10 +185,12 @@ Specyfikacje: `docs/superpowers/specs/`. Plany: `docs/superpowers/plans/`.
 - [ ] **Step 5: Utwórz symlink CLAUDE.md → AGENTS.md i zsynchronizuj zależności**
 
 Run:
+
 ```bash
 ln -s AGENTS.md CLAUDE.md
 uv sync --extra dev
 ```
+
 Expected: symlink utworzony; `uv` tworzy `.venv` i instaluje zależności.
 
 - [ ] **Step 6: Uruchom test — ma przejść + lint**
@@ -197,18 +210,21 @@ git commit -m "chore: scaffolding projektu (uv, FastAPI stack, AGENTS.md)"
 ### Task 2: Konfiguracja aplikacji (pydantic-settings)
 
 **Files:**
+
 - Create: `src/realestate/config.py`
 - Test: `tests/test_config.py`
 
 **Interfaces:**
+
 - Consumes: nic istotnego (czyta env).
 - Produces:
-  - `Settings` (pydantic-settings) z polami: `database_url: str`, `embedding_dim: int = 1536`.
+  - `Settings` (pydantic-settings) z polami: `database_url: str`, `embedding_dim: int = 2048`.
   - `get_settings() -> Settings` — cache'owana (`functools.lru_cache`) fabryka.
 
 - [ ] **Step 1: Napisz failujący test**
 
 `tests/test_config.py`:
+
 ```python
 from realestate.config import Settings
 
@@ -221,10 +237,10 @@ def test_settings_reads_env(monkeypatch):
     assert settings.embedding_dim == 768
 
 
-def test_embedding_dim_defaults_to_1536(monkeypatch):
+def test_embedding_dim_defaults_to_2048(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
     monkeypatch.delenv("EMBEDDING_DIM", raising=False)
-    assert Settings().embedding_dim == 1536
+    assert Settings().embedding_dim == 2048
 ```
 
 - [ ] **Step 2: Uruchom test — ma faliować**
@@ -244,7 +260,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str
-    embedding_dim: int = 1536
+    embedding_dim: int = 2048
 
 
 @lru_cache
@@ -269,6 +285,7 @@ git commit -m "feat: konfiguracja przez pydantic-settings"
 ### Task 3: Docker Compose (Postgres+pgvector) + warstwa połączenia DB
 
 **Files:**
+
 - Create: `docker-compose.yml`
 - Create: `src/realestate/db/__init__.py`
 - Create: `src/realestate/db/engine.py`
@@ -276,6 +293,7 @@ git commit -m "feat: konfiguracja przez pydantic-settings"
 - Test: `tests/db/test_engine.py`
 
 **Interfaces:**
+
 - Consumes: `realestate.config.Settings`.
 - Produces:
   - `create_engine(database_url: str) -> AsyncEngine`
@@ -310,6 +328,7 @@ volumes:
 - [ ] **Step 2: Napisz fixture'y testowe (conftest) i failujący test**
 
 `tests/conftest.py`:
+
 ```python
 import pytest
 import pytest_asyncio
@@ -333,6 +352,7 @@ async def engine(pg_url):
 ```
 
 `tests/db/test_engine.py`:
+
 ```python
 from sqlalchemy import text
 
@@ -351,10 +371,13 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.db.engine'`
 - [ ] **Step 4: Zaimplementuj `db/engine.py`**
 
 `src/realestate/db/__init__.py`:
+
 ```python
+
 ```
 
 `src/realestate/db/engine.py`:
+
 ```python
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -389,6 +412,7 @@ git commit -m "feat: docker-compose pgvector + warstwa połączenia DB (async)"
 ### Task 4: Baza deklaratywna + włączenie rozszerzenia pgvector (Alembic)
 
 **Files:**
+
 - Create: `src/realestate/models/__init__.py`
 - Create: `src/realestate/models/base.py`
 - Create: `alembic.ini`
@@ -398,6 +422,7 @@ git commit -m "feat: docker-compose pgvector + warstwa połączenia DB (async)"
 - Test: `tests/db/test_migrations.py`
 
 **Interfaces:**
+
 - Consumes: `realestate.db.engine.create_engine`, `realestate.config.get_settings`.
 - Produces:
   - `Base` — deklaratywna baza (`DeclarativeBase`) z `metadata`.
@@ -406,6 +431,7 @@ git commit -m "feat: docker-compose pgvector + warstwa połączenia DB (async)"
 - [ ] **Step 1: Utwórz bazę deklaratywną**
 
 `src/realestate/models/__init__.py`:
+
 ```python
 from realestate.models.base import Base
 
@@ -413,6 +439,7 @@ __all__ = ["Base"]
 ```
 
 `src/realestate/models/base.py`:
+
 ```python
 from sqlalchemy.orm import DeclarativeBase
 
@@ -424,6 +451,7 @@ class Base(DeclarativeBase):
 - [ ] **Step 2: Skonfiguruj Alembic (async)**
 
 `alembic.ini` (kluczowe sekcje):
+
 ```ini
 [alembic]
 script_location = migrations
@@ -464,6 +492,7 @@ format = %(levelname)-5.5s [%(name)s] %(message)s
 ```
 
 `migrations/script.py.mako`:
+
 ```mako
 """${message}
 
@@ -490,6 +519,7 @@ def downgrade() -> None:
 ```
 
 `migrations/env.py`:
+
 ```python
 import asyncio
 from logging.config import fileConfig
@@ -538,6 +568,7 @@ else:
 Na tym etapie katalog `migrations/versions/` jest pusty — `upgrade head` nic nie zrobi, więc rozszerzenie `vector` nie powstanie i test będzie czerwony.
 
 `tests/db/test_migrations.py`:
+
 ```python
 from alembic import command
 from alembic.config import Config
@@ -570,6 +601,7 @@ Expected: FAIL — `assert None == 1` (brak migracji, rozszerzenie `vector` nieo
 - [ ] **Step 5: Utwórz migrację włączającą pgvector**
 
 `migrations/versions/0001_enable_pgvector.py`:
+
 ```python
 """enable pgvector
 
@@ -610,6 +642,7 @@ git commit -m "feat: konfiguracja Alembic + migracja włączająca pgvector"
 ### Task 5: Model słownikowy `sources` + enumy domenowe
 
 **Files:**
+
 - Create: `src/realestate/models/enums.py`
 - Create: `src/realestate/models/source.py`
 - Modify: `src/realestate/models/__init__.py`
@@ -617,6 +650,7 @@ git commit -m "feat: konfiguracja Alembic + migracja włączająca pgvector"
 - Test: `tests/db/test_source_model.py`
 
 **Interfaces:**
+
 - Consumes: `Base`.
 - Produces:
   - `MarketType(str, Enum)` z wartościami `PRIMARY = "primary"`, `SECONDARY = "secondary"`.
@@ -626,6 +660,7 @@ git commit -m "feat: konfiguracja Alembic + migracja włączająca pgvector"
 - [ ] **Step 1: Napisz failujący test**
 
 `tests/db/test_source_model.py`:
+
 ```python
 from sqlalchemy import select
 
@@ -656,6 +691,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.models.sour
 - [ ] **Step 3: Zaimplementuj enumy i model**
 
 `src/realestate/models/enums.py` (użyj `StrEnum` — ruleset ruff `UP` wymusza to przez UP042; `(str, Enum)` nie przeszłoby lintu):
+
 ```python
 from enum import StrEnum
 
@@ -671,6 +707,7 @@ class ListingStatus(StrEnum):
 ```
 
 `src/realestate/models/source.py`:
+
 ```python
 from sqlalchemy import Boolean, String
 from sqlalchemy.dialects.postgresql import JSONB
@@ -690,6 +727,7 @@ class Source(Base):
 ```
 
 `src/realestate/models/__init__.py`:
+
 ```python
 from realestate.models.base import Base
 from realestate.models.enums import ListingStatus, MarketType
@@ -701,6 +739,7 @@ __all__ = ["Base", "Source", "MarketType", "ListingStatus"]
 - [ ] **Step 4: Utwórz migrację `0002_sources`**
 
 `migrations/versions/0002_sources.py`:
+
 ```python
 """sources
 
@@ -752,12 +791,14 @@ git commit -m "feat: model Source + enumy domenowe + migracja"
 ### Task 6: Model `Listing` (kanoniczna oferta + embedding pgvector) + `price_history`
 
 **Files:**
+
 - Create: `src/realestate/models/listing.py`
 - Modify: `src/realestate/models/__init__.py`
 - Create: `migrations/versions/0003_listings.py`
 - Test: `tests/db/test_listing_model.py`
 
 **Interfaces:**
+
 - Consumes: `Base`, `MarketType`, `ListingStatus`, `get_settings().embedding_dim`.
 - Produces:
   - Model `Listing` z polami: `id: int (pk)`, `source_id: str`, `external_id: str`,
@@ -774,6 +815,7 @@ git commit -m "feat: model Source + enumy domenowe + migracja"
 - [ ] **Step 1: Napisz failujący test**
 
 `tests/db/test_listing_model.py`:
+
 ```python
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -836,6 +878,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.models.list
 - [ ] **Step 3: Zaimplementuj model**
 
 `src/realestate/models/listing.py`:
+
 ```python
 import os
 from datetime import datetime
@@ -861,7 +904,7 @@ from realestate.models.enums import ListingStatus, MarketType
 
 # Wymiar embeddingu czytany bezpośrednio z env, aby import modelu NIE wymagał
 # pełnej konfiguracji (Settings wymaga DATABASE_URL). Jedno źródło wartości: EMBEDDING_DIM.
-_EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "1536"))
+_EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "2048"))
 
 
 class Listing(Base):
@@ -918,6 +961,7 @@ class PriceHistory(Base):
 ```
 
 `src/realestate/models/__init__.py`:
+
 ```python
 from realestate.models.base import Base
 from realestate.models.enums import ListingStatus, MarketType
@@ -937,6 +981,7 @@ __all__ = [
 - [ ] **Step 4: Utwórz migrację `0003_listings`**
 
 `migrations/versions/0003_listings.py`:
+
 ```python
 """listings + price_history
 
@@ -964,7 +1009,7 @@ def upgrade() -> None:
     bind = op.get_bind()
     market.create(bind, checkfirst=True)
     status.create(bind, checkfirst=True)
-    dim = int(os.getenv("EMBEDDING_DIM", "1536"))
+    dim = int(os.getenv("EMBEDDING_DIM", "2048"))
     op.create_table(
         "listings",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -1038,11 +1083,13 @@ git commit -m "feat: model Listing (z embedding pgvector) + PriceHistory + migra
 ### Task 7: Repozytorium ofert (`ListingRepository`) — upsert + pobieranie
 
 **Files:**
+
 - Create: `src/realestate/repositories/__init__.py`
 - Create: `src/realestate/repositories/listings.py`
 - Test: `tests/repositories/test_listing_repository.py`
 
 **Interfaces:**
+
 - Consumes: `AsyncSession` (z `create_session_factory`), `Listing`.
 - Produces:
   - `class ListingRepository(session: AsyncSession)`
@@ -1054,6 +1101,7 @@ git commit -m "feat: model Listing (z embedding pgvector) + PriceHistory + migra
 - [ ] **Step 1: Napisz failujący test**
 
 `tests/repositories/test_listing_repository.py`:
+
 ```python
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -1119,10 +1167,13 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.repositorie
 - [ ] **Step 3: Zaimplementuj repozytorium**
 
 `src/realestate/repositories/__init__.py`:
+
 ```python
+
 ```
 
 `src/realestate/repositories/listings.py`:
+
 ```python
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1181,12 +1232,14 @@ git commit -m "feat: ListingRepository (upsert/get/list/count)"
 ### Task 8: Szkielet aplikacji FastAPI + healthcheck (DB + pgvector)
 
 **Files:**
+
 - Create: `src/realestate/api/__init__.py`
 - Create: `src/realestate/api/app.py`
 - Create: `src/realestate/db/health.py`
 - Test: `tests/api/test_health.py`
 
 **Interfaces:**
+
 - Consumes: `get_settings`, `create_engine`, `text` query.
 - Produces:
   - `check_database(engine) -> bool` — true gdy `SELECT 1` działa i rozszerzenie `vector` jest obecne.
@@ -1196,6 +1249,7 @@ git commit -m "feat: ListingRepository (upsert/get/list/count)"
 - [ ] **Step 1: Napisz failujący test (z nadpisaniem zależności DB)**
 
 `tests/api/test_health.py`:
+
 ```python
 from httpx import ASGITransport, AsyncClient
 
@@ -1230,6 +1284,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.api.app'`.
 - [ ] **Step 3: Zaimplementuj healthcheck DB i aplikację**
 
 `src/realestate/db/health.py`:
+
 ```python
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -1248,10 +1303,13 @@ async def check_database(engine: AsyncEngine) -> bool:
 ```
 
 `src/realestate/api/__init__.py`:
+
 ```python
+
 ```
 
 `src/realestate/api/app.py`:
+
 ```python
 from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
@@ -1304,6 +1362,7 @@ git commit -m "feat: szkielet FastAPI + healthcheck DB/pgvector"
 ---
 
 ## Definicja ukończenia (Plan 1)
+
 - `uv run pytest` zielony; `uv run ruff check .` bez błędów.
 - `docker compose up -d db` + `uv run alembic upgrade head` tworzy schemat z rozszerzeniem `vector`.
 - `uv run uvicorn realestate.api.app:app` wystawia `GET /health` (200/503 zależnie od DB).
