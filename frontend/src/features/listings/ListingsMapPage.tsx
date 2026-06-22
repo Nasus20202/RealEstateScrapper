@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { getMapHexes, getMapPoints, getSettings } from "../../api/client";
@@ -85,39 +85,36 @@ export function ListingsMapPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<ListingOut[]>([]);
   const [hexes, setHexes] = useState<MapHexOut[]>([]);
-  const [filters, setFilters] = useState<MapFilterState>(() => filtersFromParams(searchParams));
+  const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
   const [sources, setSources] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [metric, setMetric] = useState<MapMetric>("price");
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [viewport, setViewport] = useState<MapViewport | null>(null);
 
   const load = useCallback(
-    async (nextViewport: MapViewport | null) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const baseQuery = queryFromParams(searchParams);
-        const bounds = nextViewport ? boundsFromViewport(nextViewport) : {};
-        const query = { ...baseQuery, ...bounds };
-        const [res, mapHexes] = await Promise.all([getMapPoints(query), getMapHexes(query)]);
-        setItems(res.items);
-        setHexes(mapHexes);
-        setTotal(res.total);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Błąd pobierania mapy");
-      } finally {
-        setLoading(false);
-      }
+    (nextViewport: MapViewport | null) => {
+      startTransition(async () => {
+        try {
+          const baseQuery = queryFromParams(searchParams);
+          const bounds = nextViewport ? boundsFromViewport(nextViewport) : {};
+          const query = { ...baseQuery, ...bounds };
+          const [res, mapHexes] = await Promise.all([getMapPoints(query), getMapHexes(query)]);
+          setItems(res.items);
+          setHexes(mapHexes);
+          setTotal(res.total);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Błąd pobierania mapy");
+        }
+      });
     },
-    [searchParams],
+    [searchParams, startTransition],
   );
 
   useEffect(() => {
-    setFilters(filtersFromParams(searchParams));
-    void load(viewport);
-  }, [load, searchParams, viewport]);
+    load(viewport);
+  }, [load, viewport]);
 
   useEffect(() => {
     void getSettings()
@@ -126,16 +123,16 @@ export function ListingsMapPage() {
   }, []);
 
   function update(field: keyof MapFilterState, value: string) {
-    setFilters((prev) => ({ ...prev, [field]: value }));
+    const next = { ...filters, [field]: value };
+    setSearchParams(paramsFromFilters(next, searchParams));
   }
 
   function toggleSource(source: string) {
-    setFilters((prev) => ({
-      ...prev,
-      source_ids: prev.source_ids.includes(source)
-        ? prev.source_ids.filter((item) => item !== source)
-        : [...prev.source_ids, source],
-    }));
+    const nextIds = filters.source_ids.includes(source)
+      ? filters.source_ids.filter((s) => s !== source)
+      : [...filters.source_ids, source];
+    const next = { ...filters, source_ids: nextIds };
+    setSearchParams(paramsFromFilters(next, searchParams));
   }
 
   function applyFilters(event: React.FormEvent) {
@@ -166,7 +163,7 @@ export function ListingsMapPage() {
           <h2>Mapa ofert</h2>
           <p>
             Pokazano {items.length} z {total} ofert w widocznym obszarze.
-            {loading && <span className="loading-dot"> •••</span>}
+            {isPending && <span className="loading-dot"> •••</span>}
           </p>
         </div>
         <div className="toolbar-right">

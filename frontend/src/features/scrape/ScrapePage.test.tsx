@@ -68,11 +68,8 @@ describe("ScrapePage", () => {
     setupMocks();
     server.use(http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([run()])));
     render(<ScrapePage />);
-    // Source name in row
     expect(await screen.findAllByText("otodom")).not.toHaveLength(0);
-    // Status chip
     expect(await screen.findByText("done")).toBeInTheDocument();
-    // New count "+3"
     expect(await screen.findByText("+3")).toBeInTheDocument();
   });
 
@@ -146,7 +143,6 @@ describe("ScrapePage", () => {
       });
     });
 
-    // Event row shows source, status and counts
     expect(
       await screen.findByText("otodom", { selector: ".scrape-event__source" }),
     ).toBeInTheDocument();

@@ -1,5 +1,5 @@
 // frontend/src/features/searches/SavedSearchesPage.tsx
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { createSearch, deleteSearch, getSearches } from "../../api/client";
@@ -23,14 +23,25 @@ export function SavedSearchesPage() {
   const [searches, setSearches] = useState<SavedSearchOut[]>([]);
   const [name, setName] = useState("");
   const [nlQuery, setNlQuery] = useState("");
+  const [isPending, startTransition] = useTransition();
 
-  async function load() {
+  const load = useCallback(async () => {
     setSearches(await getSearches());
-  }
+  }, []);
 
   useEffect(() => {
-    void load();
+    startTransition(async () => {
+      setSearches(await getSearches());
+    });
   }, []);
+
+  if (isPending) {
+    return (
+      <section className="searches-page">
+        <p>Ładowanie…</p>
+      </section>
+    );
+  }
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();

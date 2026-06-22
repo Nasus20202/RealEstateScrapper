@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 
 import { getRuns, getSettings, postScrape } from "../../api/client";
 import { subscribeScrapeEvents } from "../../api/events";
-import type { ScrapeEvent, ScrapeLogEvent, ScrapeRequest, ScrapeRunOut } from "../../api/types";
+import type {
+  ScrapeEvent,
+  ScrapeLogEvent,
+  ScrapeRequest,
+  ScrapeRunOut,
+  SettingsOut,
+} from "../../api/types";
 
 function toNumber(value: string): number | undefined {
   const trimmed = value.trim();
@@ -27,38 +33,35 @@ function isScrapeLogEvent(event: ScrapeEvent | ScrapeLogEvent): event is ScrapeL
 }
 
 export function ScrapePage() {
-  const [cityMode, setCityMode] = useState("__default");
-  const [customCity, setCustomCity] = useState("");
-  const [maxPages, setMaxPages] = useState("1");
-  const [availableSources, setAvailableSources] = useState<string[]>([]);
-  const [defaultCities, setDefaultCities] = useState<string[]>([]);
-  const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  const [sourcePages, setSourcePages] = useState<Record<string, string>>({});
   const [runs, setRuns] = useState<ScrapeRunOut[]>([]);
+  const [settings, setSettings] = useState<SettingsOut | null>(null);
   const [events, setEvents] = useState<ScrapeEvent[]>([]);
   const [logs, setLogs] = useState<ScrapeLogEvent[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  const loadRuns = useCallback(async () => {
-    setRuns(await getRuns());
-  }, []);
+  const [cityMode, setCityMode] = useState("__default");
+  const [customCity, setCustomCity] = useState("");
+  const [maxPages, setMaxPages] = useState("1");
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [sourcePages, setSourcePages] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    void loadRuns();
-    void getSettings()
-      .then((s) => {
-        setAvailableSources(s.sources);
-        const cities = s.default_cities ?? [];
-        setDefaultCities(cities);
-        setSourcePages(
-          Object.fromEntries(
-            s.sources.map((source) => [source, String(s.source_max_pages?.[source] ?? 1)]),
-          ),
-        );
-      })
-      .catch(() => {});
-  }, [loadRuns]);
+    startTransition(async () => {
+      const [initialRuns, initialSettings] = await Promise.all([getRuns(), getSettings()]);
+      setRuns(initialRuns);
+      setSettings(initialSettings);
+      setSourcePages(
+        Object.fromEntries(
+          initialSettings.sources.map((source) => [
+            source,
+            String(initialSettings.source_max_pages?.[source] ?? 1),
+          ]),
+        ),
+      );
+    });
+  }, []);
 
   useEffect(() => {
     const unsubscribe = subscribeScrapeEvents((event) => {
@@ -70,6 +73,21 @@ export function ScrapePage() {
     });
     return unsubscribe;
   }, []);
+
+  const loadRuns = useCallback(async () => {
+    setRuns(await getRuns());
+  }, []);
+
+  if (isPending || !settings) {
+    return (
+      <section className="scrape-page">
+        <p className="scrape-empty">Ładowanie…</p>
+      </section>
+    );
+  }
+
+  const availableSources = settings.sources;
+  const defaultCities = settings.default_cities ?? [];
 
   function toggleSource(id: string) {
     setSelectedSources((prev) =>

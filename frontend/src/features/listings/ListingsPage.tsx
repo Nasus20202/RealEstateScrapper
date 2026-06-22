@@ -1,5 +1,5 @@
 // frontend/src/features/listings/ListingsPage.tsx
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import { useMap } from "react-leaflet";
 import { useSearchParams } from "react-router-dom";
@@ -183,55 +183,44 @@ function PreviewMapSync({ center }: { center: [number, number] }) {
 export function ListingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [form, setForm] = useState<FormState>(() => formFromParams(searchParams));
-  const [offset, setOffset] = useState(() => offsetFromParams(searchParams));
-  const [sort, setSort] = useState(() => sortFromParams(searchParams));
-  const [pageSize, setPageSize] = useState(() => pageSizeFromParams(searchParams));
-  const [view, setView] = useState<View>(() => viewFromParams(searchParams));
+  const offset = useMemo(() => offsetFromParams(searchParams), [searchParams]);
+  const sort = useMemo(() => sortFromParams(searchParams), [searchParams]);
+  const pageSize = useMemo(() => pageSizeFromParams(searchParams), [searchParams]);
+  const view = useMemo(() => viewFromParams(searchParams), [searchParams]);
   const [availableSources, setAvailableSources] = useState<string[]>([]);
   const [preview, setPreview] = useState<ListingOut | null>(null);
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [items, setItems] = useState<ListingOut[]>([]);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const [prevSearchParams, setPrevSearchParams] = useState(searchParams);
+  if (searchParams !== prevSearchParams) {
+    setForm(formFromParams(searchParams));
+    setPrevSearchParams(searchParams);
+  }
 
   const load = useCallback(
-    async (
-      current: FormState,
-      currentOffset: number,
-      currentSort: string,
-      currentPageSize: number,
-    ) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await getListings(
-          buildQuery(current, currentOffset, currentSort, currentPageSize),
-        );
-        setItems(res.items);
-        setTotal(res.total);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Błąd pobierania");
-      } finally {
-        setLoading(false);
-      }
+    (current: FormState, currentOffset: number, currentSort: string, currentPageSize: number) => {
+      startTransition(async () => {
+        try {
+          const res = await getListings(
+            buildQuery(current, currentOffset, currentSort, currentPageSize),
+          );
+          setItems(res.items);
+          setTotal(res.total);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Błąd pobierania");
+        }
+      });
     },
-    [],
+    [startTransition],
   );
 
   useEffect(() => {
-    const nextForm = formFromParams(searchParams);
-    const nextOffset = offsetFromParams(searchParams);
-    const nextSort = sortFromParams(searchParams);
-    const nextPageSize = pageSizeFromParams(searchParams);
-    const nextView = viewFromParams(searchParams);
-    setForm(nextForm);
-    setOffset(nextOffset);
-    setSort(nextSort);
-    setPageSize(nextPageSize);
-    setView(nextView);
-    void load(nextForm, nextOffset, nextSort, nextPageSize);
-  }, [searchParams, load]);
+    load(formFromParams(searchParams), offset, sort, pageSize);
+  }, [searchParams, load, offset, sort, pageSize]);
 
   useEffect(() => {
     void getSettings()
@@ -436,7 +425,7 @@ export function ListingsPage() {
           <div className="listings-toolbar">
             <p className="listings-page__total">
               Znaleziono: {total}
-              {loading && <span className="loading-dot"> •••</span>}
+              {isPending && <span className="loading-dot"> •••</span>}
             </p>
             <div className="toolbar-right">
               <label htmlFor="sort-select" className="sort-label">
@@ -498,7 +487,7 @@ export function ListingsPage() {
 
           {error && <p className="error">{error}</p>}
 
-          {items.length === 0 && !loading ? (
+          {items.length === 0 && !isPending ? (
             <p className="empty-state">Brak ofert. Zmień filtry lub uruchom scraping.</p>
           ) : (
             <div className={`listings-grid listings-grid--${view}`}>
