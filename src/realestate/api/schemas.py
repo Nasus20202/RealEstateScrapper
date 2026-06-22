@@ -176,9 +176,5 @@ class ScrapeResponse(BaseModel):
     runs: list[ScrapeRunOut]
 
 
-class CleanupRequest(BaseModel):
-    confirmation: str
-
-
 class CleanupResponse(BaseModel):
     deleted_listings: int

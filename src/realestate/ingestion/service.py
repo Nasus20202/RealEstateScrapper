@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import sys
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
@@ -107,7 +106,14 @@ class IngestionService:
         for source_id, scraper in scrapers.items():
 
             async def emit(message: str, *, _source_id: str = source_id) -> None:
-                print(f"[scrape:{_source_id}] {message}", file=sys.stdout, flush=True)
+                logger.info(
+                    "scrape_log",
+                    extra={
+                        "event": "scrape_log",
+                        "source_id": _source_id,
+                        "scrape_message": message,
+                    },
+                )
                 if on_log is not None:
                     try:
                         await on_log(_source_id, message)

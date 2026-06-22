@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from realestate.api.deps import get_session
 from realestate.api.schemas import (
-    CleanupRequest,
     CleanupResponse,
     FavoriteIn,
     FavoriteOut,
@@ -35,11 +34,8 @@ router = APIRouter()
 
 @router.post("/cleanup", response_model=CleanupResponse)
 async def cleanup_database(
-    body: CleanupRequest,
     session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> CleanupResponse:
-    if body.confirmation != "USUN":
-        raise HTTPException(status_code=400, detail="confirmation must be USUN")
     count = (await session.execute(select(func.count()).select_from(Listing))).scalar_one()
     await session.execute(sa_delete(DedupMember))
     await session.execute(sa_delete(DedupGroup))

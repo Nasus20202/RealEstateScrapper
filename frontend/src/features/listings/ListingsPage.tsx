@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { getListings, getSettings } from "../../api/client";
 import type { ListingOut, ListingsQuery } from "../../api/types";
+import { HtmlDescription } from "./html";
 import { ListingCard } from "./ListingCard";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -173,6 +174,7 @@ export function ListingsPage() {
   const [view, setView] = useState<View>(() => viewFromParams(searchParams));
   const [availableSources, setAvailableSources] = useState<string[]>([]);
   const [preview, setPreview] = useState<ListingOut | null>(null);
+  const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [items, setItems] = useState<ListingOut[]>([]);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -255,6 +257,19 @@ export function ListingsPage() {
           ? selected.filter((item) => item !== value)
           : [...selected, value],
       };
+    });
+  }
+
+  function setPreviewListing(listing: ListingOut) {
+    setPreview(listing);
+    setPreviewImageIndex(0);
+  }
+
+  function movePreviewImage(delta: number) {
+    setPreviewImageIndex((current) => {
+      const count = preview?.images.length ?? 0;
+      if (count === 0) return 0;
+      return (current + delta + count) % count;
     });
   }
 
@@ -482,7 +497,7 @@ export function ListingsPage() {
               }
             >
               {items.map((item) => (
-                <ListingCard key={item.id} listing={item} onPreview={setPreview} />
+                <ListingCard key={item.id} listing={item} onPreview={setPreviewListing} />
               ))}
             </div>
           )}
@@ -526,14 +541,76 @@ export function ListingsPage() {
               >
                 Zamknij
               </button>
-              {preview.images[0] && <img src={preview.images[0]} alt="" />}
+              {preview.images.length > 0 && (
+                <div className="listing-preview__gallery">
+                  <img
+                    src={preview.images[previewImageIndex] ?? preview.images[0]}
+                    alt={`${preview.title} — zdjęcie ${previewImageIndex + 1}`}
+                  />
+                  {preview.images.length > 1 && (
+                    <div className="listing-preview__gallery-controls">
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        onClick={() => movePreviewImage(-1)}
+                      >
+                        ‹
+                      </button>
+                      <span>
+                        {previewImageIndex + 1} / {preview.images.length}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        onClick={() => movePreviewImage(1)}
+                      >
+                        ›
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="listing-preview__body">
                 <div className="listing-preview__price">{formatPrice(preview.price)}</div>
                 <h3>{preview.title}</h3>
-                <p>
-                  {[preview.street, preview.district, preview.city].filter(Boolean).join(", ") ||
-                    "—"}
-                </p>
+                <dl className="listing-preview__details">
+                  <div>
+                    <dt>Adres</dt>
+                    <dd>
+                      {[preview.street, preview.district, preview.city]
+                        .filter(Boolean)
+                        .join(", ") || "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Źródło</dt>
+                    <dd>{preview.source_id}</dd>
+                  </div>
+                  <div>
+                    <dt>Rynek</dt>
+                    <dd>{preview.market === "primary" ? "pierwotny" : (preview.market ?? "—")}</dd>
+                  </div>
+                  <div>
+                    <dt>Cena/m²</dt>
+                    <dd>
+                      {preview.price_per_m2 == null
+                        ? "—"
+                        : `${preview.price_per_m2.toLocaleString("pl-PL")} zł/m²`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Powierzchnia</dt>
+                    <dd>{preview.area_m2 == null ? "—" : `${preview.area_m2} m²`}</dd>
+                  </div>
+                  <div>
+                    <dt>Pokoje</dt>
+                    <dd>{preview.rooms ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Piętro</dt>
+                    <dd>{preview.floor ?? "—"}</dd>
+                  </div>
+                </dl>
                 <div className="listing-card__chips">
                   {preview.rooms != null && <span className="chip">{preview.rooms} pok.</span>}
                   {preview.area_m2 != null && <span className="chip">{preview.area_m2} m²</span>}
@@ -544,7 +621,10 @@ export function ListingsPage() {
                   )}
                 </div>
                 {preview.description && (
-                  <p className="listing-preview__description">{preview.description}</p>
+                  <HtmlDescription
+                    className="listing-preview__description rich-description"
+                    html={preview.description}
+                  />
                 )}
                 <a className="btn-link" href={`/listings/${preview.id}`}>
                   Otwórz szczegóły

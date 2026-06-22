@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { addFavorite, ApiError, getFavorites, getListing, removeFavorite } from "../../api/client";
 import type { ListingDetailOut } from "../../api/types";
+import { HtmlDescription } from "./html";
 import { PriceSparkline } from "./PriceSparkline";
 
 function addressLine(listing: ListingDetailOut): string {
@@ -221,7 +222,7 @@ export function ListingDetailPage() {
       {listing.description && (
         <section className="listing-detail__description">
           <h3>Opis</h3>
-          <p>{listing.description}</p>
+          <HtmlDescription className="rich-description" html={listing.description} />
         </section>
       )}
 

@@ -144,8 +144,8 @@ describe("ListingsPage", () => {
       ),
     );
     renderPage();
-    const card = (await screen.findByText("Ładne 2pok")).closest("a");
-    expect(card).toHaveAttribute("href", "/listings/7");
+    await screen.findByText("Ładne 2pok");
+    expect(screen.getByRole("link", { name: "Szczegóły" })).toHaveAttribute("href", "/listings/7");
     within(document.body); // sanity
   });
 });

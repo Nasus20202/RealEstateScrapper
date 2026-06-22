@@ -1,6 +1,8 @@
 services:
   db:
-    image: pgvector/pgvector:0.8.3-pg18-trixie
+    build:
+      context: .
+      dockerfile: docker/db/Dockerfile
     environment:
       POSTGRES_USER: realestate
       POSTGRES_PASSWORD: realestate
@@ -19,7 +21,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/backend/Dockerfile
     environment:
       # Inside the compose network the DB host is "db", not localhost.
       DATABASE_URL: postgresql+asyncpg://realestate:realestate@db:5432/realestate
@@ -41,8 +43,8 @@ services:
 
   web:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/frontend/Dockerfile
       args:
         # Baked into the JS bundle; the browser reaches the API on the host port.
         VITE_API_BASE: "${VITE_API_BASE:-http://localhost:8000}"

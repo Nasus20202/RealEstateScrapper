@@ -15,8 +15,13 @@ function formatPrice(value: number | null): string {
 }
 
 function formatPriceShort(value: number | null): string {
-  if (value == null) return "—";
+  if (value == null || Number.isNaN(value)) return "—";
   return `${Math.round(value / 1000).toLocaleString("pl-PL")}K`;
+}
+
+function formatPricePerM2Short(value: number | null): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${Math.round(value).toLocaleString("pl-PL")} zł/m²`;
 }
 
 function averageCenter(points: [number, number][]): [number, number] {
@@ -48,7 +53,14 @@ function clusterListings(
   zoom: number,
 ): ListingCluster[] {
   const buckets = new Map<string, Array<ListingOut & { lat: number; lon: number }>>();
-  const precision = Math.max(80, Math.min(3000, 40 * 2 ** Math.max(0, zoom - 8)));
+  if (zoom >= 16) {
+    return listings.map((listing) => ({
+      id: String(listing.id),
+      center: [listing.lat, listing.lon],
+      listings: [listing],
+    }));
+  }
+  const precision = Math.max(120, 65 * 2 ** Math.max(0, zoom - 8));
   for (const listing of listings) {
     const key = `${Math.round(listing.lat * precision)}:${Math.round(listing.lon * precision)}`;
     buckets.set(key, [...(buckets.get(key) ?? []), listing]);
@@ -58,6 +70,39 @@ function clusterListings(
     center: averageCenter(group.map((listing) => [listing.lat, listing.lon])),
     listings: group,
   }));
+}
+
+function localAveragePricePerM2(
+  listing: ListingOut & { lat: number; lon: number },
+  listings: Array<ListingOut & { lat: number; lon: number }>,
+): number | null {
+  const nearby = listings
+    .map((candidate) => {
+      const distance = Math.hypot(
+        (candidate.lat - listing.lat) * 111,
+        (candidate.lon - listing.lon) * 65,
+      );
+      return { candidate, distance };
+    })
+    .filter(({ candidate, distance }) => candidate.price_per_m2 != null && distance <= 1.4)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 12)
+    .map(({ candidate }) => candidate.price_per_m2)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  if (nearby.length === 0) return null;
+  return nearby.reduce((sum, value) => sum + value, 0) / nearby.length;
+}
+
+function heatStyle(value: number | null, metric: MapMetric) {
+  if (metric === "heat_count") {
+    return { radius: 34, fillColor: "#f97316", fillOpacity: 0.16 };
+  }
+  const intensity = value == null ? 0.25 : Math.min(1, Math.max(0, (value - 7_000) / 12_000));
+  return {
+    radius: 40 + intensity * 26,
+    fillColor: intensity > 0.66 ? "#dc2626" : intensity > 0.33 ? "#f97316" : "#14b8a6",
+    fillOpacity: 0.16 + intensity * 0.22,
+  };
 }
 
 function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
@@ -70,7 +115,15 @@ function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
 function clusterAveragePrice(cluster: ListingCluster): number | null {
   const prices = cluster.listings
     .map((listing) => listing.price)
-    .filter((price): price is number => price != null);
+    .filter((price): price is number => price != null && Number.isFinite(price));
+  if (prices.length === 0) return null;
+  return prices.reduce((sum, price) => sum + price, 0) / prices.length;
+}
+
+function clusterAveragePricePerM2(cluster: ListingCluster): number | null {
+  const prices = cluster.listings
+    .map((listing) => listing.price_per_m2)
+    .filter((price): price is number => price != null && Number.isFinite(price));
   if (prices.length === 0) return null;
   return prices.reduce((sum, price) => sum + price, 0) / prices.length;
 }
@@ -86,10 +139,12 @@ function markerStyle(cluster: ListingCluster, metric: MapMetric) {
     };
   }
   if (metric === "heat_price") {
+    const avgPricePerM2 = clusterAveragePricePerM2(cluster);
+    const trendValue = avgPricePerM2 ?? (avgPrice == null ? null : avgPrice / 80);
     const intensity =
-      avgPrice == null ? 0.2 : Math.min(1, Math.max(0, (avgPrice - 400_000) / 1_200_000));
+      trendValue == null ? 0.2 : Math.min(1, Math.max(0, (trendValue - 7_000) / 12_000));
     return {
-      radius: 12 + intensity * 22,
+      radius: 16 + intensity * 24,
       fillColor: intensity > 0.66 ? "#dc2626" : intensity > 0.33 ? "#f97316" : "#14b8a6",
       fillOpacity: 0.35 + intensity * 0.45,
     };
@@ -103,6 +158,7 @@ function markerStyle(cluster: ListingCluster, metric: MapMetric) {
 
 function clusterLabel(cluster: ListingCluster, metric: MapMetric): string {
   if (metric === "count" || metric === "heat_count") return `${cluster.listings.length}`;
+  if (metric === "heat_price") return formatPricePerM2Short(clusterAveragePricePerM2(cluster));
   const avgPrice = clusterAveragePrice(cluster);
   if (cluster.listings.length > 1) return `${formatPriceShort(avgPrice)}`;
   return formatPriceShort(cluster.listings[0].price);
@@ -131,6 +187,7 @@ export function ListingsMap({
 
   const center = averageCenter(located.map((l) => [l.lat, l.lon]));
   const clusters = clusterListings(located, zoom);
+  const isHeat = metric === "heat_price" || metric === "heat_count";
 
   return (
     <div className="listings-map" data-testid="listings-map">
@@ -140,76 +197,124 @@ export function ListingsMap({
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
-        {clusters.map((cluster) => {
-          const primary = cluster.listings[0];
-          const isCluster = cluster.listings.length > 1;
-          const style = markerStyle(cluster, metric);
-          return (
-            <CircleMarker
-              key={cluster.id}
-              center={cluster.center}
-              radius={style.radius}
-              pathOptions={{
-                color: "#0f766e",
-                fillColor: style.fillColor,
-                fillOpacity: style.fillOpacity,
-                weight: 2,
-              }}
-            >
-              <Tooltip
-                permanent
-                direction="top"
-                offset={[0, -8]}
-                opacity={0.95}
-                className="map-price-label"
+        {isHeat &&
+          located.map((listing) => {
+            const localAvg = localAveragePricePerM2(listing, located);
+            const style = heatStyle(localAvg, metric);
+            return (
+              <CircleMarker
+                key={`heat-${listing.id}`}
+                center={[listing.lat, listing.lon]}
+                radius={style.radius}
+                pathOptions={{
+                  color: style.fillColor,
+                  fillColor: style.fillColor,
+                  fillOpacity: style.fillOpacity,
+                  opacity: 0,
+                  weight: 0,
+                }}
               >
-                {clusterLabel(cluster, metric)}
-              </Tooltip>
-              <Popup>
-                <div className="map-popup">
-                  {isCluster ? (
-                    <>
-                      <div className="map-popup__price">
-                        {cluster.listings.length} ofert w okolicy
-                      </div>
-                      <div className="map-popup__list">
-                        {cluster.listings.slice(0, 8).map((listing) => (
-                          <Link key={listing.id} to={`/listings/${listing.id}`}>
-                            {formatPriceShort(listing.price)} · {listing.title}
-                          </Link>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {primary.images[0] && (
-                        <img className="map-popup__image" src={primary.images[0]} alt="" />
-                      )}
-                      <div className="map-popup__price">{formatPrice(primary.price)}</div>
-                      {primary.price_per_m2 != null && (
-                        <div className="map-popup__muted">
-                          {primary.price_per_m2.toLocaleString("pl-PL")} zł/m²
+                <Popup>
+                  <div className="map-popup">
+                    <div className="map-popup__price">
+                      {metric === "heat_price"
+                        ? `Trend okolicy: ${formatPricePerM2Short(localAvg)}`
+                        : "Gęstość ofert"}
+                    </div>
+                    <Link className="map-popup__title" to={`/listings/${listing.id}`}>
+                      {listing.title}
+                    </Link>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
+        {!isHeat &&
+          clusters.map((cluster) => {
+            const primary = cluster.listings[0];
+            const isCluster = cluster.listings.length > 1;
+            const style = markerStyle(cluster, metric);
+            return (
+              <CircleMarker
+                key={cluster.id}
+                center={cluster.center}
+                radius={style.radius}
+                pathOptions={{
+                  color: "#0f766e",
+                  fillColor: style.fillColor,
+                  fillOpacity: style.fillOpacity,
+                  weight: 2,
+                }}
+              >
+                <Tooltip
+                  permanent
+                  direction="top"
+                  offset={[0, -8]}
+                  opacity={0.95}
+                  className="map-price-label"
+                >
+                  {clusterLabel(cluster, metric)}
+                </Tooltip>
+                <Popup>
+                  <div className="map-popup">
+                    {isCluster ? (
+                      <>
+                        <div className="map-popup__price">
+                          {cluster.listings.length} ofert w okolicy
                         </div>
-                      )}
-                      {facts(primary) && <div className="map-popup__facts">{facts(primary)}</div>}
-                      <Link className="map-popup__title" to={`/listings/${primary.id}`}>
-                        {primary.title}
-                      </Link>
-                      <div className="map-popup__muted">
-                        {[primary.street, primary.district, primary.city]
-                          .filter(Boolean)
-                          .join(", ") || "—"}
-                      </div>
-                      <Link className="map-popup__button" to={`/listings/${primary.id}`}>
-                        Szczegóły
-                      </Link>
-                    </>
-                  )}
-                </div>
-              </Popup>
-            </CircleMarker>
-          );
-        })}
+                        <div className="map-popup__list">
+                          {(clusterAveragePrice(cluster) != null ||
+                            clusterAveragePricePerM2(cluster) != null) && (
+                            <div className="map-popup__muted">
+                              {[
+                                clusterAveragePrice(cluster) == null
+                                  ? null
+                                  : `średnia cena ${formatPriceShort(clusterAveragePrice(cluster))}`,
+                                clusterAveragePricePerM2(cluster) == null
+                                  ? null
+                                  : `średnio ${formatPricePerM2Short(clusterAveragePricePerM2(cluster))}`,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </div>
+                          )}
+                          {cluster.listings.slice(0, 8).map((listing) => (
+                            <Link key={listing.id} to={`/listings/${listing.id}`}>
+                              {formatPriceShort(listing.price)} · {listing.title}
+                            </Link>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {primary.images[0] && (
+                          <img className="map-popup__image" src={primary.images[0]} alt="" />
+                        )}
+                        <div className="map-popup__price">{formatPrice(primary.price)}</div>
+                        {primary.price_per_m2 != null && (
+                          <div className="map-popup__muted">
+                            {primary.price_per_m2.toLocaleString("pl-PL")} zł/m²
+                          </div>
+                        )}
+                        {facts(primary) && <div className="map-popup__facts">{facts(primary)}</div>}
+                        <Link className="map-popup__title" to={`/listings/${primary.id}`}>
+                          {primary.title}
+                        </Link>
+                        <div className="map-popup__muted">
+                          {[primary.street, primary.district, primary.city]
+                            .filter(Boolean)
+                            .join(", ") || "—"}
+                        </div>
+                        <Link className="map-popup__button" to={`/listings/${primary.id}`}>
+                          Szczegóły
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
       </MapContainer>
     </div>
   );

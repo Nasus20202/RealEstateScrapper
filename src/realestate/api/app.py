@@ -30,6 +30,9 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI):
         # Startup: build engine from config (requires DATABASE_URL in real usage).
         settings = get_settings()
+        from realestate.logging import configure_logging
+
+        configure_logging(structured=settings.structured_logging)
         engine = create_engine(settings.database_url)
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)

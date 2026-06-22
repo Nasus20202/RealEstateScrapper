@@ -8,7 +8,7 @@ function formatPrice(value: number | null): string {
 }
 
 function locationLine(listing: ListingOut): string {
-  return [listing.district, listing.city].filter(Boolean).join(", ") || "—";
+  return [listing.street, listing.district, listing.city].filter(Boolean).join(", ") || "—";
 }
 
 function BuildingIcon() {
@@ -39,11 +39,30 @@ export function ListingCard({
   onPreview?: (listing: ListingOut) => void;
 }) {
   const cover = listing.images[0];
+  const detailUrl = `/listings/${listing.id}`;
+
+  function openDetail(target: "_self" | "_blank") {
+    if (target === "_self") {
+      window.location.href = detailUrl;
+      return;
+    }
+    window.open(detailUrl, target, target === "_blank" ? "noopener" : undefined);
+  }
 
   return (
     <article
       className="listing-card"
       onClick={() => onPreview?.(listing)}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+        openDetail("_self");
+      }}
+      onAuxClick={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+          openDetail("_blank");
+        }
+      }}
       role={onPreview ? "button" : undefined}
       tabIndex={onPreview ? 0 : undefined}
       onKeyDown={(event) => {
@@ -85,11 +104,7 @@ export function ListingCard({
           </span>
         </div>
 
-        <h3 className="listing-card__title">
-          <Link to={`/listings/${listing.id}`} onClick={(event) => event.stopPropagation()}>
-            {listing.title}
-          </Link>
-        </h3>
+        <h3 className="listing-card__title">{listing.title}</h3>
 
         <div className="listing-card__location">
           <svg
@@ -119,6 +134,14 @@ export function ListingCard({
             {listing.reason ? ` — ${listing.reason}` : ""}
           </p>
         )}
+
+        <Link
+          className="listing-card__details-link"
+          to={detailUrl}
+          onClick={(event) => event.stopPropagation()}
+        >
+          Szczegóły
+        </Link>
       </div>
     </article>
   );

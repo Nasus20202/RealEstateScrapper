@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from decimal import Decimal, InvalidOperation
 
@@ -11,6 +12,7 @@ from realestate.scrapers.base import RawListing, SearchCriteria, register
 from realestate.scrapers.images import looks_like_listing_image, unique_listing_images
 
 _BASE_URL = "https://www.nieruchomosci-online.pl"
+_KNOWN_CITIES = ("Gdańsk", "Gdynia", "Sopot", "Rumia", "Reda", "Wejherowo")
 
 # Tile container selector — every listing card has a data-id attribute
 _TILE_SEL = ".tile[data-id]"
@@ -80,6 +82,92 @@ def _image_url(node) -> str:
     if srcset:
         return _absolute_url(srcset.split(",")[0].strip().split(" ")[0])
     return ""
+
+
+def _clean_text(text: str | None) -> str | None:
+    if not text:
+        return None
+    cleaned = re.sub(r"\s+", " ", text).strip(" ,")
+    return cleaned or None
+
+
+def _split_address(text: str | None) -> tuple[str | None, str | None, str | None]:
+    cleaned = _clean_text(text)
+    if not cleaned:
+        return None, None, None
+    parts = [part.strip() for part in cleaned.split(",") if part.strip()]
+    city = district = street = None
+    if len(parts) >= 3:
+        street = parts[0]
+        district = parts[-2]
+        city = parts[-1]
+    elif len(parts) == 2:
+        first, second = parts
+        if any(second.lower() == city.lower() for city in _KNOWN_CITIES):
+            district, city = first, second
+        else:
+            street, city = first, second
+    else:
+        for known_city in _KNOWN_CITIES:
+            suffix = f" {known_city}".lower()
+            if parts[0].lower().endswith(suffix):
+                city = known_city
+                district = parts[0][: -len(known_city)].strip(" ,") or None
+                break
+        if city is None:
+            words = parts[0].split()
+            city = words[-1] if words else None
+            district = " ".join(words[:-1]) or None
+    return city, district, street
+
+
+def _json_ld_address(tree: HTMLParser) -> tuple[str | None, str | None, str | None]:
+    for script in tree.css('script[type="application/ld+json"]'):
+        raw = script.text(strip=True)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        stack = data if isinstance(data, list) else [data]
+        for item in stack:
+            if not isinstance(item, dict):
+                continue
+            address = item.get("address")
+            if not isinstance(address, dict):
+                continue
+            city = _clean_text(address.get("addressLocality"))
+            street = _clean_text(address.get("streetAddress"))
+            district = _clean_text(address.get("addressRegion"))
+            return city, district, street
+    return None, None, None
+
+
+def _detail_address(tree: HTMLParser) -> tuple[str | None, str | None, str | None]:
+    city, district, street = _json_ld_address(tree)
+    if city or district or street:
+        return city, district, street
+
+    selectors = [
+        "[data-address]",
+        '[itemprop="address"]',
+        '[itemprop="streetAddress"]',
+        '[data-testid*="address"]',
+        '[class*="address"]',
+        '[class*="location"]',
+        '[class*="Localization"]',
+        ".offer__location",
+        ".summary__location",
+        ".parameters__location",
+    ]
+    for selector in selectors:
+        node = tree.css_first(selector)
+        if node:
+            parsed = _split_address(node.attrs.get("data-address") or node.text())
+            if any(parsed):
+                return parsed
+    return None, None, None
 
 
 def _parse_rooms(tile: object) -> int | None:
@@ -161,15 +249,7 @@ class NieruchomosciOnlineScraper:
             district: str | None = None
             province = tile.css_first(".province")
             if province:
-                prov_text = province.text().strip()
-                # Province text is like "Dzielnica,Miasto" or "Dzielnica Miasto"
-                # Last word/part is typically the city (Gdańsk)
-                parts = re.split(r"[,\s]+", prov_text)
-                parts = [p.strip() for p in parts if p.strip()]
-                if parts:
-                    city_str = parts[-1]
-                    if len(parts) > 1:
-                        district = parts[0]
+                city_str, district, _street = _split_address(province.text())
 
             # --- Market type ---
             market_type = tile.attrs.get("data-market-type")
@@ -216,7 +296,9 @@ class NieruchomosciOnlineScraper:
 
         # Description
         desc_el = tree.css_first(".description, #description, .offer-description")
-        description = desc_el.text().strip() if desc_el else None
+        description = desc_el.html if desc_el else None
+
+        city, district, street = _detail_address(tree)
 
         # Images
         images: list[str] = []
@@ -231,6 +313,9 @@ class NieruchomosciOnlineScraper:
             url=url,
             title=title,
             description=description,
+            city=city,
+            district=district,
+            street=street,
             images=unique_listing_images(images),
         )
 

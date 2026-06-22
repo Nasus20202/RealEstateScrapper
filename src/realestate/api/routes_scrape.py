@@ -66,6 +66,7 @@ async def trigger_scrape(
     }
     runs = []
     for city in cities:
+        await on_log("app", f"Kolejka scrapingu dla miasta: {city}")
         criteria = SearchCriteria(
             city=city,
             min_price=body.min_price,

@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     scraper_min_delay_seconds: float = 1.5
     scraper_nav_timeout_ms: int = 30000
     scraper_wait_until: str = "domcontentloaded"
+    structured_logging: bool = True
 
     # --- LLM (konfigurowalny dostawca, OpenAI-compatible). Nic nie hardcodowane. ---
     llm_base_url: str = "https://openrouter.ai/api/v1"

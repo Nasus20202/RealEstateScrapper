@@ -13,7 +13,7 @@ export function SettingsPage() {
   const [enabled, setEnabled] = useState<string[]>([]);
   const [sourcePages, setSourcePages] = useState<Record<string, string>>({});
   const [sourceCrons, setSourceCrons] = useState<Record<string, string>>({});
-  const [cleanupConfirmation, setCleanupConfirmation] = useState("");
+  const [cleanupArmed, setCleanupArmed] = useState(false);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -99,9 +99,13 @@ export function SettingsPage() {
   }
 
   async function onCleanup() {
-    const result = await cleanupDatabase(cleanupConfirmation);
+    if (!cleanupArmed) {
+      setCleanupArmed(true);
+      return;
+    }
+    const result = await cleanupDatabase();
     setCleanupMessage(`Usunięto ${result.deleted_listings} ofert.`);
-    setCleanupConfirmation("");
+    setCleanupArmed(false);
   }
 
   return (
@@ -129,114 +133,108 @@ export function SettingsPage() {
         </div>
       </dl>
 
-      <form className="settings-form" onSubmit={onSubmit}>
-        <section className="settings-card">
-          <h3>Scheduler globalny</h3>
-          <label className="settings-check" htmlFor="set-scheduler-enabled">
+      <div className="settings-grid">
+        <form className="settings-form" onSubmit={onSubmit}>
+          <section className="settings-card">
+            <h3>Scheduler globalny</h3>
+            <label className="settings-check" htmlFor="set-scheduler-enabled">
+              <input
+                id="set-scheduler-enabled"
+                type="checkbox"
+                checked={schedulerEnabled}
+                onChange={(e) => setSchedulerEnabled(e.target.checked)}
+              />
+              Włącz cykliczny scraping
+            </label>
+
+            <label htmlFor="set-interval">Interwał (min)</label>
             <input
-              id="set-scheduler-enabled"
-              type="checkbox"
-              checked={schedulerEnabled}
-              onChange={(e) => setSchedulerEnabled(e.target.checked)}
+              id="set-interval"
+              inputMode="numeric"
+              value={interval}
+              onChange={(e) => setIntervalValue(e.target.value)}
             />
-            Włącz cykliczny scraping
-          </label>
 
-          <label htmlFor="set-interval">Interwał (min)</label>
-          <input
-            id="set-interval"
-            inputMode="numeric"
-            value={interval}
-            onChange={(e) => setIntervalValue(e.target.value)}
-          />
+            <label htmlFor="set-cron">Cron globalny</label>
+            <input
+              id="set-cron"
+              value={cron}
+              onChange={(e) => setCron(e.target.value)}
+              placeholder="np. 15 */6 * * *"
+            />
+          </section>
 
-          <label htmlFor="set-cron">Cron globalny</label>
-          <input
-            id="set-cron"
-            value={cron}
-            onChange={(e) => setCron(e.target.value)}
-            placeholder="np. 15 */6 * * *"
-          />
+          <section className="settings-card">
+            <h3>Zakres scrapingu</h3>
+            <label htmlFor="set-default-cities">Miasta domyślne</label>
+            <input
+              id="set-default-cities"
+              value={defaultCities}
+              onChange={(e) => setDefaultCities(e.target.value)}
+              placeholder="Gdańsk, Gdynia, Sopot"
+            />
+
+            <fieldset>
+              <legend>Providerzy</legend>
+              <div className="provider-settings">
+                {settings.sources.map((source) => (
+                  <div key={source} className="provider-settings__row">
+                    <label className="settings-check" htmlFor={`src-${source}`}>
+                      <input
+                        id={`src-${source}`}
+                        type="checkbox"
+                        checked={enabled.includes(source)}
+                        onChange={() => toggleSource(source)}
+                      />
+                      {source}
+                    </label>
+                    <label htmlFor={`set-pages-${source}`}>
+                      Strony
+                      <input
+                        id={`set-pages-${source}`}
+                        inputMode="numeric"
+                        value={sourcePages[source] ?? "1"}
+                        onChange={(e) => updateSourcePages(source, e.target.value)}
+                      />
+                    </label>
+                    <label htmlFor={`set-cron-${source}`}>
+                      Cron providera
+                      <input
+                        id={`set-cron-${source}`}
+                        value={sourceCrons[source] ?? ""}
+                        onChange={(e) => updateSourceCron(source, e.target.value)}
+                        placeholder="puste = globalny"
+                      />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+          </section>
+
+          <div className="settings-actions">
+            <button type="submit">Zapisz</button>
+            {saved && <span className="saved">Zapisano</span>}
+          </div>
+        </form>
+
+        <section className="settings-card danger-card">
+          <h3>Cleanup bazy danych</h3>
+          <p>
+            Usuwa oferty, historię cen, analizy LLM i grupy duplikatów. Zapisane wyszukiwania,
+            ulubione i konfiguracja zostają.
+          </p>
+          <button type="button" className="danger-button" onClick={() => void onCleanup()}>
+            {cleanupArmed ? "Kliknij drugi raz, aby wyczyścić" : "Wyczyść bazę ofert"}
+          </button>
+          {cleanupArmed && (
+            <button type="button" className="btn-ghost" onClick={() => setCleanupArmed(false)}>
+              Anuluj
+            </button>
+          )}
+          {cleanupMessage && <span className="saved">{cleanupMessage}</span>}
         </section>
-
-        <section className="settings-card">
-          <h3>Zakres scrapingu</h3>
-          <label htmlFor="set-default-cities">Miasta domyślne</label>
-          <input
-            id="set-default-cities"
-            value={defaultCities}
-            onChange={(e) => setDefaultCities(e.target.value)}
-            placeholder="Gdańsk, Gdynia, Sopot"
-          />
-
-          <fieldset>
-            <legend>Providerzy</legend>
-            <div className="provider-settings">
-              {settings.sources.map((source) => (
-                <div key={source} className="provider-settings__row">
-                  <label className="settings-check" htmlFor={`src-${source}`}>
-                    <input
-                      id={`src-${source}`}
-                      type="checkbox"
-                      checked={enabled.includes(source)}
-                      onChange={() => toggleSource(source)}
-                    />
-                    {source}
-                  </label>
-                  <label htmlFor={`set-pages-${source}`}>
-                    Strony
-                    <input
-                      id={`set-pages-${source}`}
-                      inputMode="numeric"
-                      value={sourcePages[source] ?? "1"}
-                      onChange={(e) => updateSourcePages(source, e.target.value)}
-                    />
-                  </label>
-                  <label htmlFor={`set-cron-${source}`}>
-                    Cron providera
-                    <input
-                      id={`set-cron-${source}`}
-                      value={sourceCrons[source] ?? ""}
-                      onChange={(e) => updateSourceCron(source, e.target.value)}
-                      placeholder="puste = globalny"
-                    />
-                  </label>
-                </div>
-              ))}
-            </div>
-          </fieldset>
-        </section>
-
-        <div className="settings-actions">
-          <button type="submit">Zapisz</button>
-          {saved && <span className="saved">Zapisano</span>}
-        </div>
-      </form>
-
-      <section className="settings-card danger-card">
-        <h3>Cleanup bazy danych</h3>
-        <p>
-          Usuwa oferty, historię cen, analizy LLM i grupy duplikatów. Zapisane wyszukiwania,
-          ulubione i konfiguracja zostają.
-        </p>
-        <label htmlFor="cleanup-confirmation">
-          Wpisz USUN, aby potwierdzić
-          <input
-            id="cleanup-confirmation"
-            value={cleanupConfirmation}
-            onChange={(e) => setCleanupConfirmation(e.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          className="danger-button"
-          disabled={cleanupConfirmation !== "USUN"}
-          onClick={() => void onCleanup()}
-        >
-          Wyczyść bazę ofert
-        </button>
-        {cleanupMessage && <span className="saved">{cleanupMessage}</span>}
-      </section>
+      </div>
     </section>
   );
 }

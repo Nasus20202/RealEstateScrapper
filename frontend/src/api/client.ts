@@ -135,10 +135,10 @@ export function updateSettings(body: SettingsUpdate): Promise<SettingsOut> {
   });
 }
 
-export function cleanupDatabase(confirmation: string): Promise<CleanupResponse> {
+export function cleanupDatabase(): Promise<CleanupResponse> {
   return request<CleanupResponse>("/cleanup", {
     method: "POST",
-    body: JSON.stringify({ confirmation }),
+    body: JSON.stringify({}),
   });
 }
 

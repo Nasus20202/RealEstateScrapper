@@ -86,7 +86,7 @@ export function ScrapePage() {
     setBusy(true);
     setError(null);
     setEvents([]);
-    setLogs([]);
+    setLogs([{ type: "scrape_log", source_id: "app", message: "Startuję scraping…" }]);
     try {
       const body: ScrapeRequest = {
         max_pages: toNumber(maxPages) ?? 1,
@@ -214,7 +214,7 @@ export function ScrapePage() {
 
           <h2 className="scrape-section-title scrape-section-title--logs">Logi scrapingu</h2>
           {logs.length === 0 ? (
-            <p className="scrape-empty">Brak logów w tej sesji.</p>
+            <p className="scrape-empty">Logi pojawią się po uruchomieniu scrapingu.</p>
           ) : (
             <ul className="scrape-logs">
               {logs.map((log, index) => (
