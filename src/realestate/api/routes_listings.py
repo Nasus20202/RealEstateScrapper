@@ -26,6 +26,7 @@ async def list_listings(
     client=Depends(get_llm_client_dep),  # noqa: B008
     city: str | None = None,
     district: list[str] | None = Query(default=None),  # noqa: B008
+    source_id: list[str] | None = Query(default=None),  # noqa: B008
     min_price: int | None = None,
     max_price: int | None = None,
     min_area: float | None = None,
@@ -40,9 +41,19 @@ async def list_listings(
     offset: int = 0,
 ) -> ListingsResponse:
     filters = ListingFilters(
-        city=city, districts=district, min_price=min_price, max_price=max_price,
-        min_area=min_area, max_area=max_area, min_rooms=min_rooms, max_rooms=max_rooms,
-        market=market, nl_query=q, sort_by=sort_by, sort_dir=sort_dir,
+        city=city,
+        districts=district,
+        min_price=min_price,
+        max_price=max_price,
+        source_ids=source_id,
+        min_area=min_area,
+        max_area=max_area,
+        min_rooms=min_rooms,
+        max_rooms=max_rooms,
+        market=market,
+        nl_query=q,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
     svc = SearchService(session, client=client)
     items, total = await svc.search_hybrid(filters, limit=limit, offset=offset)
@@ -54,33 +65,51 @@ async def list_listings(
 
 @router.get("/listings/{listing_id}", response_model=ListingDetailOut)
 async def get_listing(
-    listing_id: int, session: AsyncSession = Depends(get_session)  # noqa: B008
+    listing_id: int,
+    session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> ListingDetailOut:
     listing = await session.get(Listing, listing_id)
     if listing is None:
         raise HTTPException(status_code=404, detail="listing not found")
 
-    history = (await session.execute(
-        select(PriceHistory).where(PriceHistory.listing_id == listing_id)
-        .order_by(PriceHistory.observed_at)
-    )).scalars().all()
+    history = (
+        (
+            await session.execute(
+                select(PriceHistory)
+                .where(PriceHistory.listing_id == listing_id)
+                .order_by(PriceHistory.observed_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    analysis = (await session.execute(
-        select(LLMAnalysis).where(LLMAnalysis.listing_id == listing_id)
-        .order_by(LLMAnalysis.created_at.desc()).limit(1)
-    )).scalar_one_or_none()
+    analysis = (
+        await session.execute(
+            select(LLMAnalysis)
+            .where(LLMAnalysis.listing_id == listing_id)
+            .order_by(LLMAnalysis.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
 
     dup_ids: list[int] = []
-    member = (await session.execute(
-        select(DedupMember).where(DedupMember.listing_id == listing_id)
-    )).scalar_one_or_none()
+    member = (
+        await session.execute(select(DedupMember).where(DedupMember.listing_id == listing_id))
+    ).scalar_one_or_none()
     if member is not None:
-        rows = (await session.execute(
-            select(DedupMember.listing_id).where(
-                DedupMember.group_id == member.group_id,
-                DedupMember.listing_id != listing_id,
+        rows = (
+            (
+                await session.execute(
+                    select(DedupMember.listing_id).where(
+                        DedupMember.group_id == member.group_id,
+                        DedupMember.listing_id != listing_id,
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
         dup_ids = list(rows)
 
     base = ListingOut.from_listing(listing)

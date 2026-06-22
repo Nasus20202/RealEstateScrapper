@@ -12,6 +12,7 @@ from realestate.models.enums import ListingStatus
 
 class _SpyClient:
     """Liczy wywołania; zwraca stały JSON i deterministyczny embedding."""
+
     def __init__(self):
         self.complete_calls = 0
         self.embed_calls = 0
@@ -28,6 +29,7 @@ class _SpyClient:
 
 class _NonDictClient:
     """Spy client whose complete() returns valid-but-non-dict JSON."""
+
     def __init__(self):
         self.complete_calls = 0
         self.embed_calls = 0
@@ -44,10 +46,22 @@ class _NonDictClient:
 
 async def _listing(s: AsyncSession, *, raw_hash="h1") -> Listing:
     now = datetime.now(UTC)
-    listing = Listing(source_id="otodom", external_id="e1", url="u", title="Mieszkanie",
-                      description="ladne", city="Gdansk", district="Wrzeszcz",
-                      rooms=3, area_m2=60.0, raw_hash=raw_hash,
-                      status=ListingStatus.ACTIVE, first_seen=now, last_seen=now, images=[])
+    listing = Listing(
+        source_id="otodom",
+        external_id="e1",
+        url="u",
+        title="Mieszkanie",
+        description="ladne",
+        city="Gdansk",
+        district="Wrzeszcz",
+        rooms=3,
+        area_m2=60.0,
+        raw_hash=raw_hash,
+        status=ListingStatus.ACTIVE,
+        first_seen=now,
+        last_seen=now,
+        images=[],
+    )
     s.add(listing)
     await s.flush()
     return listing

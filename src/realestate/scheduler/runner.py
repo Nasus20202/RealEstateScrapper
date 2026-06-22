@@ -8,26 +8,60 @@ from realestate.scheduler.job import run_scheduled_scrape
 
 
 class ScrapeScheduler:
-    def __init__(self, session_factory, fetcher, bus: EventBus, *,
-                 geocoder=None, scheduler: AsyncIOScheduler | None = None) -> None:
+    def __init__(
+        self,
+        session_factory,
+        fetcher,
+        bus: EventBus,
+        *,
+        geocoder=None,
+        scheduler: AsyncIOScheduler | None = None,
+    ) -> None:
         self.session_factory = session_factory
         self.fetcher = fetcher
         self.bus = bus
         self.geocoder = geocoder
         self._scheduler = scheduler or AsyncIOScheduler()
 
-    async def _job(self) -> None:
+    async def _job(self, source_id: str | None = None) -> None:
         await run_scheduled_scrape(
-            self.session_factory, self.fetcher, self.bus, geocoder=self.geocoder
+            self.session_factory,
+            self.fetcher,
+            self.bus,
+            geocoder=self.geocoder,
+            source_ids=[source_id] if source_id else None,
         )
 
-    def start(self, *, interval_minutes: int | None = None, cron: str | None = None) -> None:
+    def start(
+        self,
+        *,
+        interval_minutes: int | None = None,
+        cron: str | None = None,
+        source_crons: dict[str, str] | None = None,
+    ) -> None:
+        for job in self._scheduler.get_jobs():
+            if job.id == "scrape" or job.id.startswith("scrape:"):
+                self._scheduler.remove_job(job.id)
         if cron:
             trigger = CronTrigger.from_crontab(cron)
             self._scheduler.add_job(self._job, trigger, id="scrape", replace_existing=True)
         else:
-            self._scheduler.add_job(self._job, "interval", minutes=interval_minutes or 360,
-                                    id="scrape", replace_existing=True)
+            self._scheduler.add_job(
+                self._job,
+                "interval",
+                minutes=interval_minutes or 360,
+                id="scrape",
+                replace_existing=True,
+            )
+        for source_id, source_cron in (source_crons or {}).items():
+            trigger = CronTrigger.from_crontab(source_cron)
+            self._scheduler.add_job(
+                self._job,
+                trigger,
+                id=f"scrape:{source_id}",
+                args=[source_id],
+                replace_existing=True,
+            )
         if not self._scheduler.running:
             self._scheduler.start()
 
@@ -35,9 +69,9 @@ class ScrapeScheduler:
         self._scheduler.reschedule_job("scrape", trigger="interval", minutes=interval_minutes)
 
     def pause(self) -> None:
-        job = self._scheduler.get_job("scrape")
-        if job is not None:
-            job.pause()
+        for job in self._scheduler.get_jobs():
+            if job.id == "scrape" or job.id.startswith("scrape:"):
+                job.pause()
 
     def jobs(self):
         return self._scheduler.get_jobs()

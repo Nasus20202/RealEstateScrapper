@@ -1,7 +1,7 @@
 // frontend/src/features/settings/SettingsPage.tsx
 import { useEffect, useState } from "react";
 
-import { getSettings, updateSettings } from "../../api/client";
+import { cleanupDatabase, getSettings, updateSettings } from "../../api/client";
 import type { SettingsOut } from "../../api/types";
 
 export function SettingsPage() {
@@ -11,6 +11,10 @@ export function SettingsPage() {
   const [cron, setCron] = useState("");
   const [defaultCities, setDefaultCities] = useState("");
   const [enabled, setEnabled] = useState<string[]>([]);
+  const [sourcePages, setSourcePages] = useState<Record<string, string>>({});
+  const [sourceCrons, setSourceCrons] = useState<Record<string, string>>({});
+  const [cleanupConfirmation, setCleanupConfirmation] = useState("");
+  const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -18,14 +22,22 @@ export function SettingsPage() {
       const data = await getSettings();
       setSettings(data);
       setIntervalValue(
-        data.scheduler_interval_minutes == null
-          ? ""
-          : String(data.scheduler_interval_minutes),
+        data.scheduler_interval_minutes == null ? "" : String(data.scheduler_interval_minutes),
       );
       setSchedulerEnabled(data.scheduler_enabled ?? false);
       setCron(data.scheduler_cron ?? "");
       setDefaultCities((data.default_cities ?? []).join(", "));
       setEnabled(data.sources);
+      setSourcePages(
+        Object.fromEntries(
+          data.sources.map((source) => [source, String(data.source_max_pages?.[source] ?? 1)]),
+        ),
+      );
+      setSourceCrons(
+        Object.fromEntries(
+          data.sources.map((source) => [source, data.source_crons?.[source] ?? ""]),
+        ),
+      );
     })();
   }, []);
 
@@ -35,10 +47,16 @@ export function SettingsPage() {
 
   function toggleSource(source: string) {
     setEnabled((prev) =>
-      prev.includes(source)
-        ? prev.filter((s) => s !== source)
-        : [...prev, source],
+      prev.includes(source) ? prev.filter((s) => s !== source) : [...prev, source],
     );
+  }
+
+  function updateSourcePages(source: string, value: string) {
+    setSourcePages((prev) => ({ ...prev, [source]: value }));
+  }
+
+  function updateSourceCron(source: string, value: string) {
+    setSourceCrons((prev) => ({ ...prev, [source]: value }));
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -54,17 +72,44 @@ export function SettingsPage() {
         .map((city) => city.trim())
         .filter(Boolean),
       enabled_source_ids: enabled,
+      source_max_pages: Object.fromEntries(
+        Object.entries(sourcePages)
+          .map(([source, value]) => [source, Number(value.trim())] as const)
+          .filter((entry) => !Number.isNaN(entry[1]) && entry[1] > 0),
+      ),
+      source_crons: Object.fromEntries(
+        Object.entries(sourceCrons).filter(([, value]) => value.trim()),
+      ),
     });
     setSettings(updated);
     setSchedulerEnabled(updated.scheduler_enabled ?? false);
     setCron(updated.scheduler_cron ?? "");
     setDefaultCities((updated.default_cities ?? []).join(", "));
+    setSourcePages(
+      Object.fromEntries(
+        updated.sources.map((source) => [source, String(updated.source_max_pages?.[source] ?? 1)]),
+      ),
+    );
+    setSourceCrons(
+      Object.fromEntries(
+        updated.sources.map((source) => [source, updated.source_crons?.[source] ?? ""]),
+      ),
+    );
     setSaved(true);
+  }
+
+  async function onCleanup() {
+    const result = await cleanupDatabase(cleanupConfirmation);
+    setCleanupMessage(`Usunięto ${result.deleted_listings} ofert.`);
+    setCleanupConfirmation("");
   }
 
   return (
     <section className="settings-page">
-      <h2>Ustawienia</h2>
+      <header className="settings-header">
+        <h2>Ustawienia</h2>
+        <p>Konfiguracja LLM, schedulera i providerów scrapingu.</p>
+      </header>
       <dl className="settings-info">
         <div>
           <dt>LLM</dt>
@@ -84,60 +129,114 @@ export function SettingsPage() {
         </div>
       </dl>
 
-      <form onSubmit={onSubmit}>
-        <label htmlFor="set-scheduler-enabled">Scheduler</label>
-        <label className="settings-check" htmlFor="set-scheduler-enabled">
+      <form className="settings-form" onSubmit={onSubmit}>
+        <section className="settings-card">
+          <h3>Scheduler globalny</h3>
+          <label className="settings-check" htmlFor="set-scheduler-enabled">
+            <input
+              id="set-scheduler-enabled"
+              type="checkbox"
+              checked={schedulerEnabled}
+              onChange={(e) => setSchedulerEnabled(e.target.checked)}
+            />
+            Włącz cykliczny scraping
+          </label>
+
+          <label htmlFor="set-interval">Interwał (min)</label>
           <input
-            id="set-scheduler-enabled"
-            type="checkbox"
-            checked={schedulerEnabled}
-            onChange={(e) => setSchedulerEnabled(e.target.checked)}
+            id="set-interval"
+            inputMode="numeric"
+            value={interval}
+            onChange={(e) => setIntervalValue(e.target.value)}
           />
-          Włącz cykliczny scraping
-        </label>
 
-        <label htmlFor="set-interval">Interwał (min)</label>
-        <input
-          id="set-interval"
-          inputMode="numeric"
-          value={interval}
-          onChange={(e) => setIntervalValue(e.target.value)}
-        />
+          <label htmlFor="set-cron">Cron globalny</label>
+          <input
+            id="set-cron"
+            value={cron}
+            onChange={(e) => setCron(e.target.value)}
+            placeholder="np. 15 */6 * * *"
+          />
+        </section>
 
-        <label htmlFor="set-cron">Cron</label>
-        <input
-          id="set-cron"
-          value={cron}
-          onChange={(e) => setCron(e.target.value)}
-          placeholder="np. 15 */6 * * *"
-        />
+        <section className="settings-card">
+          <h3>Zakres scrapingu</h3>
+          <label htmlFor="set-default-cities">Miasta domyślne</label>
+          <input
+            id="set-default-cities"
+            value={defaultCities}
+            onChange={(e) => setDefaultCities(e.target.value)}
+            placeholder="Gdańsk, Gdynia, Sopot"
+          />
 
-        <label htmlFor="set-default-cities">Miasta domyślne</label>
-        <input
-          id="set-default-cities"
-          value={defaultCities}
-          onChange={(e) => setDefaultCities(e.target.value)}
-          placeholder="Gdańsk, Gdynia, Sopot"
-        />
+          <fieldset>
+            <legend>Providerzy</legend>
+            <div className="provider-settings">
+              {settings.sources.map((source) => (
+                <div key={source} className="provider-settings__row">
+                  <label className="settings-check" htmlFor={`src-${source}`}>
+                    <input
+                      id={`src-${source}`}
+                      type="checkbox"
+                      checked={enabled.includes(source)}
+                      onChange={() => toggleSource(source)}
+                    />
+                    {source}
+                  </label>
+                  <label htmlFor={`set-pages-${source}`}>
+                    Strony
+                    <input
+                      id={`set-pages-${source}`}
+                      inputMode="numeric"
+                      value={sourcePages[source] ?? "1"}
+                      onChange={(e) => updateSourcePages(source, e.target.value)}
+                    />
+                  </label>
+                  <label htmlFor={`set-cron-${source}`}>
+                    Cron providera
+                    <input
+                      id={`set-cron-${source}`}
+                      value={sourceCrons[source] ?? ""}
+                      onChange={(e) => updateSourceCron(source, e.target.value)}
+                      placeholder="puste = globalny"
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+        </section>
 
-        <fieldset>
-          <legend>Aktywne źródła</legend>
-          {settings.sources.map((source) => (
-            <label key={source} htmlFor={`src-${source}`}>
-              <input
-                id={`src-${source}`}
-                type="checkbox"
-                checked={enabled.includes(source)}
-                onChange={() => toggleSource(source)}
-              />
-              {source}
-            </label>
-          ))}
-        </fieldset>
-
-        <button type="submit">Zapisz</button>
-        {saved && <span className="saved">Zapisano</span>}
+        <div className="settings-actions">
+          <button type="submit">Zapisz</button>
+          {saved && <span className="saved">Zapisano</span>}
+        </div>
       </form>
+
+      <section className="settings-card danger-card">
+        <h3>Cleanup bazy danych</h3>
+        <p>
+          Usuwa oferty, historię cen, analizy LLM i grupy duplikatów. Zapisane wyszukiwania,
+          ulubione i konfiguracja zostają.
+        </p>
+        <label htmlFor="cleanup-confirmation">
+          Wpisz USUN, aby potwierdzić
+          <input
+            id="cleanup-confirmation"
+            value={cleanupConfirmation}
+            onChange={(e) => setCleanupConfirmation(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="danger-button"
+          disabled={cleanupConfirmation !== "USUN"}
+          onClick={() => void onCleanup()}
+        >
+          Wyczyść bazę ofert
+        </button>
+        {cleanupMessage && <span className="saved">{cleanupMessage}</span>}
+      </section>
     </section>
   );
 }

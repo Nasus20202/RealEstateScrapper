@@ -50,6 +50,8 @@ function setupMocks() {
         scheduler_cron: null,
         default_cities: ["Gdańsk", "Gdynia", "Sopot"],
         sources: ["otodom", "hossa"],
+        source_max_pages: {},
+        source_crons: {},
       }),
     ),
   );
@@ -87,9 +89,7 @@ describe("ScrapePage", () => {
     render(<ScrapePage />);
     await screen.findByRole("button", { name: "Uruchom" });
 
-    // Clear pre-filled city and type new value
-    await userEvent.clear(screen.getByLabelText("Miasto"));
-    await userEvent.type(screen.getByLabelText("Miasto"), "Sopot");
+    await userEvent.selectOptions(screen.getByLabelText("Miasto"), "Sopot");
     await userEvent.clear(screen.getByLabelText("Maks. stron"));
     await userEvent.type(screen.getByLabelText("Maks. stron"), "3");
 
@@ -99,8 +99,33 @@ describe("ScrapePage", () => {
       expect(body).toMatchObject({
         city: "Sopot",
         max_pages: 3,
+        source_max_pages: { otodom: 1, hossa: 1 },
       }),
     );
+  });
+
+  it("puste miasto uruchamia backendowe miasta domyślne", async () => {
+    setupMocks();
+    let body: unknown = null;
+    server.use(
+      http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([])),
+      http.post(`${BASE}/scrape`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ runs: [run({ status: "running" })] });
+      }),
+    );
+    render(<ScrapePage />);
+    await screen.findByRole("button", { name: "Uruchom" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Uruchom" }));
+
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        max_pages: 1,
+        source_max_pages: { otodom: 1, hossa: 1 },
+      }),
+    );
+    expect(body).not.toHaveProperty("city");
   });
 
   it("panel postępu pokazuje zdarzenia SSE wstrzyknięte przez fake", async () => {
@@ -120,8 +145,12 @@ describe("ScrapePage", () => {
     });
 
     // Event row shows source, status and counts
-    expect(await screen.findByText("otodom", { selector: ".scrape-event__source" })).toBeInTheDocument();
-    expect(await screen.findByText("running", { selector: ".scrape-event__status" })).toBeInTheDocument();
+    expect(
+      await screen.findByText("otodom", { selector: ".scrape-event__source" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("running", { selector: ".scrape-event__status" }),
+    ).toBeInTheDocument();
     expect(await screen.findByText(/\+2 nowych/)).toBeInTheDocument();
 
     lastHandler!({

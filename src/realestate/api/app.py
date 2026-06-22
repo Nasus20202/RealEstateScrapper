@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from realestate.api.routes_events import router as events_router
 from realestate.api.routes_listings import router as listings_router
@@ -34,6 +35,10 @@ def create_app() -> FastAPI:
         app.state.session_factory = create_session_factory(engine)
         app.state.event_bus = EventBus()
         app.state.scheduler = None
+        if settings.db_migrate_on_startup:
+            from realestate.db.migrations import run_startup_migrations
+
+            await run_startup_migrations()
         from realestate.ingestion.geocode import get_geocoder
         from realestate.scrapers.browser import BrowserFetcher
 
@@ -45,10 +50,23 @@ def create_app() -> FastAPI:
         )
         app.state.scheduler = scheduler
         if settings.scheduler_enabled:
+            source_crons = {}
+            async with app.state.session_factory() as session:
+                from realestate.repositories.user_data import AppSettingRepository
+
+                try:
+                    source_crons_setting = await AppSettingRepository(session).get("source_crons")
+                except SQLAlchemyError:
+                    source_crons_setting = None
+                if source_crons_setting:
+                    source_crons = source_crons_setting.get("v", {})
             if settings.scheduler_cron:
-                scheduler.start(cron=settings.scheduler_cron)
+                scheduler.start(cron=settings.scheduler_cron, source_crons=source_crons)
             else:
-                scheduler.start(interval_minutes=settings.scheduler_default_interval_minutes)
+                scheduler.start(
+                    interval_minutes=settings.scheduler_default_interval_minutes,
+                    source_crons=source_crons,
+                )
         try:
             yield
         finally:

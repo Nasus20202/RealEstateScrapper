@@ -21,9 +21,7 @@ class DedupGroup(Base):
 
 class DedupMember(Base):
     __tablename__ = "dedup_members"
-    __table_args__ = (
-        UniqueConstraint("listing_id", name="uq_dedup_member_listing"),
-    )
+    __table_args__ = (UniqueConstraint("listing_id", name="uq_dedup_member_listing"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     group_id: Mapped[int] = mapped_column(

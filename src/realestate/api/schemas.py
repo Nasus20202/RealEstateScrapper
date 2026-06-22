@@ -43,6 +43,8 @@ class SettingsOut(BaseModel):
     scheduler_cron: str | None
     default_cities: list[str]
     sources: list[str]
+    source_max_pages: dict[str, int] = {}
+    source_crons: dict[str, str] = {}
 
 
 class SettingsUpdate(BaseModel):
@@ -51,6 +53,8 @@ class SettingsUpdate(BaseModel):
     scheduler_cron: str | None = None
     default_cities: list[str] | None = None
     enabled_source_ids: list[str] | None = None
+    source_max_pages: dict[str, int] | None = None
+    source_crons: dict[str, str] | None = None
 
 
 class ListingOut(BaseModel):
@@ -82,17 +86,30 @@ class ListingOut(BaseModel):
     @classmethod
     def from_listing(cls, listing: Listing, *, score=None, reason=None) -> ListingOut:
         return cls(
-            id=listing.id, source_id=listing.source_id, external_id=listing.external_id,
-            url=listing.url, title=listing.title, price=listing.price,
-            price_per_m2=listing.price_per_m2, area_m2=listing.area_m2, rooms=listing.rooms,
-            floor=listing.floor, total_floors=listing.total_floors, city=listing.city,
-            district=listing.district, street=listing.street,
-            lat=listing.lat, lon=listing.lon,
+            id=listing.id,
+            source_id=listing.source_id,
+            external_id=listing.external_id,
+            url=listing.url,
+            title=listing.title,
+            price=listing.price,
+            price_per_m2=listing.price_per_m2,
+            area_m2=listing.area_m2,
+            rooms=listing.rooms,
+            floor=listing.floor,
+            total_floors=listing.total_floors,
+            city=listing.city,
+            district=listing.district,
+            street=listing.street,
+            lat=listing.lat,
+            lon=listing.lon,
             market=listing.market.value if listing.market else None,
             description=listing.description,
             attributes=listing.attributes or {},
-            images=list(listing.images or []), posted_at=listing.posted_at,
-            status=listing.status.value, score=score, reason=reason,
+            images=list(listing.images or []),
+            posted_at=listing.posted_at,
+            status=listing.status.value,
+            score=score,
+            reason=reason,
         )
 
 
@@ -152,7 +169,16 @@ class ScrapeRequest(BaseModel):
     market: str | None = None
     source_ids: list[str] | None = None
     max_pages: int = 1
+    source_max_pages: dict[str, int] | None = None
 
 
 class ScrapeResponse(BaseModel):
     runs: list[ScrapeRunOut]
+
+
+class CleanupRequest(BaseModel):
+    confirmation: str
+
+
+class CleanupResponse(BaseModel):
+    deleted_listings: int

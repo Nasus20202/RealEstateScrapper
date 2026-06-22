@@ -19,10 +19,19 @@ async def _create_all(engine):
 def _listing(**kw):
     now = datetime.now(UTC)
     base = dict(
-        source_id="otodom", external_id="abc", url="https://x/abc", title="Mieszkanie",
-        price=Decimal("750000"), area_m2=52.0, rooms=3, market=MarketType.SECONDARY,
-        images=["https://img/1.jpg"], raw_hash="h1", status=ListingStatus.ACTIVE,
-        first_seen=now, last_seen=now,
+        source_id="otodom",
+        external_id="abc",
+        url="https://x/abc",
+        title="Mieszkanie",
+        price=Decimal("750000"),
+        area_m2=52.0,
+        rooms=3,
+        market=MarketType.SECONDARY,
+        images=["https://img/1.jpg"],
+        raw_hash="h1",
+        status=ListingStatus.ACTIVE,
+        first_seen=now,
+        last_seen=now,
     )
     base.update(kw)
     return Listing(**base)

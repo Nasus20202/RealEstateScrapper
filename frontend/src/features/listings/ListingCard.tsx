@@ -31,11 +31,28 @@ function BuildingIcon() {
   );
 }
 
-export function ListingCard({ listing }: { listing: ListingOut }) {
+export function ListingCard({
+  listing,
+  onPreview,
+}: {
+  listing: ListingOut;
+  onPreview?: (listing: ListingOut) => void;
+}) {
   const cover = listing.images[0];
 
   return (
-    <article className="listing-card">
+    <article
+      className="listing-card"
+      onClick={() => onPreview?.(listing)}
+      role={onPreview ? "button" : undefined}
+      tabIndex={onPreview ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (onPreview && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onPreview(listing);
+        }
+      }}
+    >
       <div className="listing-card__media">
         {cover ? (
           <img src={cover} alt={listing.title} loading="lazy" />
@@ -69,11 +86,21 @@ export function ListingCard({ listing }: { listing: ListingOut }) {
         </div>
 
         <h3 className="listing-card__title">
-          <Link to={`/listings/${listing.id}`}>{listing.title}</Link>
+          <Link to={`/listings/${listing.id}`} onClick={(event) => event.stopPropagation()}>
+            {listing.title}
+          </Link>
         </h3>
 
         <div className="listing-card__location">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
             <circle cx="12" cy="10" r="3" />
           </svg>

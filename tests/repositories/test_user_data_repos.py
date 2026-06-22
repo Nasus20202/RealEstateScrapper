@@ -13,9 +13,17 @@ from realestate.repositories.user_data import (
 
 async def _listing(s, ext="a") -> Listing:
     now = datetime.now(UTC)
-    listing = Listing(source_id="otodom", external_id=ext, url="u", title="t",
-                      raw_hash="h", status=ListingStatus.ACTIVE,
-                      first_seen=now, last_seen=now, images=[])
+    listing = Listing(
+        source_id="otodom",
+        external_id=ext,
+        url="u",
+        title="t",
+        raw_hash="h",
+        status=ListingStatus.ACTIVE,
+        first_seen=now,
+        last_seen=now,
+        images=[],
+    )
     s.add(listing)
     await s.flush()
     return listing
@@ -26,8 +34,9 @@ async def test_saved_search_repo_crud(engine):
         await conn.run_sync(Base.metadata.create_all)
     async with AsyncSession(engine, expire_on_commit=False) as s:
         repo = SavedSearchRepository(s)
-        created = await repo.add(SavedSearch(name="x", filters={}, nl_query=None,
-                                             created_at=datetime.now(UTC)))
+        created = await repo.add(
+            SavedSearch(name="x", filters={}, nl_query=None, created_at=datetime.now(UTC))
+        )
         assert await repo.get(created.id) is not None
         assert len(await repo.list_all()) == 1
         assert await repo.delete(created.id) is True

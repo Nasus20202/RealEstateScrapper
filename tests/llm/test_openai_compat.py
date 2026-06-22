@@ -24,6 +24,7 @@ async def test_complete_sends_expected_request_and_parses_response():
         captured["url"] = str(request.url)
         captured["auth"] = request.headers.get("authorization")
         import json as _json
+
         captured["body"] = _json.loads(request.content)
         return httpx.Response(
             200,
@@ -49,6 +50,7 @@ async def test_embed_sends_expected_request_and_parses_response():
     def handler(request: httpx.Request) -> httpx.Response:
         captured["url"] = str(request.url)
         import json as _json
+
         captured["body"] = _json.loads(request.content)
         return httpx.Response(
             200,

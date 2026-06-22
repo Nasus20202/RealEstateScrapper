@@ -45,6 +45,7 @@ export interface ListingsResponse {
 export interface ListingsQuery {
   city?: string;
   district?: string[];
+  source_id?: string[];
   min_price?: number;
   max_price?: number;
   min_area?: number;
@@ -83,6 +84,7 @@ export interface ScrapeRequest {
   market?: string;
   source_ids?: string[];
   max_pages?: number;
+  source_max_pages?: Record<string, number>;
 }
 
 export interface ScrapeResponse {
@@ -120,6 +122,8 @@ export interface SettingsOut {
   scheduler_cron: string | null;
   default_cities: string[];
   sources: string[];
+  source_max_pages: Record<string, number>;
+  source_crons: Record<string, string>;
 }
 
 export interface SettingsUpdate {
@@ -128,11 +132,17 @@ export interface SettingsUpdate {
   scheduler_cron?: string | null;
   default_cities?: string[];
   enabled_source_ids?: string[];
+  source_max_pages?: Record<string, number>;
+  source_crons?: Record<string, string>;
 }
 
 export interface HealthOut {
   status: string;
   database: string;
+}
+
+export interface CleanupResponse {
+  deleted_listings: number;
 }
 
 export interface ScrapeEvent {

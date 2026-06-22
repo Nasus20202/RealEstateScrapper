@@ -16,16 +16,38 @@ async def _seed(engine):
         await conn.run_sync(Base.metadata.create_all)
     async with AsyncSession(engine, expire_on_commit=False) as s:
         now = datetime.now(UTC)
-        listing = Listing(source_id="otodom", external_id="x1", url="http://x", title="Ładne 2pok",
-                          price=Decimal(400000), price_per_m2=Decimal(8000), area_m2=50.0, rooms=2,
-                          city="Gdansk", district="Wrzeszcz", raw_hash="h1", description="opis",
-                          attributes={"tags": ["BALCONY"]},
-                          status=ListingStatus.ACTIVE, first_seen=now, last_seen=now, images=[])
+        listing = Listing(
+            source_id="otodom",
+            external_id="x1",
+            url="http://x",
+            title="Ładne 2pok",
+            price=Decimal(400000),
+            price_per_m2=Decimal(8000),
+            area_m2=50.0,
+            rooms=2,
+            city="Gdansk",
+            district="Wrzeszcz",
+            raw_hash="h1",
+            description="opis",
+            attributes={"tags": ["BALCONY"]},
+            status=ListingStatus.ACTIVE,
+            first_seen=now,
+            last_seen=now,
+            images=[],
+        )
         s.add(listing)
         await s.flush()
         s.add(PriceHistory(listing_id=listing.id, price=Decimal(410000), observed_at=now))
-        s.add(LLMAnalysis(listing_id=listing.id, content_hash="h1", summary="świetne",
-                          features={"balkon": True}, model="m", created_at=now))
+        s.add(
+            LLMAnalysis(
+                listing_id=listing.id,
+                content_hash="h1",
+                summary="świetne",
+                features={"balkon": True},
+                model="m",
+                created_at=now,
+            )
+        )
         await s.commit()
         return listing.id
 
@@ -71,3 +93,14 @@ async def test_listing_detail(engine):
     assert body["attributes"] == {"tags": ["BALCONY"]}
     assert len(body["price_history"]) == 1
     assert missing.status_code == 404
+
+
+async def test_list_listings_with_source_filter(engine):
+    await _seed(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get("/listings", params={"source_id": "hossa"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 0

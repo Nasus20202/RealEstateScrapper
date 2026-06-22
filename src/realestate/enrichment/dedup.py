@@ -45,7 +45,7 @@ class DedupService:
         )
         try:
             data = json.loads(result.content)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return []
         if not isinstance(data, dict):
             return []

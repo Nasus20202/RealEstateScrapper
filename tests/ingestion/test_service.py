@@ -10,8 +10,10 @@ from tests.fixtures.loader import load_fixture
 
 class _OneSourceFetcher:
     """Zwraca fixture otodom dla 1. strony, pustą stronę dla kolejnych."""
+
     def __init__(self):
         self.first = True
+
     async def fetch(self, url: str) -> str:
         if self.first:
             self.first = False
@@ -31,6 +33,7 @@ def _only_otodom():
     # nie ma globalnego fixture izolującego rejestr — przywróć go sam).
     import realestate.scrapers.base as base
     import realestate.scrapers.otodom  # noqa: F401  (rejestruje)
+
     saved = dict(base._REGISTRY)
     keep = {"otodom": base._REGISTRY["otodom"]}
     base._REGISTRY.clear()

@@ -15,6 +15,7 @@ class _GroupingClient:
 
     async def complete(self, messages: list[ChatMessage], *, response_format=None) -> LLMResult:
         import json
+
         return LLMResult(content=json.dumps({"groups": self._groups}))
 
     async def embed(self, texts):  # pragma: no cover - nieużywane
@@ -23,9 +24,17 @@ class _GroupingClient:
 
 async def _listing(s, ext) -> Listing:
     now = datetime.now(UTC)
-    listing = Listing(source_id="otodom", external_id=ext, url="u", title="t",
-                      raw_hash="h", status=ListingStatus.ACTIVE,
-                      first_seen=now, last_seen=now, images=[])
+    listing = Listing(
+        source_id="otodom",
+        external_id=ext,
+        url="u",
+        title="t",
+        raw_hash="h",
+        status=ListingStatus.ACTIVE,
+        first_seen=now,
+        last_seen=now,
+        images=[],
+    )
     s.add(listing)
     await s.flush()
     return listing

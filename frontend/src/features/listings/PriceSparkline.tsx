@@ -47,12 +47,7 @@ export function PriceSparkline({ history }: { history: PriceHistoryEntry[] }) {
       role="img"
       aria-label={`Historia cen: od ${min.toLocaleString("pl-PL")} do ${max.toLocaleString("pl-PL")} zł`}
     >
-      <polyline
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        points={points}
-      />
+      <polyline fill="none" stroke="currentColor" strokeWidth="2" points={points} />
     </svg>
   );
 }

@@ -1,4 +1,5 @@
 """IngestionService geocodes addresses into listings.lat/lon at ingestion."""
+
 import pytest
 
 from realestate.db.engine import create_session_factory

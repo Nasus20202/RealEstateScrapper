@@ -4,6 +4,7 @@ Revision ID: 0004
 Revises: 0003
 Create Date: 2026-06-21
 """
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
@@ -16,9 +17,7 @@ depends_on = None
 scraperunstatus = postgresql.ENUM(
     "success", "blocked", "failed", name="scraperunstatus", create_type=False
 )
-_scraperunstatus_create = postgresql.ENUM(
-    "success", "blocked", "failed", name="scraperunstatus"
-)
+_scraperunstatus_create = postgresql.ENUM("success", "blocked", "failed", name="scraperunstatus")
 
 
 def upgrade() -> None:

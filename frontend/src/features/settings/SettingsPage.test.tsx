@@ -21,6 +21,8 @@ function settings(overrides: Record<string, unknown> = {}) {
     scheduler_cron: null,
     default_cities: ["Gdańsk", "Gdynia", "Sopot"],
     sources: ["otodom", "olx"],
+    source_max_pages: {},
+    source_crons: {},
     ...overrides,
   };
 }
@@ -61,6 +63,8 @@ describe("SettingsPage", () => {
         scheduler_cron: null,
         default_cities: ["Gdańsk", "Gdynia", "Sopot"],
         enabled_source_ids: ["otodom"],
+        source_max_pages: { otodom: 1, olx: 1 },
+        source_crons: {},
       }),
     );
   });

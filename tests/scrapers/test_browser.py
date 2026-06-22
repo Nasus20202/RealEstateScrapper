@@ -21,9 +21,9 @@ def test_is_blocked_false_positive_legit_otodom_page():
     # but real listing content (__NEXT_DATA__ / oferta) near the top.
     # Must NOT be flagged as blocked.
     top = (
-        '<html><head><title>Oferta mieszkania – otodom.pl</title></head>'
+        "<html><head><title>Oferta mieszkania – otodom.pl</title></head>"
         '<body><script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>'
-        '<h1>oferta</h1>'
+        "<h1>oferta</h1>"
     )
     deep_sdk = " x" * 5000 + '<script src="https://cdn.datadome.com/tags.js"></script>'
     html = top + deep_sdk + "</body></html>"

@@ -1,8 +1,11 @@
 """IngestionService — orchestrates per-source scrape, normalize, sync, ScrapeRun."""
+
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
+import sys
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
@@ -52,6 +55,7 @@ class IngestionService:
         *,
         source_ids: list[str] | None = None,
         max_pages: int = 1,
+        source_max_pages: dict[str, int] | None = None,
         mark_missing_gone: bool = True,
         on_run: Callable[[ScrapeRun], Awaitable[None]] | None = None,
         on_log: Callable[[str, str], Awaitable[None]] | None = None,
@@ -63,24 +67,27 @@ class IngestionService:
         else:
             scrapers = get_scrapers()
 
-        # Real fetchers (BrowserFetcher) are async context managers that launch
-        # Playwright in __aenter__; fetch() asserts it was entered. Enter the
-        # context once for the whole ingest. Plain test fetchers without
-        # __aenter__ are used directly via the null-context branch below.
-        async with contextlib.AsyncExitStack() as stack:
-            fetcher = self.fetcher
-            if hasattr(fetcher, "__aenter__"):
-                fetcher = await stack.enter_async_context(fetcher)
-            return await self._ingest_with(
-                fetcher,
-                scrapers,
+        tasks = [
+            self._ingest_source(
+                source_id,
+                scraper,
                 criteria,
                 now,
                 max_pages=max_pages,
+                source_max_pages=source_max_pages,
                 mark_missing_gone=mark_missing_gone,
                 on_run=on_run,
                 on_log=on_log,
             )
+            for source_id, scraper in scrapers.items()
+        ]
+        results = await asyncio.gather(*tasks)
+        return [run for source_runs in results for run in source_runs]
+
+    def _new_fetcher(self):
+        if hasattr(self.fetcher, "__aenter__"):
+            return type(self.fetcher)()
+        return self.fetcher
 
     async def _ingest_with(
         self,
@@ -90,6 +97,7 @@ class IngestionService:
         now: datetime,
         *,
         max_pages: int,
+        source_max_pages: dict[str, int] | None,
         mark_missing_gone: bool,
         on_run: Callable[[ScrapeRun], Awaitable[None]] | None,
         on_log: Callable[[str, str], Awaitable[None]] | None,
@@ -97,7 +105,9 @@ class IngestionService:
         runs: list[ScrapeRun] = []
 
         for source_id, scraper in scrapers.items():
+
             async def emit(message: str, *, _source_id: str = source_id) -> None:
+                print(f"[scrape:{_source_id}] {message}", file=sys.stdout, flush=True)
                 if on_log is not None:
                     try:
                         await on_log(_source_id, message)
@@ -177,3 +187,35 @@ class IngestionService:
                     pass
 
         return runs
+
+    async def _ingest_source(
+        self,
+        source_id: str,
+        scraper,
+        criteria: SearchCriteria,
+        now: datetime,
+        *,
+        max_pages: int,
+        source_max_pages: dict[str, int] | None,
+        mark_missing_gone: bool,
+        on_run: Callable[[ScrapeRun], Awaitable[None]] | None,
+        on_log: Callable[[str, str], Awaitable[None]] | None,
+    ) -> list[ScrapeRun]:
+        async with contextlib.AsyncExitStack() as stack:
+            fetcher = self._new_fetcher()
+            if hasattr(fetcher, "__aenter__"):
+                fetcher = await stack.enter_async_context(fetcher)
+            return await self._ingest_with(
+                fetcher,
+                {source_id: scraper},
+                criteria,
+                now,
+                max_pages=max(
+                    1,
+                    int((source_max_pages or {}).get(source_id, max_pages)),
+                ),
+                source_max_pages=source_max_pages,
+                mark_missing_gone=mark_missing_gone,
+                on_run=on_run,
+                on_log=on_log,
+            )

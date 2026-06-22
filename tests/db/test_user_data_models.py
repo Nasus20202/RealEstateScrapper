@@ -11,9 +11,17 @@ from realestate.models.enums import ListingStatus
 
 async def _listing(s, ext="a") -> Listing:
     now = datetime.now(UTC)
-    listing = Listing(source_id="otodom", external_id=ext, url="u", title="t",
-                      raw_hash="h", status=ListingStatus.ACTIVE,
-                      first_seen=now, last_seen=now, images=[])
+    listing = Listing(
+        source_id="otodom",
+        external_id=ext,
+        url="u",
+        title="t",
+        raw_hash="h",
+        status=ListingStatus.ACTIVE,
+        first_seen=now,
+        last_seen=now,
+        images=[],
+    )
     s.add(listing)
     await s.flush()
     return listing
@@ -23,8 +31,14 @@ async def test_saved_search_and_app_setting_persist(engine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     async with AsyncSession(engine, expire_on_commit=False) as s:
-        s.add(SavedSearch(name="tanie 2pok", filters={"max_price": 500000, "min_rooms": 2},
-                          nl_query="blisko morza", created_at=datetime.now(UTC)))
+        s.add(
+            SavedSearch(
+                name="tanie 2pok",
+                filters={"max_price": 500000, "min_rooms": 2},
+                nl_query="blisko morza",
+                created_at=datetime.now(UTC),
+            )
+        )
         s.add(AppSetting(key="scheduler_interval_minutes", value={"v": 60}))
         await s.flush()
         ss = (await s.execute(select(SavedSearch))).scalar_one()

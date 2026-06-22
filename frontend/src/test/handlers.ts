@@ -3,12 +3,8 @@ import { http, HttpResponse } from "msw";
 const BASE = "http://localhost:8000";
 
 export const handlers = [
-  http.get(`${BASE}/health`, () =>
-    HttpResponse.json({ status: "ok", database: "ok" }),
-  ),
-  http.get(`${BASE}/listings`, () =>
-    HttpResponse.json({ items: [], total: 0 }),
-  ),
+  http.get(`${BASE}/health`, () => HttpResponse.json({ status: "ok", database: "ok" })),
+  http.get(`${BASE}/listings`, () => HttpResponse.json({ items: [], total: 0 })),
   http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([])),
   http.get(`${BASE}/searches`, () => HttpResponse.json([])),
   http.get(`${BASE}/favorites`, () => HttpResponse.json([])),

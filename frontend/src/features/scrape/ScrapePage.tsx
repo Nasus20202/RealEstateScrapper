@@ -27,11 +27,13 @@ function isScrapeLogEvent(event: ScrapeEvent | ScrapeLogEvent): event is ScrapeL
 }
 
 export function ScrapePage() {
-  const [city, setCity] = useState("Gdańsk");
+  const [cityMode, setCityMode] = useState("__default");
+  const [customCity, setCustomCity] = useState("");
   const [maxPages, setMaxPages] = useState("1");
   const [availableSources, setAvailableSources] = useState<string[]>([]);
   const [defaultCities, setDefaultCities] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [sourcePages, setSourcePages] = useState<Record<string, string>>({});
   const [runs, setRuns] = useState<ScrapeRunOut[]>([]);
   const [events, setEvents] = useState<ScrapeEvent[]>([]);
   const [logs, setLogs] = useState<ScrapeLogEvent[]>([]);
@@ -44,12 +46,18 @@ export function ScrapePage() {
 
   useEffect(() => {
     void loadRuns();
-    void getSettings().then((s) => {
-      setAvailableSources(s.sources);
-      const cities = s.default_cities ?? [];
-      setDefaultCities(cities);
-      setCity(cities[0] ?? "Gdańsk");
-    }).catch(() => {});
+    void getSettings()
+      .then((s) => {
+        setAvailableSources(s.sources);
+        const cities = s.default_cities ?? [];
+        setDefaultCities(cities);
+        setSourcePages(
+          Object.fromEntries(
+            s.sources.map((source) => [source, String(s.source_max_pages?.[source] ?? 1)]),
+          ),
+        );
+      })
+      .catch(() => {});
   }, [loadRuns]);
 
   useEffect(() => {
@@ -69,6 +77,10 @@ export function ScrapePage() {
     );
   }
 
+  function updateSourcePages(source: string, value: string) {
+    setSourcePages((prev) => ({ ...prev, [source]: value }));
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -79,8 +91,20 @@ export function ScrapePage() {
       const body: ScrapeRequest = {
         max_pages: toNumber(maxPages) ?? 1,
       };
-      if (city.trim()) body.city = city.trim();
+      if (cityMode === "__custom" && customCity.trim()) {
+        body.city = customCity.trim();
+      } else if (cityMode !== "__default") {
+        body.city = cityMode;
+      }
       if (selectedSources.length > 0) body.source_ids = selectedSources;
+      const providerPages = Object.fromEntries(
+        Object.entries(sourcePages)
+          .map(([source, value]) => [source, toNumber(value)] as const)
+          .filter((entry): entry is [string, number] => entry[1] != null),
+      );
+      if (Object.keys(providerPages).length > 0) {
+        body.source_max_pages = providerPages;
+      }
       await postScrape(body);
       await loadRuns();
     } catch (err) {
@@ -96,19 +120,30 @@ export function ScrapePage() {
         <div className="scrape-form-wrapper">
           <h2 className="scrape-section-title">Uruchom scraping</h2>
           <form className="scrape-form" onSubmit={onSubmit}>
-            <label htmlFor="s-city">Miasto</label>
-            <input
-              id="s-city"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              list="default-cities"
-              placeholder="puste = miasta domyślne"
-            />
-            <datalist id="default-cities">
+            <label htmlFor="s-city-mode">Miasto</label>
+            <select id="s-city-mode" value={cityMode} onChange={(e) => setCityMode(e.target.value)}>
+              <option value="__default">
+                Całe Trójmiasto ({defaultCities.join(", ") || "miasta domyślne"})
+              </option>
               {defaultCities.map((defaultCity) => (
-                <option key={defaultCity} value={defaultCity} />
+                <option key={defaultCity} value={defaultCity}>
+                  {defaultCity}
+                </option>
               ))}
-            </datalist>
+              <option value="__custom">Własne miasto…</option>
+            </select>
+
+            {cityMode === "__custom" && (
+              <>
+                <label htmlFor="s-custom-city">Własne miasto</label>
+                <input
+                  id="s-custom-city"
+                  value={customCity}
+                  onChange={(e) => setCustomCity(e.target.value)}
+                  placeholder="np. Rumia"
+                />
+              </>
+            )}
 
             <label htmlFor="s-pages">Maks. stron</label>
             <input
@@ -123,17 +158,30 @@ export function ScrapePage() {
                 <label className="sources-label">Źródła</label>
                 <div className="sources-checkboxes">
                   {availableSources.map((src) => (
-                    <label key={src} className="source-check">
-                      <input
-                        type="checkbox"
-                        checked={selectedSources.includes(src)}
-                        onChange={() => toggleSource(src)}
-                      />
-                      {src}
-                    </label>
+                    <div key={src} className="source-config-row">
+                      <label className="source-check">
+                        <input
+                          type="checkbox"
+                          checked={selectedSources.includes(src)}
+                          onChange={() => toggleSource(src)}
+                        />
+                        {src}
+                      </label>
+                      <label htmlFor={`s-pages-${src}`} className="source-pages-label">
+                        Strony
+                        <input
+                          id={`s-pages-${src}`}
+                          inputMode="numeric"
+                          value={sourcePages[src] ?? "1"}
+                          onChange={(e) => updateSourcePages(src, e.target.value)}
+                        />
+                      </label>
+                    </div>
                   ))}
                   <span className="sources-hint">
-                    {selectedSources.length === 0 ? "wszystkie" : `${selectedSources.length} wybranych`}
+                    {selectedSources.length === 0
+                      ? "wszystkie; strony można ustawić osobno per provider"
+                      : `${selectedSources.length} wybranych`}
                   </span>
                 </div>
               </>
@@ -202,9 +250,7 @@ export function ScrapePage() {
                 <span className="run-num">~{r.updated_count}</span>
                 <span className="run-num run-num--gone">{r.gone_count}</span>
                 <span className="run-time">{formatDt(r.started_at)}</span>
-                {r.error_message && (
-                  <span className="run-error">{r.error_message}</span>
-                )}
+                {r.error_message && <span className="run-error">{r.error_message}</span>}
               </div>
             ))}
           </div>

@@ -24,24 +24,38 @@ def _criteria_from_filters(filters: dict) -> SearchCriteria | None:
 
 
 async def run_scheduled_scrape(
-    session_factory, fetcher, bus: EventBus, *, geocoder=None, max_pages: int = 1
+    session_factory,
+    fetcher,
+    bus: EventBus,
+    *,
+    geocoder=None,
+    max_pages: int = 1,
+    source_ids: list[str] | None = None,
 ) -> int:
     async with session_factory() as session:
         searches = await SavedSearchRepository(session).list_all()
         settings_repo = AppSettingRepository(session)
         source_setting = await settings_repo.get("enabled_source_ids")
         cities_setting = await settings_repo.get("default_cities")
-    source_ids = source_setting["v"] if source_setting else None
+        source_pages_setting = await settings_repo.get("source_max_pages")
+    source_ids = source_ids or (source_setting["v"] if source_setting else None)
+    source_max_pages = source_pages_setting["v"] if source_pages_setting else {}
     default_cities = (
         cities_setting["v"] if cities_setting else get_settings().scraper_default_cities
     )
 
     async def on_run(run) -> None:
-        bus.publish({
-            "type": "scrape", "source_id": run.source_id, "status": run.status.value,
-            "new": run.new_count, "updated": run.updated_count,
-            "gone": run.gone_count, "unchanged": run.unchanged_count,
-        })
+        bus.publish(
+            {
+                "type": "scrape",
+                "source_id": run.source_id,
+                "status": run.status.value,
+                "new": run.new_count,
+                "updated": run.updated_count,
+                "gone": run.gone_count,
+                "unchanged": run.unchanged_count,
+            }
+        )
 
     async def on_log(source_id: str, message: str) -> None:
         bus.publish({"type": "scrape_log", "source_id": source_id, "message": message})
@@ -54,7 +68,12 @@ async def run_scheduled_scrape(
             continue
         pages = (search.filters or {}).get("max_pages", max_pages)
         await service.ingest(
-            criteria, source_ids=source_ids, max_pages=pages, on_run=on_run, on_log=on_log
+            criteria,
+            source_ids=source_ids,
+            max_pages=pages,
+            source_max_pages=source_max_pages,
+            on_run=on_run,
+            on_log=on_log,
         )
         processed += 1
     if processed == 0:
@@ -63,6 +82,7 @@ async def run_scheduled_scrape(
                 SearchCriteria(city=city),
                 source_ids=source_ids,
                 max_pages=max_pages,
+                source_max_pages=source_max_pages,
                 mark_missing_gone=False,
                 on_run=on_run,
                 on_log=on_log,

@@ -3,13 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import { Link, useParams } from "react-router-dom";
 
-import {
-  addFavorite,
-  ApiError,
-  getFavorites,
-  getListing,
-  removeFavorite,
-} from "../../api/client";
+import { addFavorite, ApiError, getFavorites, getListing, removeFavorite } from "../../api/client";
 import type { ListingDetailOut } from "../../api/types";
 import { PriceSparkline } from "./PriceSparkline";
 
@@ -36,10 +30,7 @@ export function ListingDetailPage() {
   const load = useCallback(async () => {
     setNotFound(false);
     try {
-      const [detail, favorites] = await Promise.all([
-        getListing(listingId),
-        getFavorites(),
-      ]);
+      const [detail, favorites] = await Promise.all([getListing(listingId), getFavorites()]);
       setListing(detail);
       setIsFavorite(favorites.some((f) => f.listing_id === listingId));
     } catch (err) {
@@ -105,7 +96,11 @@ export function ListingDetailPage() {
         </div>
         <div>
           <dt>Cena/m²</dt>
-          <dd>{listing.price_per_m2 == null ? "—" : `${listing.price_per_m2.toLocaleString("pl-PL")} zł/m²`}</dd>
+          <dd>
+            {listing.price_per_m2 == null
+              ? "—"
+              : `${listing.price_per_m2.toLocaleString("pl-PL")} zł/m²`}
+          </dd>
         </div>
         <div>
           <dt>Powierzchnia</dt>
@@ -162,8 +157,8 @@ export function ListingDetailPage() {
           <div className="listing-detail__map">
             <MapContainer center={mapPosition} zoom={16} scrollWheelZoom>
               <TileLayer
-                attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
               />
               <Marker position={mapPosition}>
                 <Popup>{addressLine(listing)}</Popup>
@@ -199,7 +194,10 @@ export function ListingDetailPage() {
           >
             ‹
           </button>
-          <img src={currentImage} alt={`${listing.title} — zdjęcie ${selectedImage + 1} z ${images.length}`} />
+          <img
+            src={currentImage}
+            alt={`${listing.title} — zdjęcie ${selectedImage + 1} z ${images.length}`}
+          />
           <button
             type="button"
             className="lightbox-nav lightbox-nav--next"

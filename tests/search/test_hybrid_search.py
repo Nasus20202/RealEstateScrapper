@@ -13,22 +13,38 @@ from realestate.search.service import SearchService
 
 class _HybridClient:
     """embed zwraca wektor zależny od 'mark'; complete zwraca ranking faworyzujący id2."""
+
     def __init__(self, matches_json):
         self._matches = matches_json
+
     async def embed(self, texts):
         dim = get_embedding_dim()
         return [[1.0] + [0.0] * (dim - 1) for _ in texts]
+
     async def complete(self, messages: list[ChatMessage], *, response_format=None) -> LLMResult:
         return LLMResult(content=self._matches)
 
 
 async def _listing(s, *, ext, vec):
     now = datetime.now(UTC)
-    listing = Listing(source_id="otodom", external_id=ext, url="u", title=f"o {ext}",
-                      price=Decimal(400000), price_per_m2=Decimal(8000), area_m2=50.0,
-                      rooms=2, district="Wrzeszcz", city="Gdansk",
-                      raw_hash="h" + ext, status=ListingStatus.ACTIVE,
-                      first_seen=now, last_seen=now, images=[], embedding=vec)
+    listing = Listing(
+        source_id="otodom",
+        external_id=ext,
+        url="u",
+        title=f"o {ext}",
+        price=Decimal(400000),
+        price_per_m2=Decimal(8000),
+        area_m2=50.0,
+        rooms=2,
+        district="Wrzeszcz",
+        city="Gdansk",
+        raw_hash="h" + ext,
+        status=ListingStatus.ACTIVE,
+        first_seen=now,
+        last_seen=now,
+        images=[],
+        embedding=vec,
+    )
     s.add(listing)
     await s.flush()
     return listing

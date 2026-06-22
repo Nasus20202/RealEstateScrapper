@@ -1,4 +1,5 @@
 """Normalizator RawListing -> Listing + raw_hash."""
+
 import hashlib
 import json
 from datetime import datetime
@@ -35,7 +36,7 @@ def compute_raw_hash(raw: RawListing) -> str:
 
     # Serialize with sorted keys, ensure_ascii=False, and default=str for Decimal/datetime
     canonical_json = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
-    hash_obj = hashlib.sha256(canonical_json.encode('utf-8'))
+    hash_obj = hashlib.sha256(canonical_json.encode("utf-8"))
     return hash_obj.hexdigest()
 
 

@@ -6,6 +6,7 @@ already exist). Default provider is OpenStreetMap Nominatim — free, no API key
 but the base URL/user-agent are configurable (nothing hardcoded). Geocoding is
 best-effort: failures return None and never break a scrape.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -87,7 +88,7 @@ class NominatimGeocoder:
                 if isinstance(data, list) and data:
                     first = data[0]
                     result = (float(first["lat"]), float(first["lon"]))
-            except (httpx.HTTPError, KeyError, ValueError, TypeError):
+            except httpx.HTTPError, KeyError, ValueError, TypeError:
                 result = None
             finally:
                 if self._owns_client:

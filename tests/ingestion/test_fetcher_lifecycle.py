@@ -6,6 +6,7 @@ failed with "BrowserFetcher must be used as an async context manager". This test
 locks in that ingest() enters a context-manager fetcher around the work — while
 plain (non-context-manager) fetchers keep working unchanged (covered elsewhere).
 """
+
 import pytest
 
 from realestate.db.engine import create_session_factory

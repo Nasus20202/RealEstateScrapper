@@ -34,8 +34,8 @@ class ListingRepository:
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def count_active(self) -> int:
-        stmt = select(func.count()).select_from(Listing).where(
-            Listing.status == ListingStatus.ACTIVE
+        stmt = (
+            select(func.count()).select_from(Listing).where(Listing.status == ListingStatus.ACTIVE)
         )
         return (await self.session.execute(stmt)).scalar_one()
 
@@ -47,9 +47,7 @@ class ListingRepository:
         rows = (await self.session.execute(stmt)).scalars().all()
         return set(rows)
 
-    async def mark_gone(
-        self, source_id: str, keep_ids: set[str], *, now: datetime
-    ) -> int:
+    async def mark_gone(self, source_id: str, keep_ids: set[str], *, now: datetime) -> int:
         stmt = (
             update(Listing)
             .where(

@@ -10,6 +10,7 @@ from realestate.models.listing import Listing
 class ListingFilters(BaseModel):
     city: str | None = None
     districts: list[str] | None = None
+    source_ids: list[str] | None = None
     min_price: int | None = None
     max_price: int | None = None
     min_area: float | None = None
@@ -27,6 +28,8 @@ def apply_filters(stmt: Select, filters: ListingFilters) -> Select:
         stmt = stmt.where(Listing.city == filters.city)
     if filters.districts:
         stmt = stmt.where(Listing.district.in_(filters.districts))
+    if filters.source_ids:
+        stmt = stmt.where(Listing.source_id.in_(filters.source_ids))
     if filters.min_price is not None:
         stmt = stmt.where(Listing.price >= filters.min_price)
     if filters.max_price is not None:

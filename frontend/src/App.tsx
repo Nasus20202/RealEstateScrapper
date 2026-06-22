@@ -3,6 +3,7 @@ import { NavLink, Route, Routes } from "react-router-dom";
 
 import { FavoritesPage } from "./features/favorites/FavoritesPage";
 import { ListingDetailPage } from "./features/listings/ListingDetailPage";
+import { ListingsMapPage } from "./features/listings/ListingsMapPage";
 import { ListingsPage } from "./features/listings/ListingsPage";
 import { ScrapePage } from "./features/scrape/ScrapePage";
 import { SavedSearchesPage } from "./features/searches/SavedSearchesPage";
@@ -19,6 +20,7 @@ export function App() {
         <NavLink to="/" end>
           Oferty
         </NavLink>
+        <NavLink to="/mapa">Mapa</NavLink>
         <NavLink to="/scrape">Scraping</NavLink>
         <NavLink to="/searches">Zapisane</NavLink>
         <NavLink to="/favorites">Ulubione</NavLink>
@@ -27,6 +29,7 @@ export function App() {
       <main className="app-main">
         <Routes>
           <Route path="/" element={<ListingsPage />} />
+          <Route path="/mapa" element={<ListingsMapPage />} />
           <Route path="/listings/:id" element={<ListingDetailPage />} />
           <Route path="/scrape" element={<ScrapePage />} />
           <Route path="/searches" element={<SavedSearchesPage />} />

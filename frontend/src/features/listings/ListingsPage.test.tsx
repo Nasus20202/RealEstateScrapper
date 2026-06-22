@@ -47,11 +47,31 @@ function renderPage() {
 }
 
 describe("ListingsPage", () => {
-  it("renderuje wyniki ze score i reason oraz cenę/m²", async () => {
+  function setupSettings() {
     server.use(
-      http.get(`${BASE}/listings`, () =>
-        HttpResponse.json({ items: [listing()], total: 1 }),
+      http.get(`${BASE}/settings`, () =>
+        HttpResponse.json({
+          llm_enabled: false,
+          llm_base_url: "http://x",
+          llm_model: null,
+          llm_embedding_model: null,
+          llm_api_key_set: false,
+          scheduler_interval_minutes: null,
+          scheduler_enabled: false,
+          scheduler_cron: null,
+          default_cities: ["Gdańsk", "Gdynia", "Sopot"],
+          sources: ["otodom", "hossa"],
+          source_max_pages: {},
+          source_crons: {},
+        }),
       ),
+    );
+  }
+
+  it("renderuje wyniki ze score i reason oraz cenę/m²", async () => {
+    setupSettings();
+    server.use(
+      http.get(`${BASE}/listings`, () => HttpResponse.json({ items: [listing()], total: 1 })),
     );
     renderPage();
     expect(await screen.findByText("Ładne 2pok")).toBeInTheDocument();
@@ -63,6 +83,7 @@ describe("ListingsPage", () => {
   });
 
   it("wysyła filtry i NL query jako parametry zapytania", async () => {
+    setupSettings();
     let captured = "";
     server.use(
       http.get(`${BASE}/listings`, ({ request }) => {
@@ -80,14 +101,10 @@ describe("ListingsPage", () => {
     // Expand hidden filters
     await userEvent.click(screen.getByRole("button", { name: /Więcej filtrów/i }));
 
-    await userEvent.type(
-      screen.getByLabelText("Dzielnice (przecinki)"),
-      "Wrzeszcz, Oliwa",
-    );
-    await userEvent.type(
-      screen.getByLabelText("Zapytanie (NL)"),
-      "blisko morza",
-    );
+    await userEvent.click(screen.getByLabelText("Wrzeszcz"));
+    await userEvent.click(screen.getByLabelText("Oliwa"));
+    await userEvent.click(screen.getByLabelText("hossa"));
+    await userEvent.type(screen.getByLabelText("Zapytanie (NL)"), "blisko morza");
     await userEvent.click(screen.getByRole("button", { name: "Szukaj" }));
 
     await waitFor(() => {
@@ -96,11 +113,13 @@ describe("ListingsPage", () => {
       expect(params.get("max_price")).toBe("500000");
       expect(params.get("min_rooms")).toBe("2");
       expect(params.getAll("district")).toEqual(["Wrzeszcz", "Oliwa"]);
+      expect(params.getAll("source_id")).toEqual(["hossa"]);
       expect(params.get("q")).toBe("blisko morza");
     });
   });
 
   it("paginacja zwiększa offset", async () => {
+    setupSettings();
     const offsets: string[] = [];
     server.use(
       http.get(`${BASE}/listings`, ({ request }) => {
@@ -118,6 +137,7 @@ describe("ListingsPage", () => {
   });
 
   it("link prowadzi do szczegółów oferty", async () => {
+    setupSettings();
     server.use(
       http.get(`${BASE}/listings`, () =>
         HttpResponse.json({ items: [listing({ id: 7 })], total: 1 }),

@@ -1,13 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import {
-  addFavorite,
-  ApiError,
-  getListing,
-  getListings,
-  postScrape,
-} from "./client";
+import { addFavorite, ApiError, getListing, getListings, postScrape } from "./client";
 import { server } from "../test/server";
 
 describe("api client", () => {

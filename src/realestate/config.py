@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     scheduler_default_interval_minutes: int = 360
     scheduler_cron: str | None = None
     scraper_default_cities: list[str] = DEFAULT_CITIES
+    db_migrate_on_startup: bool = True
 
     # --- Geocoding (OpenStreetMap/Nominatim by default; nothing hardcoded). ---
     # Scraped listing data has no coordinates, so addresses are geocoded at

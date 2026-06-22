@@ -17,9 +17,16 @@ async def _setup(engine):
 def _listing(external_id="a", **kw):
     now = datetime.now(UTC)
     base = dict(
-        source_id="otodom", external_id=external_id, url="https://x", title="t",
-        price=Decimal("500000"), raw_hash="h", status=ListingStatus.ACTIVE,
-        images=[], first_seen=now, last_seen=now,
+        source_id="otodom",
+        external_id=external_id,
+        url="https://x",
+        title="t",
+        price=Decimal("500000"),
+        raw_hash="h",
+        status=ListingStatus.ACTIVE,
+        images=[],
+        first_seen=now,
+        last_seen=now,
     )
     base.update(kw)
     return Listing(**base)
@@ -61,21 +68,27 @@ async def test_list_active_ordering(engine):
     one_hour_ago = now - timedelta(hours=1)
     async with factory() as s:
         repo = ListingRepository(s)
-        await repo.add(_listing(
-            external_id="oldest",
-            first_seen=two_hours_ago,
-            last_seen=two_hours_ago,
-        ))
-        await repo.add(_listing(
-            external_id="newest",
-            first_seen=now,
-            last_seen=now,
-        ))
-        await repo.add(_listing(
-            external_id="middle",
-            first_seen=one_hour_ago,
-            last_seen=one_hour_ago,
-        ))
+        await repo.add(
+            _listing(
+                external_id="oldest",
+                first_seen=two_hours_ago,
+                last_seen=two_hours_ago,
+            )
+        )
+        await repo.add(
+            _listing(
+                external_id="newest",
+                first_seen=now,
+                last_seen=now,
+            )
+        )
+        await repo.add(
+            _listing(
+                external_id="middle",
+                first_seen=one_hour_ago,
+                last_seen=one_hour_ago,
+            )
+        )
         await s.commit()
     async with factory() as s:
         repo = ListingRepository(s)

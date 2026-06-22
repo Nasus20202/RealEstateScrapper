@@ -38,12 +38,10 @@ class SearchService:
     async def search(
         self, filters: ListingFilters, *, limit: int = 50, offset: int = 0
     ) -> tuple[list[RankedListing], int]:
-        base = apply_filters(
-            select(Listing).where(Listing.status == ListingStatus.ACTIVE), filters
-        )
-        total = (await self.session.execute(
-            select(func.count()).select_from(base.subquery())
-        )).scalar_one()
+        base = apply_filters(select(Listing).where(Listing.status == ListingStatus.ACTIVE), filters)
+        total = (
+            await self.session.execute(select(func.count()).select_from(base.subquery()))
+        ).scalar_one()
         stmt = base.order_by(*_build_order(filters)).limit(limit).offset(offset)
         rows = (await self.session.execute(stmt)).scalars().all()
         return [RankedListing(listing=row) for row in rows], total
@@ -60,12 +58,10 @@ class SearchService:
             return await self.search(filters, limit=limit, offset=offset)
 
         qvec = (await self.client.embed([filters.nl_query]))[0]
-        base = apply_filters(
-            select(Listing).where(Listing.status == ListingStatus.ACTIVE), filters
-        )
-        total = (await self.session.execute(
-            select(func.count()).select_from(base.subquery())
-        )).scalar_one()
+        base = apply_filters(select(Listing).where(Listing.status == ListingStatus.ACTIVE), filters)
+        total = (
+            await self.session.execute(select(func.count()).select_from(base.subquery()))
+        ).scalar_one()
         cand_stmt = (
             base.where(Listing.embedding.isnot(None))
             .order_by(Listing.embedding.cosine_distance(qvec))

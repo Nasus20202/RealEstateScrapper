@@ -13,9 +13,15 @@ class SavedSearchRepository:
         self.session = session
 
     async def list_all(self) -> list[SavedSearch]:
-        rows = (await self.session.execute(
-            select(SavedSearch).order_by(SavedSearch.created_at.desc())
-        )).scalars().all()
+        rows = (
+            (
+                await self.session.execute(
+                    select(SavedSearch).order_by(SavedSearch.created_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
         return list(rows)
 
     async def get(self, search_id: int) -> SavedSearch | None:
@@ -40,21 +46,23 @@ class FavoriteRepository:
         self.session = session
 
     async def list_all(self) -> list[Favorite]:
-        rows = (await self.session.execute(
-            select(Favorite).order_by(Favorite.created_at.desc())
-        )).scalars().all()
+        rows = (
+            (await self.session.execute(select(Favorite).order_by(Favorite.created_at.desc())))
+            .scalars()
+            .all()
+        )
         return list(rows)
 
     async def exists(self, listing_id: int) -> bool:
-        row = (await self.session.execute(
-            select(Favorite.id).where(Favorite.listing_id == listing_id)
-        )).scalar_one_or_none()
+        row = (
+            await self.session.execute(select(Favorite.id).where(Favorite.listing_id == listing_id))
+        ).scalar_one_or_none()
         return row is not None
 
     async def add(self, listing_id: int) -> Favorite:
-        existing = (await self.session.execute(
-            select(Favorite).where(Favorite.listing_id == listing_id)
-        )).scalar_one_or_none()
+        existing = (
+            await self.session.execute(select(Favorite).where(Favorite.listing_id == listing_id))
+        ).scalar_one_or_none()
         if existing is not None:
             return existing
         fav = Favorite(listing_id=listing_id, created_at=datetime.now(UTC))

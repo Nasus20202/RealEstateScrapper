@@ -1,4 +1,5 @@
 """Tests for IncrementalEngine.sync_source — TDD, real PostgreSQL via testcontainers."""
+
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 

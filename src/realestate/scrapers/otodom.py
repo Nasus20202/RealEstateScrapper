@@ -1,4 +1,5 @@
 """Otodom.pl scraper — parses listing data from __NEXT_DATA__ JSON."""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +24,7 @@ def _slugify_city(city: str) -> str:
     city = city.strip().lower().replace("ł", "l")
     folded = unicodedata.normalize("NFKD", city).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"\s+", "-", folded.strip())
+
 
 _NEXT_DATA_RE = re.compile(
     r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>',
@@ -79,7 +81,7 @@ def _extract_next_data(html: str) -> dict:
         return {}
     try:
         return json.loads(match.group(1))
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return {}
 
 
@@ -138,7 +140,7 @@ def _extract_price(item: dict) -> Decimal | None:
         return None
     try:
         return Decimal(str(value))
-    except (InvalidOperation, TypeError):
+    except InvalidOperation, TypeError:
         return None
 
 
@@ -264,10 +266,7 @@ class OtodomScraper:
                     rooms=_extract_rooms(item),
                     floor=_extract_floor(item),
                     city=(
-                        (item.get("location") or {})
-                        .get("address", {})
-                        .get("city", {})
-                        .get("name")
+                        (item.get("location") or {}).get("address", {}).get("city", {}).get("name")
                     ),
                     district=_extract_district(item),
                     market=_map_market(item),
@@ -283,11 +282,7 @@ class OtodomScraper:
     def parse_detail(self, html: str, url: str) -> RawListing:
         """Parse an Otodom detail page; returns a RawListing (defensively)."""
         data = _extract_next_data(html)
-        ad = (
-            data.get("props", {})
-            .get("pageProps", {})
-            .get("ad", {})
-        )
+        ad = data.get("props", {}).get("pageProps", {}).get("ad", {})
 
         # Extract id from URL as fallback
         slug_match = re.search(r"/oferta/([^/?#]+)", url)

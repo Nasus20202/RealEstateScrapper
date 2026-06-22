@@ -20,6 +20,7 @@ from tests.fixtures.loader import load_fixture
 class _OneSourceFetcher:
     def __init__(self):
         self.first = True
+
     async def fetch(self, url: str) -> str:
         if self.first:
             self.first = False
@@ -35,6 +36,7 @@ class _OneSourceFetcher:
 def _only_otodom():
     import realestate.scrapers.base as base
     import realestate.scrapers.otodom  # noqa: F401
+
     saved = dict(base._REGISTRY)
     base._REGISTRY.clear()
     base._REGISTRY.update({"otodom": saved["otodom"]})
@@ -67,8 +69,9 @@ async def test_full_flow_scrape_list_detail_favorite(engine):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as client:
         # 1) scrape
-        scraped = await client.post("/scrape", json={"city": "gdansk",
-                                                     "source_ids": ["otodom"], "max_pages": 2})
+        scraped = await client.post(
+            "/scrape", json={"city": "gdansk", "source_ids": ["otodom"], "max_pages": 2}
+        )
         assert scraped.status_code == 200
         assert scraped.json()["runs"][0]["status"] == "success"
         assert scraped.json()["runs"][0]["new_count"] >= 20

@@ -46,13 +46,9 @@ describe("FavoritesPage", () => {
     let deleted = false;
     server.use(
       http.get(`${BASE}/favorites`, () =>
-        HttpResponse.json([
-          { id: 1, listing_id: 7, created_at: "2026-06-01T00:00:00Z" },
-        ]),
+        HttpResponse.json([{ id: 1, listing_id: 7, created_at: "2026-06-01T00:00:00Z" }]),
       ),
-      http.get(`${BASE}/listings/7`, () =>
-        HttpResponse.json(listing(7, "Ulubiona oferta")),
-      ),
+      http.get(`${BASE}/listings/7`, () => HttpResponse.json(listing(7, "Ulubiona oferta"))),
       http.delete(`${BASE}/favorites/7`, () => {
         deleted = true;
         return new HttpResponse(null, { status: 204 });
@@ -66,8 +62,6 @@ describe("FavoritesPage", () => {
     expect(await screen.findByText("Ulubiona oferta")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Usuń" }));
     await waitFor(() => expect(deleted).toBe(true));
-    await waitFor(() =>
-      expect(screen.queryByText("Ulubiona oferta")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByText("Ulubiona oferta")).not.toBeInTheDocument());
   });
 });

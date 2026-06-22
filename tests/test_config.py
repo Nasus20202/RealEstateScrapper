@@ -3,6 +3,7 @@ from realestate.config import Settings, get_settings
 
 def test_get_embedding_dim_reads_env(monkeypatch):
     from realestate.config import get_embedding_dim
+
     monkeypatch.setenv("EMBEDDING_DIM", "256")
     assert get_embedding_dim() == 256
     monkeypatch.delenv("EMBEDDING_DIM", raising=False)

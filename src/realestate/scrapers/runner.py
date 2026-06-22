@@ -7,6 +7,7 @@
 - Deduplicates by ``(source_id, external_id)`` across all pages.
 - Propagates ``ScraperBlocked`` to the caller without catching it.
 """
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -25,6 +26,15 @@ def _merge_detail(search: RawListing, detail: RawListing) -> RawListing:
             continue
         if key == "raw":
             data[key] = search.raw or detail.raw
+            continue
+        if key == "description" and value:
+            current = data.get(key)
+            if (
+                not current
+                or str(current).rstrip().endswith("...")
+                or len(str(value)) > len(str(current))
+            ):
+                data[key] = value
             continue
         if data.get(key) in (None, "", []):
             data[key] = value

@@ -14,6 +14,7 @@ from tests.fixtures.loader import load_fixture
 class _OneSourceFetcher:
     def __init__(self):
         self.first = True
+
     async def fetch(self, url: str) -> str:
         if self.first:
             self.first = False
@@ -26,6 +27,7 @@ class _OneSourceFetcher:
 def _only_otodom():
     import realestate.scrapers.base as base
     import realestate.scrapers.otodom  # noqa: F401
+
     saved = dict(base._REGISTRY)
     base._REGISTRY.clear()
     base._REGISTRY.update({"otodom": saved["otodom"]})
@@ -39,10 +41,22 @@ async def test_job_runs_ingest_for_saved_search_with_city(engine):
         await conn.run_sync(Base.metadata.create_all)
     factory = create_session_factory(engine)
     async with AsyncSession(engine, expire_on_commit=False) as s:
-        s.add(SavedSearch(name="gda", filters={"city": "gdansk", "max_pages": 2},
-                          nl_query=None, created_at=datetime.now(UTC)))
-        s.add(SavedSearch(name="bez miasta", filters={"max_price": 500000},
-                          nl_query=None, created_at=datetime.now(UTC)))
+        s.add(
+            SavedSearch(
+                name="gda",
+                filters={"city": "gdansk", "max_pages": 2},
+                nl_query=None,
+                created_at=datetime.now(UTC),
+            )
+        )
+        s.add(
+            SavedSearch(
+                name="bez miasta",
+                filters={"max_price": 500000},
+                nl_query=None,
+                created_at=datetime.now(UTC),
+            )
+        )
         await s.commit()
 
     bus = EventBus()
@@ -51,6 +65,7 @@ async def test_job_runs_ingest_for_saved_search_with_city(engine):
 
     # zweryfikuj, że powstały oferty
     from realestate.repositories.listings import ListingRepository
+
     async with AsyncSession(engine, expire_on_commit=False) as s:
         assert await ListingRepository(s).count_active() >= 20
 

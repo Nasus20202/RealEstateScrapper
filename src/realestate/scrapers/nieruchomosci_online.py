@@ -1,4 +1,5 @@
 """Nieruchomosci-online.pl scraper — parses listing data from DOM via selectolax."""
+
 from __future__ import annotations
 
 import re
@@ -29,7 +30,7 @@ def _money(text: str | None) -> Decimal | None:
         return None
     try:
         return Decimal(cleaned)
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return None
 
 
@@ -37,13 +38,7 @@ def _area(text: str | None) -> float | None:
     """Parse a Polish area string like '32,58\xa0m²' into a float."""
     if not text:
         return None
-    cleaned = (
-        text.replace("\xa0", "")
-        .replace(" ", "")
-        .replace("m²", "")
-        .replace("m2", "")
-        .strip()
-    )
+    cleaned = text.replace("\xa0", "").replace(" ", "").replace("m²", "").replace("m2", "").strip()
     # Keep only digits and commas; drop dots (thousands separators)
     cleaned = re.sub(r"[^\d,]", "", cleaned)
     # Polish decimal separator is comma; replace with dot for parsing
@@ -52,7 +47,7 @@ def _area(text: str | None) -> float | None:
         return None
     try:
         return float(cleaned)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
@@ -96,7 +91,7 @@ def _parse_rooms(tile: object) -> int | None:
             if strong:
                 try:
                     return int(strong.text().strip())
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     return None
     return None
 
@@ -110,7 +105,7 @@ def _parse_floor(tile: object) -> int | None:
             if strongs:
                 try:
                     return int(strongs[0].text().strip())
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     return None
     return None
 

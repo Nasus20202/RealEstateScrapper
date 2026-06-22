@@ -11,8 +11,11 @@ async def test_scrape_run_roundtrip(engine):
         await conn.run_sync(Base.metadata.create_all)
     factory = create_session_factory(engine)
     async with factory() as s:
-        s.add(ScrapeRun(source_id="otodom", started_at=datetime.now(UTC),
-                        status=ScrapeRunStatus.SUCCESS))
+        s.add(
+            ScrapeRun(
+                source_id="otodom", started_at=datetime.now(UTC), status=ScrapeRunStatus.SUCCESS
+            )
+        )
         await s.commit()
     async with factory() as s:
         row = (await s.execute(select(ScrapeRun))).scalar_one()

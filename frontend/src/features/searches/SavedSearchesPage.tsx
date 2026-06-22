@@ -73,18 +73,9 @@ export function SavedSearchesPage() {
 
       <form onSubmit={onCreate}>
         <label htmlFor="search-name">Nazwa</label>
-        <input
-          id="search-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
+        <input id="search-name" value={name} onChange={(e) => setName(e.target.value)} required />
         <label htmlFor="search-nl">Zapytanie NL</label>
-        <input
-          id="search-nl"
-          value={nlQuery}
-          onChange={(e) => setNlQuery(e.target.value)}
-        />
+        <input id="search-nl" value={nlQuery} onChange={(e) => setNlQuery(e.target.value)} />
         <button type="submit">Zapisz wyszukiwanie</button>
       </form>
     </section>

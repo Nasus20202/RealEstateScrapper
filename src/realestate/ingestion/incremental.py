@@ -1,4 +1,5 @@
 """Silnik inkrementalny — upsert listings, historia cen, oznaczanie GONE."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

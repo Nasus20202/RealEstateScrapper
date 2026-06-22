@@ -18,13 +18,12 @@ def _alembic_config() -> Config:
 async def test_pgvector_extension_enabled(engine, pg_url, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", pg_url)
     from realestate.config import get_settings
+
     get_settings.cache_clear()
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, command.upgrade, _alembic_config(), "head")
     async with engine.connect() as conn:
-        result = await conn.execute(
-            text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
-        )
+        result = await conn.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'vector'"))
         assert result.scalar_one_or_none() == 1
 
 
@@ -36,6 +35,7 @@ async def test_orm_enum_binding_matches_migrated_schema(engine, pg_url, monkeypa
     """
     monkeypatch.setenv("DATABASE_URL", pg_url)
     from realestate.config import get_settings
+
     get_settings.cache_clear()
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, command.upgrade, _alembic_config(), "head")
@@ -44,8 +44,15 @@ async def test_orm_enum_binding_matches_migrated_schema(engine, pg_url, monkeypa
     async with AsyncSession(engine, expire_on_commit=False) as session:
         session.add(
             Listing(
-                source_id="otodom", external_id="m1", url="u", title="t", raw_hash="h",
-                status=ListingStatus.ACTIVE, first_seen=now, last_seen=now, images=[],
+                source_id="otodom",
+                external_id="m1",
+                url="u",
+                title="t",
+                raw_hash="h",
+                status=ListingStatus.ACTIVE,
+                first_seen=now,
+                last_seen=now,
+                images=[],
             )
         )
         await session.commit()

@@ -13,9 +13,7 @@ export function FavoritesPage() {
     setLoading(true);
     try {
       const favorites = await getFavorites();
-      const resolved = await Promise.all(
-        favorites.map((fav) => getListing(fav.listing_id)),
-      );
+      const resolved = await Promise.all(favorites.map((fav) => getListing(fav.listing_id)));
       setListings(resolved);
     } finally {
       setLoading(false);

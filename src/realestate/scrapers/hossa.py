@@ -1,4 +1,5 @@
 """Hossa.gda.pl scraper — Tricity property developer, parses rendered DOM cards."""
+
 from __future__ import annotations
 
 import json
@@ -36,6 +37,7 @@ def _city_path(city: str) -> str:
     slug = normalized.encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"\s+", "-", slug.strip())
     return _CITY_URL_PATH.get(slug, "mieszkania")
+
 
 # Navigation/utility paths to exclude (these are never real estate offers)
 _EXCLUDED_PATHS: frozenset[str] = frozenset(
@@ -90,7 +92,7 @@ def _money(text: str | None) -> Decimal | None:
     if re.fullmatch(r"\d+(?:\.\d+)?", text.strip()):
         try:
             return Decimal(text.strip())
-        except (InvalidOperation, ValueError):
+        except InvalidOperation, ValueError:
             return None
     match = re.search(r"(?<![-\w])(\d[\d\s\xa0]*(?:,\d+)?)\s*zł", text, flags=re.IGNORECASE)
     if not match:
@@ -101,7 +103,7 @@ def _money(text: str | None) -> Decimal | None:
         return None
     try:
         return Decimal(cleaned)
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return None
 
 
@@ -111,7 +113,7 @@ def _area(text: str | None) -> float | None:
     if re.fullmatch(r"\d+(?:[,.]\d+)?", text.strip()):
         try:
             return float(text.strip().replace(",", "."))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
     match = re.search(r"(\d+(?:[,.]\d+)?)\s*m", text, flags=re.IGNORECASE)
     if not match:
@@ -122,7 +124,7 @@ def _area(text: str | None) -> float | None:
         return None
     try:
         return float(cleaned)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -183,9 +185,7 @@ def _is_offer_link(href: str, text: str) -> bool:
     # Strip fragment
     clean = href.split("#")[0].rstrip("/") + "/"
     # Derive the path component
-    path = clean.replace("https://www.hossa.gda.pl", "").replace(
-        "https://hossa.gda.pl", ""
-    )
+    path = clean.replace("https://www.hossa.gda.pl", "").replace("https://hossa.gda.pl", "")
     if path in _EXCLUDED_PATHS:
         return False
     # Accept paths that contain offer-related keywords
@@ -244,6 +244,8 @@ class HossaScraper:
                 street_parts = [span.text(strip=True) for span in address_el.css("span")]
                 street = ", ".join(part for part in street_parts if part) or None
             city = _city_from_text(place or card_text) or _city_from_slug(ext_id)
+            if city is None and self._last_city:
+                city = _city_from_text(self._last_city) or self._last_city
             if self._last_city and city:
                 requested = _city_from_text(self._last_city) or self._last_city
                 if requested.lower() not in city.lower():
@@ -298,9 +300,7 @@ class HossaScraper:
             title = t.text(strip=True) if t else ext_id
 
         # Description
-        desc_el = tree.css_first(
-            ".description, .content, article, .investment-description"
-        )
+        desc_el = tree.css_first(".description, .content, article, .investment-description")
         description: str | None = None
         if desc_el:
             raw = desc_el.text(strip=True)

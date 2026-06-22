@@ -14,12 +14,14 @@ from realestate.repositories.llm_analysis import LLMAnalysisRepository
 
 def _embedding_text(listing: Listing, summary: str) -> str:
     return " ".join(
-        x for x in [
+        x
+        for x in [
             listing.title,
             listing.district or listing.city or "",
             summary,
             listing.description or "",
-        ] if x
+        ]
+        if x
     )
 
 
@@ -46,7 +48,7 @@ class EnrichmentService:
             data = json.loads(result.content)
             if not isinstance(data, dict):
                 data = {}
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             data = {}
         summary = str(data.get("summary", ""))
         features = data.get("features", {})

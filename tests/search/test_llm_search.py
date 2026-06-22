@@ -9,17 +9,28 @@ from realestate.search.llm_search import RankedMatch, match_and_rank, parse_nl_q
 class _Client:
     def __init__(self, content):
         self._content = content
+
     async def complete(self, messages: list[ChatMessage], *, response_format=None) -> LLMResult:
         return LLMResult(content=self._content)
+
     async def embed(self, texts):  # pragma: no cover
         return [[0.0] for _ in texts]
 
 
 def _listing(lid):
     now = datetime.now(UTC)
-    listing = Listing(id=lid, source_id="otodom", external_id=str(lid), url="u",
-                      title=f"oferta {lid}", raw_hash="h", status=ListingStatus.ACTIVE,
-                      first_seen=now, last_seen=now, images=[])
+    listing = Listing(
+        id=lid,
+        source_id="otodom",
+        external_id=str(lid),
+        url="u",
+        title=f"oferta {lid}",
+        raw_hash="h",
+        status=ListingStatus.ACTIVE,
+        first_seen=now,
+        last_seen=now,
+        images=[],
+    )
     return listing
 
 
@@ -35,9 +46,11 @@ async def test_parse_nl_query_bad_json_returns_empty():
 
 
 async def test_match_and_rank_orders_and_filters():
-    client = _Client('{"matches": [{"listing_id": 1, "score": 40, "reason": "ok"}, '
-                     '{"listing_id": 2, "score": 95, "reason": "super"}, '
-                     '{"listing_id": 999, "score": 80, "reason": "obcy"}]}')
+    client = _Client(
+        '{"matches": [{"listing_id": 1, "score": 40, "reason": "ok"}, '
+        '{"listing_id": 2, "score": 95, "reason": "super"}, '
+        '{"listing_id": 999, "score": 80, "reason": "obcy"}]}'
+    )
     cands = [_listing(1), _listing(2)]
     out = await match_and_rank(client, cands, "blisko morza")
     assert [m.listing_id for m in out] == [2, 1]  # malejąco po score, 999 odfiltrowany

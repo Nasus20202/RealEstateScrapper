@@ -16,9 +16,18 @@ async def _seed(engine) -> int:
         await conn.run_sync(Base.metadata.create_all)
     async with AsyncSession(engine, expire_on_commit=False) as s:
         now = datetime.now(UTC)
-        listing = Listing(source_id="otodom", external_id="x1", url="u", title="t",
-                          price=Decimal(1), raw_hash="h", status=ListingStatus.ACTIVE,
-                          first_seen=now, last_seen=now, images=[])
+        listing = Listing(
+            source_id="otodom",
+            external_id="x1",
+            url="u",
+            title="t",
+            price=Decimal(1),
+            raw_hash="h",
+            status=ListingStatus.ACTIVE,
+            first_seen=now,
+            last_seen=now,
+            images=[],
+        )
         s.add(listing)
         await s.commit()
         return listing.id
@@ -42,9 +51,10 @@ async def test_saved_searches_crud(engine):
     app = _app(engine)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as client:
-        created = await client.post("/searches", json={"name": "tanie",
-                                                        "filters": {"max_price": 500000},
-                                                        "nl_query": "blisko morza"})
+        created = await client.post(
+            "/searches",
+            json={"name": "tanie", "filters": {"max_price": 500000}, "nl_query": "blisko morza"},
+        )
         assert created.status_code == 201
         sid = created.json()["id"]
         listed = await client.get("/searches")

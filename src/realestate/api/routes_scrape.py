@@ -15,6 +15,7 @@ from realestate.config import get_settings
 from realestate.events.bus import EventBus
 from realestate.ingestion.service import IngestionService
 from realestate.repositories.scrape_runs import ScrapeRunRepository
+from realestate.repositories.user_data import AppSettingRepository
 from realestate.scrapers.base import SearchCriteria
 
 router = APIRouter()
@@ -35,24 +36,34 @@ async def trigger_scrape(
     )
 
     async def on_run(run) -> None:
-        bus.publish({
-            "type": "scrape",
-            "source_id": run.source_id,
-            "status": run.status.value,
-            "new": run.new_count,
-            "updated": run.updated_count,
-            "gone": run.gone_count,
-            "unchanged": run.unchanged_count,
-        })
+        bus.publish(
+            {
+                "type": "scrape",
+                "source_id": run.source_id,
+                "status": run.status.value,
+                "new": run.new_count,
+                "updated": run.updated_count,
+                "gone": run.gone_count,
+                "unchanged": run.unchanged_count,
+            }
+        )
 
     async def on_log(source_id: str, message: str) -> None:
-        bus.publish({
-            "type": "scrape_log",
-            "source_id": source_id,
-            "message": message,
-        })
+        bus.publish(
+            {
+                "type": "scrape_log",
+                "source_id": source_id,
+                "message": message,
+            }
+        )
 
     service = IngestionService(session_factory, fetcher, geocoder=geocoder)
+    async with session_factory() as session:
+        source_pages_setting = await AppSettingRepository(session).get("source_max_pages")
+    source_max_pages = {
+        **(source_pages_setting["v"] if source_pages_setting else {}),
+        **(body.source_max_pages or {}),
+    }
     runs = []
     for city in cities:
         criteria = SearchCriteria(
@@ -65,20 +76,24 @@ async def trigger_scrape(
             max_rooms=body.max_rooms,
             market=body.market,
         )
-        runs.extend(await service.ingest(
-            criteria,
-            source_ids=body.source_ids,
-            max_pages=body.max_pages,
-            mark_missing_gone=len(cities) == 1,
-            on_run=on_run,
-            on_log=on_log,
-        ))
+        runs.extend(
+            await service.ingest(
+                criteria,
+                source_ids=body.source_ids,
+                max_pages=body.max_pages,
+                source_max_pages=source_max_pages,
+                mark_missing_gone=len(cities) == 1,
+                on_run=on_run,
+                on_log=on_log,
+            )
+        )
     return ScrapeResponse(runs=[ScrapeRunOut.from_run(r) for r in runs])
 
 
 @router.get("/scrape/runs", response_model=list[ScrapeRunOut])
 async def list_runs(
-    limit: int = 50, session: AsyncSession = Depends(get_session)  # noqa: B008
+    limit: int = 50,
+    session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> list[ScrapeRunOut]:
     runs = await ScrapeRunRepository(session).list_recent(limit=limit)
     return [ScrapeRunOut.from_run(r) for r in runs]
@@ -86,7 +101,8 @@ async def list_runs(
 
 @router.get("/scrape/runs/{run_id}", response_model=ScrapeRunOut)
 async def get_run(
-    run_id: int, session: AsyncSession = Depends(get_session)  # noqa: B008
+    run_id: int,
+    session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> ScrapeRunOut:
     run = await ScrapeRunRepository(session).get(run_id)
     if run is None:

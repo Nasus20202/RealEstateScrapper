@@ -12,10 +12,10 @@ import type {
   ScrapeRunOut,
   SettingsOut,
   SettingsUpdate,
+  CleanupResponse,
 } from "./types";
 
-export const API_BASE =
-  import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   status: number;
@@ -51,6 +51,7 @@ function buildListingsQuery(query: ListingsQuery): string {
   const params = new URLSearchParams();
   if (query.city) params.set("city", query.city);
   for (const d of query.district ?? []) params.append("district", d);
+  for (const source of query.source_id ?? []) params.append("source_id", source);
   if (query.min_price != null) params.set("min_price", String(query.min_price));
   if (query.max_price != null) params.set("max_price", String(query.max_price));
   if (query.min_area != null) params.set("min_area", String(query.min_area));
@@ -134,6 +135,13 @@ export function updateSettings(body: SettingsUpdate): Promise<SettingsOut> {
   });
 }
 
+export function cleanupDatabase(confirmation: string): Promise<CleanupResponse> {
+  return request<CleanupResponse>("/cleanup", {
+    method: "POST",
+    body: JSON.stringify({ confirmation }),
+  });
+}
+
 export type {
   CreateSavedSearch,
   FavoriteOut,
@@ -148,4 +156,5 @@ export type {
   ScrapeRunOut,
   SettingsOut,
   SettingsUpdate,
+  CleanupResponse,
 };

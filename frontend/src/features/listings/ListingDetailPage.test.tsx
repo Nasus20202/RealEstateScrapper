@@ -100,9 +100,15 @@ describe("ListingDetailPage", () => {
     renderAt(7);
     await userEvent.click(await screen.findByRole("button", { name: /Powiększ zdjęcie 1/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /zdjęcie 1 z 2/ })).toHaveAttribute("src", "http://img/1.jpg");
+    expect(screen.getByRole("img", { name: /zdjęcie 1 z 2/ })).toHaveAttribute(
+      "src",
+      "http://img/1.jpg",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Następne zdjęcie" }));
-    expect(screen.getByRole("img", { name: /zdjęcie 2 z 2/ })).toHaveAttribute("src", "http://img/2.jpg");
+    expect(screen.getByRole("img", { name: /zdjęcie 2 z 2/ })).toHaveAttribute(
+      "src",
+      "http://img/2.jpg",
+    );
   });
 
   it("przełącznik ulubionych dodaje ofertę", async () => {
@@ -122,9 +128,7 @@ describe("ListingDetailPage", () => {
     const button = await screen.findByRole("button", { name: /Dodaj do ulubionych/ });
     await userEvent.click(button);
     await waitFor(() => expect(posted).toEqual({ listing_id: 7 }));
-    expect(
-      await screen.findByRole("button", { name: /Usuń z ulubionych/ }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Usuń z ulubionych/ })).toBeInTheDocument();
   });
 
   it("pokazuje komunikat przy 404", async () => {

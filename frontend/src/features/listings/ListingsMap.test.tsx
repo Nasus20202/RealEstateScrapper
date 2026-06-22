@@ -15,7 +15,10 @@ vi.mock("react-leaflet", () => ({
     <div data-testid="marker">{children}</div>
   ),
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Tooltip: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip">{children}</div>,
+  Tooltip: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="tooltip">{children}</div>
+  ),
+  useMapEvents: () => null,
 }));
 
 import { ListingsMap } from "./ListingsMap";
@@ -91,7 +94,7 @@ describe("ListingsMap", () => {
       listing({ id: 2, lat: 54.3502, lon: 18.6502, title: "Druga" }),
     ]);
     expect(screen.getAllByTestId("marker")).toHaveLength(1);
-    expect(screen.getByTestId("tooltip")).toHaveTextContent("2 ofert");
+    expect(screen.getByTestId("tooltip")).toHaveTextContent("400K");
     expect(screen.getByRole("link", { name: /Pierwsza/ })).toHaveAttribute("href", "/listings/1");
     expect(screen.getByRole("link", { name: /Druga/ })).toHaveAttribute("href", "/listings/2");
   });

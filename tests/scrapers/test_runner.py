@@ -88,9 +88,7 @@ class _BlockingFetcher:
 async def test_run_search_propagates_blocked():
     with pytest.raises(ScraperBlocked):
         criteria = SearchCriteria(city="gdansk")
-        await run_search(
-            OtodomScraper(), _BlockingFetcher(), criteria, max_pages=1
-        )
+        await run_search(OtodomScraper(), _BlockingFetcher(), criteria, max_pages=1)
 
 
 @pytest.mark.asyncio
