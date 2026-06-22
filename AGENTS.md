@@ -4,8 +4,8 @@ Instrukcje dla agentów/developerów pracujących w tym repozytorium.
 
 ## Stack
 - Python 3.14 (najnowszy stabilny), uv. Uruchamianie: `uv run <cmd>`.
-- FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, pgvector.
-- PostgreSQL 18 + pgvector przez docker compose (`docker compose up -d db`), obraz `pgvector/pgvector:pg18`.
+- FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, pgvector, PostGIS.
+- PostgreSQL 18.4 przez docker compose (`docker compose up -d db`), własny obraz `docker/db/Dockerfile` na bazie `postgres:18.4-trixie` z pakietami PostGIS i pgvector.
 
 ## Zasady
 - TDD: test → implementacja → commit.
@@ -23,12 +23,12 @@ Specyfikacje: `docs/superpowers/specs/`. Plany: `docs/superpowers/plans/`.
 
 ## Frontend
 
-Frontend to samodzielny projekt w katalogu `frontend/` (React 18 + Vite + TypeScript + react-router v6).
+Frontend to samodzielny projekt w katalogu `frontend/` (React 18 + Vite 8 + TypeScript 6 + react-router v6).
 
-- Instalacja: `cd frontend && npm install`
-- Dev server: `cd frontend && npm run dev`
-- Build produkcyjny: `cd frontend && npm run build` (= `tsc -b && vite build`)
-- Testy: `cd frontend && npm test -- --run` (vitest + Testing Library + MSW)
+- Instalacja: `pnpm install`
+- Dev server: `pnpm --dir frontend dev`
+- Build produkcyjny: `pnpm --dir frontend build` (= `tsc -b && vite build`)
+- Testy: `pnpm --dir frontend exec vitest run` (Vitest 4 + Testing Library + MSW + jsdom 29)
 - Zmienna środowiskowa: `VITE_API_BASE` — adres backendu (domyślnie `http://localhost:8000`)
 
 ## Dokumentacja

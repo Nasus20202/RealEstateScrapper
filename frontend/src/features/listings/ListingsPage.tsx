@@ -1,9 +1,12 @@
 // frontend/src/features/listings/ListingsPage.tsx
 import { useCallback, useEffect, useState } from "react";
+import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { useMap } from "react-leaflet";
 import { useSearchParams } from "react-router-dom";
 
 import { getListings, getSettings } from "../../api/client";
 import type { ListingOut, ListingsQuery } from "../../api/types";
+import { formatPrice, formatPricePerM2 } from "./format";
 import { HtmlDescription } from "./html";
 import { ListingCard } from "./ListingCard";
 
@@ -36,7 +39,7 @@ const DISTRICTS = [
   "Żabianka",
 ];
 
-type View = "list" | "compact";
+type View = "default" | "compact" | "list";
 
 interface FormState {
   city: string;
@@ -130,7 +133,9 @@ function sortFromParams(params: URLSearchParams): string {
 }
 
 function viewFromParams(params: URLSearchParams): View {
-  return params.get("view") === "compact" ? "compact" : "list";
+  const view = params.get("view");
+  if (view === "compact" || view === "list") return view;
+  return "default";
 }
 
 function paramsFromState(
@@ -157,12 +162,22 @@ function paramsFromState(
   params.set("sort_dir", sort_dir);
   params.set("limit", String(pageSize));
   if (offset > 0) params.set("offset", String(offset));
-  if (view !== "list") params.set("view", view);
+  if (view !== "default") params.set("view", view);
   return params;
 }
 
-function formatPrice(value: number | null): string {
-  return value == null ? "—" : `${value.toLocaleString("pl-PL")} zł`;
+function previewAddress(listing: ListingOut): string {
+  return [listing.street, listing.district, listing.city].filter(Boolean).join(", ") || "—";
+}
+
+function PreviewMapSync({ center }: { center: [number, number] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    map.setView(center, map.getZoom(), { animate: true });
+  }, [center, map]);
+
+  return null;
 }
 
 export function ListingsPage() {
@@ -179,7 +194,6 @@ export function ListingsPage() {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showMore, setShowMore] = useState(false);
 
   const load = useCallback(
     async (
@@ -275,6 +289,8 @@ export function ListingsPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.floor(offset / pageSize) + 1;
+  const previewMapCenter: [number, number] | null =
+    preview?.lat != null && preview.lon != null ? [preview.lat, preview.lon] : null;
 
   return (
     <section className="listings-page">
@@ -347,83 +363,69 @@ export function ListingsPage() {
             </select>
           </label>
 
-          <div className="filters__more-toggle">
-            <button
-              type="button"
-              className="btn-ghost btn-sm"
-              onClick={() => setShowMore((v) => !v)}
-            >
-              {showMore ? "Mniej filtrów ▲" : "Więcej filtrów ▼"}
-            </button>
-          </div>
+          <label htmlFor="f-min-area">
+            Pow. min. (m²)
+            <input
+              id="f-min-area"
+              inputMode="decimal"
+              value={form.min_area}
+              onChange={(e) => update("min_area", e.target.value)}
+            />
+          </label>
 
-          {showMore && (
-            <>
-              <label htmlFor="f-min-area">
-                Pow. min. (m²)
-                <input
-                  id="f-min-area"
-                  inputMode="decimal"
-                  value={form.min_area}
-                  onChange={(e) => update("min_area", e.target.value)}
-                />
-              </label>
+          <label htmlFor="f-max-area">
+            Pow. maks. (m²)
+            <input
+              id="f-max-area"
+              inputMode="decimal"
+              value={form.max_area}
+              onChange={(e) => update("max_area", e.target.value)}
+            />
+          </label>
 
-              <label htmlFor="f-max-area">
-                Pow. maks. (m²)
-                <input
-                  id="f-max-area"
-                  inputMode="decimal"
-                  value={form.max_area}
-                  onChange={(e) => update("max_area", e.target.value)}
-                />
-              </label>
-
-              <label htmlFor="f-districts">
-                Dzielnice
-                <div id="f-districts" className="multi-select-list">
-                  {DISTRICTS.map((district) => (
-                    <label key={district} className="multi-select-option">
-                      <input
-                        type="checkbox"
-                        checked={form.districts.includes(district)}
-                        onChange={() => toggleMulti("districts", district)}
-                      />
-                      {district}
-                    </label>
-                  ))}
-                </div>
-              </label>
-
-              {availableSources.length > 0 && (
-                <label htmlFor="f-sources">
-                  Źródło oferty
-                  <div id="f-sources" className="multi-select-list multi-select-list--sources">
-                    {availableSources.map((source) => (
-                      <label key={source} className="multi-select-option">
-                        <input
-                          type="checkbox"
-                          checked={form.source_ids.includes(source)}
-                          onChange={() => toggleMulti("source_ids", source)}
-                        />
-                        {source}
-                      </label>
-                    ))}
-                  </div>
+          <label htmlFor="f-districts">
+            Dzielnice
+            <div id="f-districts" className="multi-select-list">
+              {DISTRICTS.map((district) => (
+                <label key={district} className="multi-select-option">
+                  <input
+                    type="checkbox"
+                    checked={form.districts.includes(district)}
+                    onChange={() => toggleMulti("districts", district)}
+                  />
+                  {district}
                 </label>
-              )}
+              ))}
+            </div>
+          </label>
 
-              <label htmlFor="f-q">
-                Zapytanie (NL)
-                <input
-                  id="f-q"
-                  value={form.q}
-                  onChange={(e) => update("q", e.target.value)}
-                  placeholder="np. blisko morza z balkonem"
-                />
-              </label>
-            </>
+          {availableSources.length > 0 && (
+            <label htmlFor="f-sources">
+              Źródło oferty
+              <div id="f-sources" className="multi-select-list multi-select-list--sources">
+                {availableSources.map((source) => (
+                  <label key={source} className="multi-select-option">
+                    <input
+                      type="checkbox"
+                      checked={form.source_ids.includes(source)}
+                      onChange={() => toggleMulti("source_ids", source)}
+                    />
+                    {source}
+                  </label>
+                ))}
+              </div>
+            </label>
           )}
+
+          <label htmlFor="f-q">
+            Zapytanie (NL)
+            <input
+              id="f-q"
+              value={form.q}
+              onChange={(e) => update("q", e.target.value)}
+              placeholder="np. blisko morza z balkonem"
+            />
+          </label>
 
           <button type="submit" className="filters__submit">
             Szukaj
@@ -468,11 +470,11 @@ export function ListingsPage() {
               <div className="view-toggle" role="group" aria-label="Widok">
                 <button
                   type="button"
-                  className={view === "list" ? "active" : ""}
-                  aria-pressed={view === "list"}
-                  onClick={() => onViewChange("list")}
+                  className={view === "default" ? "active" : ""}
+                  aria-pressed={view === "default"}
+                  onClick={() => onViewChange("default")}
                 >
-                  Lista
+                  Domyślny
                 </button>
                 <button
                   type="button"
@@ -480,7 +482,15 @@ export function ListingsPage() {
                   aria-pressed={view === "compact"}
                   onClick={() => onViewChange("compact")}
                 >
-                  Kompakt
+                  Kompaktowy
+                </button>
+                <button
+                  type="button"
+                  className={view === "list" ? "active" : ""}
+                  aria-pressed={view === "list"}
+                  onClick={() => onViewChange("list")}
+                >
+                  Lista
                 </button>
               </div>
             </div>
@@ -491,13 +501,14 @@ export function ListingsPage() {
           {items.length === 0 && !loading ? (
             <p className="empty-state">Brak ofert. Zmień filtry lub uruchom scraping.</p>
           ) : (
-            <div
-              className={
-                view === "compact" ? "listings-grid listings-grid--compact" : "listings-grid"
-              }
-            >
+            <div className={`listings-grid listings-grid--${view}`}>
               {items.map((item) => (
-                <ListingCard key={item.id} listing={item} onPreview={setPreviewListing} />
+                <ListingCard
+                  key={item.id}
+                  listing={item}
+                  variant={view}
+                  onPreview={setPreviewListing}
+                />
               ))}
             </div>
           )}
@@ -593,9 +604,7 @@ export function ListingsPage() {
                   <div>
                     <dt>Cena/m²</dt>
                     <dd>
-                      {preview.price_per_m2 == null
-                        ? "—"
-                        : `${preview.price_per_m2.toLocaleString("pl-PL")} zł/m²`}
+                      {preview.price_per_m2 == null ? "—" : formatPricePerM2(preview.price_per_m2)}
                     </dd>
                   </div>
                   <div>
@@ -611,13 +620,25 @@ export function ListingsPage() {
                     <dd>{preview.floor ?? "—"}</dd>
                   </div>
                 </dl>
+                {previewMapCenter && (
+                  <div className="listing-preview__map">
+                    <MapContainer center={previewMapCenter} zoom={13} scrollWheelZoom={false}>
+                      <PreviewMapSync center={previewMapCenter} />
+                      <TileLayer
+                        attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+                        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                      />
+                      <Marker position={previewMapCenter}>
+                        <Popup>{previewAddress(preview)}</Popup>
+                      </Marker>
+                    </MapContainer>
+                  </div>
+                )}
                 <div className="listing-card__chips">
                   {preview.rooms != null && <span className="chip">{preview.rooms} pok.</span>}
                   {preview.area_m2 != null && <span className="chip">{preview.area_m2} m²</span>}
                   {preview.price_per_m2 != null && (
-                    <span className="chip">
-                      {preview.price_per_m2.toLocaleString("pl-PL")} zł/m²
-                    </span>
+                    <span className="chip">{formatPricePerM2(preview.price_per_m2)}</span>
                   )}
                 </div>
                 {preview.description && (

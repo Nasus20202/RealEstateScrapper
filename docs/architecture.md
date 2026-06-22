@@ -17,7 +17,7 @@ System zbudowany jest z kilku wyraźnie oddzielonych warstw:
 └────────────────────────────┬────────────────────────────────────┘
                              │ Listing (PostgreSQL)
 ┌────────────────────────────▼────────────────────────────────────┐
-│  Magazyn — PostgreSQL 18 + pgvector                             │
+│  Magazyn — PostgreSQL 18.4 + pgvector + PostGIS                 │
 │  Source, Listing, PriceHistory, ScrapeRun                       │
 │  LLMAnalysis, DedupGroup, DedupMember                          │
 │  SavedSearch, Favorite, AppSetting                              │
@@ -69,10 +69,12 @@ System zbudowany jest z kilku wyraźnie oddzielonych warstw:
 - `IncrementalEngine` synchronizuje wyniki scrape'u z bazą: nowe rekordy INSERT, zmiany ceny → PriceHistory, niezmienione → skip.
 - Lokalizacja: `src/realestate/ingestion/`.
 
-### Magazyn — PostgreSQL 18 + pgvector
+### Magazyn — PostgreSQL 18.4 + pgvector + PostGIS
 
-- Schemat zarządzany przez Alembic (`migrations/`); aktualny head: `0007`.
+- Schemat zarządzany przez Alembic (`migrations/`); aktualny head: `0009`.
 - Kolumna `listings.embedding` — wektor pgvector. Wymiar kontrolowany przez jedyne źródło prawdy: `get_embedding_dim()` w `src/realestate/config.py` (domyślnie 1536). Wymiar **musi** być taki sam przy migracji i przy uruchomieniu aplikacji.
+- Kolumna `listings.geom` — punkt PostGIS (`geometry(Point, 4326)`) synchronizowany triggerem z `lat/lon`; indeks GiST zasila agregacje mapowe.
+- Endpoint `/listings/map/hexes` używa PostGIS (`ST_HexagonGrid`, `ST_Transform`, `ST_Intersects`, `ST_AsGeoJSON`) do budowania heksagonalnej heatmapy średnich cen i liczby ofert.
 - Modele SQLAlchemy 2.0 async: `Source`, `Listing`, `PriceHistory`, `ScrapeRun`, `LLMAnalysis`, `DedupGroup`, `DedupMember`, `SavedSearch`, `Favorite`, `AppSetting`.
 - Lokalizacja modeli: pakiet `src/realestate/models/` (pliki `base.py`, `listing.py`, `source.py`, `scrape_run.py`, `llm_analysis.py`, `dedup.py`, `user_data.py`); `Base` eksportowane z `realestate.models`.
 
@@ -102,6 +104,8 @@ Endpointy:
 - `GET /health` — health check
 - `GET /listings` — lista z filtrami (city, district, min/max price/area/rooms, market, q, limit, offset) → `{items, total}`
 - `GET /listings/{id}` — szczegóły + price_history + summary/features + duplicate_listing_ids
+- `GET /stats` — statystyki ofert: overview, agregacje per dzielnica/źródło/miasto/rynek, pokoje i koszyki cenowe
+- `GET /listings/map/points`, `GET /listings/map/hexes` — punkty i heksy mapy filtrowane po aktualnym viewport/bbox
 - `POST /scrape`, `GET /scrape/runs`, `GET /scrape/runs/{id}` — zarządzanie scrape'ami
 - `GET /events` — SSE: postęp scrape'u w czasie rzeczywistym
 - `GET /searches`, `POST /searches`, `DELETE /searches/{id}` — zapisane wyszukiwania
@@ -117,7 +121,9 @@ Lokalizacja: `src/realestate/api/`.
 
 ### Frontend
 
-- Lokalizacja: `frontend/` (samodzielny projekt npm).
-- React 18 + Vite + TypeScript + react-router v6.
-- Typowany klient fetch; plain CSS; vitest + Testing Library + MSW.
+- Lokalizacja: `frontend/` (samodzielny projekt pnpm).
+- React 18 + Vite 8 + TypeScript 6 + react-router v6.
+- Typowany klient fetch; plain CSS; Vitest 4 + Testing Library + MSW + jsdom 29.
+- Lista ofert ma trzy widoki: domyślny grid, kompaktowy kafelek oraz pełnoszeroką listę z opisem i dodatkowymi szczegółami.
+- Mapa ładuje punkty i heksy tylko dla widocznego viewportu (`north/south/east/west`), zamiast pobierać stały limit ofert z całego obszaru.
 - Zmienna środowiskowa: `VITE_API_BASE` (domyślnie `http://localhost:8000`).

@@ -16,6 +16,23 @@ from realestate.scrapers.images import unique_listing_images
 _BASE_URL = "https://www.hossa.gda.pl"
 _APARTMENTS_LIMIT = 500
 
+_KNOWN_INVESTMENTS: dict[str, dict[str, object]] = {
+    "garnizon-loftyapartamenty": {
+        "city": "Gdańsk",
+        "district": "Wrzeszcz Górny",
+        "street": "Garnizon",
+        "lat": 54.3845063,
+        "lon": 18.5928283,
+    },
+    "wiszace-ogrody": {
+        "city": "Gdańsk",
+        "district": "Kiełpinek",
+        "street": "Taneczna 13",
+        "lat": 54.3531938,
+        "lon": 18.5319615,
+    },
+}
+
 # City slug → Polish city name
 _CITY_MAP: dict[str, str] = {
     "gdansk": "Gdańsk",
@@ -135,6 +152,37 @@ def _rooms(text: str | None) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _float(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(str(value).replace(",", "."))
+    except TypeError, ValueError:
+        return None
+
+
+def _coordinates_from_mapping(data: dict) -> tuple[float | None, float | None]:
+    lat = _float(
+        data.get("lat")
+        or data.get("latitude")
+        or data.get("geo_lat")
+        or data.get("map_lat")
+        or data.get("investment_lat")
+    )
+    lon = _float(
+        data.get("lon")
+        or data.get("lng")
+        or data.get("longitude")
+        or data.get("geo_lng")
+        or data.get("geo_lon")
+        or data.get("map_lng")
+        or data.get("map_lon")
+        or data.get("investment_lng")
+        or data.get("investment_lon")
+    )
+    return lat, lon
+
+
 def _image_url(node) -> str:
     for attr in ("src", "data-src", "data-lazy", "data-original"):
         value = node.attributes.get(attr, "") or ""
@@ -156,6 +204,10 @@ def _city_from_slug(slug: str) -> str | None:
         if key in slug:
             return name
     return None
+
+
+def _known_investment(slug: str) -> dict[str, object]:
+    return _KNOWN_INVESTMENTS.get(slug.strip("/"), {})
 
 
 def _city_from_text(text: str) -> str | None:
@@ -243,14 +295,28 @@ class HossaScraper:
             if address_el:
                 street_parts = [span.text(strip=True) for span in address_el.css("span")]
                 street = ", ".join(part for part in street_parts if part) or None
-            city = _city_from_text(place or card_text) or _city_from_slug(ext_id)
+            known = _known_investment(ext_id)
+            city = (
+                _city_from_text(place or card_text)
+                or _city_from_slug(ext_id)
+                or (str(known["city"]) if known.get("city") else None)
+            )
             if city is None and self._last_city:
                 city = _city_from_text(self._last_city) or self._last_city
             if self._last_city and city:
                 requested = _city_from_text(self._last_city) or self._last_city
                 if requested.lower() not in city.lower():
                     continue
-            district = _district_from_place(place, city)
+            district = _district_from_place(place, city) or (
+                str(known["district"]) if known.get("district") else None
+            )
+            street = street or (str(known["street"]) if known.get("street") else None)
+            lat, lon = _coordinates_from_mapping(card.attributes)  # type: ignore[arg-type]
+            if lat is None or lon is None:
+                lat, lon = _coordinates_from_mapping(outer_card.attributes)  # type: ignore[arg-type]
+            if lat is None or lon is None:
+                lat = _float(known.get("lat"))
+                lon = _float(known.get("lon"))
             api_url = (
                 f"{_BASE_URL}/api/apartments/?inv={ext_id}&type=a&"
                 f"a_status=dost%C4%99pny&limit={_APARTMENTS_LIMIT}&page=1"
@@ -276,6 +342,8 @@ class HossaScraper:
                     city=city,
                     district=district,
                     street=street,
+                    lat=lat,
+                    lon=lon,
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={"investment": ext_id, "investment_url": url},
@@ -341,6 +409,7 @@ class HossaScraper:
 
         query = parse_qs(urlparse(url).query)
         investment_slug = (query.get("inv") or [""])[0]
+        known = _known_investment(investment_slug)
         listings: list[RawListing] = []
         for item in rows:
             if not isinstance(item, dict) or item.get("id") is None:
@@ -363,6 +432,10 @@ class HossaScraper:
                 "tags": item.get("tags") or [],
             }
             attributes = {k: v for k, v in attributes.items() if v not in (None, "", [])}
+            lat, lon = _coordinates_from_mapping(item)
+            if lat is None or lon is None:
+                lat = _float(known.get("lat"))
+                lon = _float(known.get("lon"))
             listings.append(
                 RawListing(
                     source_id=self.source_id,
@@ -373,6 +446,11 @@ class HossaScraper:
                     area_m2=_area(str(item.get("area_usable") or item.get("area") or "")),
                     rooms=int(item["rooms"]) if item.get("rooms") is not None else None,
                     floor=int(item["floor"]) if item.get("floor") is not None else None,
+                    city=str(known["city"]) if known.get("city") else None,
+                    district=str(known["district"]) if known.get("district") else None,
+                    street=str(known["street"]) if known.get("street") else None,
+                    lat=lat,
+                    lon=lon,
                     description=item.get("description"),
                     attributes=attributes,
                     market="primary",

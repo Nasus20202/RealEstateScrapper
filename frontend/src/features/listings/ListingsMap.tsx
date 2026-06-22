@@ -1,27 +1,46 @@
 // frontend/src/features/listings/ListingsMap.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import L from "leaflet";
+import "leaflet.heat";
 import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
-import { useMapEvents } from "react-leaflet";
+import { useMap, useMapEvents } from "react-leaflet";
 import { Link } from "react-router-dom";
 
-import type { ListingOut } from "../../api/types";
+import type { ListingOut, MapHexOut } from "../../api/types";
+import { formatNumber } from "./format";
 
 const TRICITY_CENTER: [number, number] = [54.44, 18.57];
 
 export type MapMetric = "price" | "count" | "heat_price" | "heat_count";
-
-function formatPrice(value: number | null): string {
-  return value == null ? "—" : `${value.toLocaleString("pl-PL")} zł`;
+export interface MapViewport {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  zoom: number;
 }
 
-function formatPriceShort(value: number | null): string {
-  if (value == null || Number.isNaN(value)) return "—";
-  return `${Math.round(value / 1000).toLocaleString("pl-PL")}K`;
+function numeric(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function formatPricePerM2Short(value: number | null): string {
-  if (value == null || Number.isNaN(value)) return "—";
-  return `${Math.round(value).toLocaleString("pl-PL")} zł/m²`;
+function formatPrice(value: number | string | null): string {
+  const parsed = numeric(value);
+  return parsed == null ? "—" : `${formatNumber(parsed)} zł`;
+}
+
+function formatPriceShort(value: number | string | null): string {
+  const parsed = numeric(value);
+  if (parsed == null) return "—";
+  return `${formatNumber(Math.round(parsed / 1000))}K`;
+}
+
+function formatPricePerM2Short(value: number | string | null): string {
+  const parsed = numeric(value);
+  if (parsed == null) return "—";
+  return `${formatNumber(parsed)} zł/m²`;
 }
 
 function averageCenter(points: [number, number][]): [number, number] {
@@ -48,6 +67,8 @@ interface ListingCluster {
   listings: Array<ListingOut & { lat: number; lon: number }>;
 }
 
+type HeatPoint = [number, number, number];
+
 function clusterListings(
   listings: Array<ListingOut & { lat: number; lon: number }>,
   zoom: number,
@@ -72,39 +93,6 @@ function clusterListings(
   }));
 }
 
-function localAveragePricePerM2(
-  listing: ListingOut & { lat: number; lon: number },
-  listings: Array<ListingOut & { lat: number; lon: number }>,
-): number | null {
-  const nearby = listings
-    .map((candidate) => {
-      const distance = Math.hypot(
-        (candidate.lat - listing.lat) * 111,
-        (candidate.lon - listing.lon) * 65,
-      );
-      return { candidate, distance };
-    })
-    .filter(({ candidate, distance }) => candidate.price_per_m2 != null && distance <= 1.4)
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, 12)
-    .map(({ candidate }) => candidate.price_per_m2)
-    .filter((value): value is number => value != null && Number.isFinite(value));
-  if (nearby.length === 0) return null;
-  return nearby.reduce((sum, value) => sum + value, 0) / nearby.length;
-}
-
-function heatStyle(value: number | null, metric: MapMetric) {
-  if (metric === "heat_count") {
-    return { radius: 34, fillColor: "#f97316", fillOpacity: 0.16 };
-  }
-  const intensity = value == null ? 0.25 : Math.min(1, Math.max(0, (value - 7_000) / 12_000));
-  return {
-    radius: 40 + intensity * 26,
-    fillColor: intensity > 0.66 ? "#dc2626" : intensity > 0.33 ? "#f97316" : "#14b8a6",
-    fillOpacity: 0.16 + intensity * 0.22,
-  };
-}
-
 function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
   useMapEvents({
     zoomend: (event) => onZoom(event.target.getZoom()),
@@ -112,18 +100,41 @@ function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
   return null;
 }
 
+function ViewportWatcher({ onViewport }: { onViewport?: (viewport: MapViewport) => void }) {
+  const map = useMapEvents({
+    moveend: (event) => emit(event.target),
+    zoomend: (event) => emit(event.target),
+  });
+
+  function emit(currentMap = map) {
+    if (!onViewport) return;
+    const bounds = currentMap.getBounds();
+    onViewport({
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+      zoom: currentMap.getZoom(),
+    });
+  }
+
+  useEffect(() => emit(map));
+
+  return null;
+}
+
 function clusterAveragePrice(cluster: ListingCluster): number | null {
   const prices = cluster.listings
-    .map((listing) => listing.price)
-    .filter((price): price is number => price != null && Number.isFinite(price));
+    .map((listing) => numeric(listing.price))
+    .filter((price): price is number => price != null);
   if (prices.length === 0) return null;
   return prices.reduce((sum, price) => sum + price, 0) / prices.length;
 }
 
 function clusterAveragePricePerM2(cluster: ListingCluster): number | null {
   const prices = cluster.listings
-    .map((listing) => listing.price_per_m2)
-    .filter((price): price is number => price != null && Number.isFinite(price));
+    .map((listing) => numeric(listing.price_per_m2))
+    .filter((price): price is number => price != null);
   if (prices.length === 0) return null;
   return prices.reduce((sum, price) => sum + price, 0) / prices.length;
 }
@@ -160,21 +171,82 @@ function clusterLabel(cluster: ListingCluster, metric: MapMetric): string {
   if (metric === "count" || metric === "heat_count") return `${cluster.listings.length}`;
   if (metric === "heat_price") return formatPricePerM2Short(clusterAveragePricePerM2(cluster));
   const avgPrice = clusterAveragePrice(cluster);
-  if (cluster.listings.length > 1) return `${formatPriceShort(avgPrice)}`;
+  if (cluster.listings.length > 1)
+    return `${formatPriceShort(avgPrice)} · ${cluster.listings.length}`;
   return formatPriceShort(cluster.listings[0].price);
+}
+
+function heatIntensity(hex: MapHexOut, metric: MapMetric): number {
+  if (metric === "heat_count") return Math.min(1, hex.count / 16);
+  const value = numeric(hex.avg_price_per_m2);
+  return value == null ? 0.2 : Math.min(1, Math.max(0.08, (value - 7_000) / 12_000));
+}
+
+function listingHeatIntensity(listing: ListingOut, metric: MapMetric): number {
+  if (metric === "heat_count") return 0.75;
+  const pricePerM2 = numeric(listing.price_per_m2);
+  const price = numeric(listing.price);
+  const area = numeric(listing.area_m2);
+  const value = pricePerM2 ?? (price != null && area != null && area > 0 ? price / area : null);
+  return value == null ? 0.25 : Math.min(1, Math.max(0.12, (value - 7_000) / 12_000));
+}
+
+function hexCenter(hex: MapHexOut): [number, number] {
+  const points = hex.geometry.coordinates[0];
+  const sum = points.reduce<[number, number]>(
+    (acc, [lon, lat]) => [acc[0] + lat, acc[1] + lon],
+    [0, 0],
+  );
+  return [sum[0] / points.length, sum[1] / points.length];
+}
+
+function HeatLayer({ points, metric }: { points: HeatPoint[]; metric: MapMetric }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const layer = L.heatLayer(points, {
+      radius: metric === "heat_count" ? 34 : 42,
+      blur: metric === "heat_count" ? 26 : 32,
+      maxZoom: 17,
+      minOpacity: 0.22,
+      gradient:
+        metric === "heat_count"
+          ? { 0.25: "#22c55e", 0.55: "#f59e0b", 1: "#dc2626" }
+          : { 0.2: "#14b8a6", 0.55: "#f97316", 1: "#dc2626" },
+    });
+    layer.addTo(map);
+    return () => {
+      layer.remove();
+    };
+  }, [map, metric, points]);
+
+  return null;
 }
 
 export function ListingsMap({
   listings,
   metric = "price",
+  hexes = [],
+  onViewport,
 }: {
   listings: ListingOut[];
   metric?: MapMetric;
+  hexes?: MapHexOut[];
+  onViewport?: (viewport: MapViewport) => void;
 }) {
   const [zoom, setZoom] = useState(11);
   const located = listings.filter(
     (l): l is ListingOut & { lat: number; lon: number } => l.lat != null && l.lon != null,
   );
+  const center = averageCenter(located.map((l) => [l.lat, l.lon]));
+  const clusters = clusterListings(located, zoom);
+  const isHeat = metric === "heat_price" || metric === "heat_count";
+  const heatPoints: HeatPoint[] = hexes.length
+    ? hexes.map((hex) => {
+        const [lat, lon] = hexCenter(hex);
+        return [lat, lon, heatIntensity(hex, metric)];
+      })
+    : located.map((listing) => [listing.lat, listing.lon, listingHeatIntensity(listing, metric)]);
 
   if (located.length === 0) {
     return (
@@ -185,50 +257,55 @@ export function ListingsMap({
     );
   }
 
-  const center = averageCenter(located.map((l) => [l.lat, l.lon]));
-  const clusters = clusterListings(located, zoom);
-  const isHeat = metric === "heat_price" || metric === "heat_count";
-
   return (
     <div className="listings-map" data-testid="listings-map">
       <MapContainer center={center} zoom={11} scrollWheelZoom>
         <ZoomWatcher onZoom={setZoom} />
+        <ViewportWatcher onViewport={onViewport} />
         <TileLayer
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
-        {isHeat &&
-          located.map((listing) => {
-            const localAvg = localAveragePricePerM2(listing, located);
-            const style = heatStyle(localAvg, metric);
-            return (
-              <CircleMarker
-                key={`heat-${listing.id}`}
-                center={[listing.lat, listing.lon]}
-                radius={style.radius}
-                pathOptions={{
-                  color: style.fillColor,
-                  fillColor: style.fillColor,
-                  fillOpacity: style.fillOpacity,
-                  opacity: 0,
-                  weight: 0,
-                }}
-              >
-                <Popup>
-                  <div className="map-popup">
-                    <div className="map-popup__price">
-                      {metric === "heat_price"
-                        ? `Trend okolicy: ${formatPricePerM2Short(localAvg)}`
-                        : "Gęstość ofert"}
+        {isHeat && heatPoints.length > 0 && <HeatLayer points={heatPoints} metric={metric} />}
+        {isHeat && hexes.length > 0
+          ? hexes.map((hex) => {
+              const center = hexCenter(hex);
+              return (
+                <CircleMarker
+                  key={hex.id}
+                  center={center}
+                  radius={4}
+                  pathOptions={{
+                    color: "transparent",
+                    fillColor: "transparent",
+                    fillOpacity: 0,
+                    opacity: 0,
+                    weight: 0,
+                  }}
+                >
+                  <Tooltip sticky>
+                    {metric === "heat_price"
+                      ? `${formatPricePerM2Short(hex.avg_price_per_m2)} · ${hex.count} ofert`
+                      : `${hex.count} ofert`}
+                  </Tooltip>
+                  <Popup>
+                    <div className="map-popup">
+                      <div className="map-popup__price">
+                        {metric === "heat_price"
+                          ? formatPricePerM2Short(hex.avg_price_per_m2)
+                          : `${hex.count} ofert`}
+                      </div>
+                      <div className="map-popup__muted">
+                        {hex.avg_price == null
+                          ? ""
+                          : `średnia cena ${formatPriceShort(hex.avg_price)}`}
+                      </div>
                     </div>
-                    <Link className="map-popup__title" to={`/listings/${listing.id}`}>
-                      {listing.title}
-                    </Link>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            );
-          })}
+                  </Popup>
+                </CircleMarker>
+              );
+            })
+          : null}
         {!isHeat &&
           clusters.map((cluster) => {
             const primary = cluster.listings[0];
@@ -293,7 +370,7 @@ export function ListingsMap({
                         <div className="map-popup__price">{formatPrice(primary.price)}</div>
                         {primary.price_per_m2 != null && (
                           <div className="map-popup__muted">
-                            {primary.price_per_m2.toLocaleString("pl-PL")} zł/m²
+                            {formatNumber(primary.price_per_m2)} zł/m²
                           </div>
                         )}
                         {facts(primary) && <div className="map-popup__facts">{facts(primary)}</div>}

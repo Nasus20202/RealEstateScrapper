@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from datetime import UTC, datetime
 
 _RESERVED_ATTRS = set(logging.makeLogRecord({}).__dict__)
@@ -27,10 +28,13 @@ def configure_logging(*, structured: bool) -> None:
     if not structured:
         return
     root = logging.getLogger()
-    if any(getattr(handler, "_realestate_structured", False) for handler in root.handlers):
-        return
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
     handler._realestate_structured = True  # type: ignore[attr-defined]
     root.handlers[:] = [handler]
     root.setLevel(logging.INFO)
+
+    app_logger = logging.getLogger("realestate")
+    app_logger.setLevel(logging.INFO)
+    app_logger.disabled = False
+    app_logger.propagate = True

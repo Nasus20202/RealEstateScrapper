@@ -11,7 +11,7 @@ uv run pytest
 ### Konfiguracja
 
 - Framework: **pytest** z pluginem **pytest-asyncio** (tryb `auto` — wszystkie testy async uruchamiane automatycznie).
-- Testy integracyjne i E2E używają **testcontainers** do uruchomienia PostgreSQL 18 + pgvector w izolowanym kontenerze Docker. **Wymagany Docker.**
+- Testy integracyjne i E2E używają **testcontainers** do uruchomienia PostgreSQL 18 + pgvector w izolowanym kontenerze Docker. **Wymagany Docker.** PostGIS jest testowany przez migrację warunkowo: w obrazie testowym bez PostGIS część przestrzenna jest no-op, a runtime compose używa własnego obrazu z PostGIS.
 - Konfiguracja pytest: `pyproject.toml` (sekcja `[tool.pytest.ini_options]`).
 
 ### Struktura testów
@@ -46,7 +46,7 @@ uv run pytest -m live
 
 ### Testcontainers i Docker
 
-Testy integracyjne uruchamiają kontener `pgvector/pgvector:pg18` przez testcontainers. Kontener startuje raz per sesja pytest (fixture o zasięgu `session`). Wymagane:
+Testy integracyjne uruchamiają kontener `pgvector/pgvector:pg18` przez testcontainers. Kontener startuje raz per sesja pytest (fixture o zasięgu `session`). Runtime Docker Compose używa osobnego obrazu `docker/db/Dockerfile` na bazie `postgres:18.4-trixie` z PostGIS i pgvector. Wymagane:
 
 1. Działający Docker daemon.
 2. Dostęp do Docker Hub (lub lokalny obraz `pgvector/pgvector:pg18`).
@@ -72,23 +72,21 @@ Ruff musi być czysty przed każdym commitem. Konfiguracja: `pyproject.toml` (se
 ### Uruchomienie testów
 
 ```bash
-cd frontend
-npm test -- --run
+pnpm --dir frontend exec vitest run
 ```
 
 Flaga `--run` uruchamia vitest w trybie jednorazowym (nie watch).
 
 ### Konfiguracja
 
-- Framework: **vitest** + **@testing-library/react** + **MSW** (Mock Service Worker do mockowania API).
-- Środowisko: jsdom.
-- TypeScript: tsc nie blokuje testów, ale `npm run build` (= `tsc -b && vite build`) musi przechodzić.
+- Framework: **Vitest 4** + **@testing-library/react** + **MSW** (Mock Service Worker do mockowania API).
+- Środowisko: jsdom 29.
+- TypeScript: `tsc -b` nie blokuje testów, ale `pnpm --dir frontend build` (= `tsc -b && vite build`) musi przechodzić.
 
 ### Build
 
 ```bash
-cd frontend
-npm run build
+pnpm --dir frontend build
 ```
 
 Build weryfikuje poprawność TypeScript i generuje artefakty produkcyjne w `frontend/dist/`.
@@ -105,5 +103,5 @@ Testy są umieszczone obok komponentów w `frontend/src/` lub w `frontend/src/__
 |---|---|---|
 | `uv run pytest` | Backend: wszystkie testy integracyjne i jednostkowe | tak (testcontainers) |
 | `uv run ruff check .` | Lint Python | nie |
-| `cd frontend && npm test -- --run` | Frontend: vitest | nie |
-| `cd frontend && npm run build` | Weryfikacja TypeScript + build | nie |
+| `pnpm --dir frontend exec vitest run` | Frontend: Vitest | nie |
+| `pnpm --dir frontend build` | Weryfikacja TypeScript + build | nie |

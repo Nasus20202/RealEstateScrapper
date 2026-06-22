@@ -104,3 +104,18 @@ async def test_list_listings_with_source_filter(engine):
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 0
+
+
+async def test_stats_summary(engine):
+    await _seed(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get("/stats")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["overview"]["active_count"] == 1
+    assert Decimal(body["overview"]["avg_price"]) == Decimal("400000")
+    assert body["by_district"][0]["key"] == "Wrzeszcz"
+    assert body["by_source"][0]["key"] == "otodom"
+    assert body["by_rooms"][0]["key"] == "2"

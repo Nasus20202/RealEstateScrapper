@@ -43,7 +43,7 @@ def _merge_detail(search: RawListing, detail: RawListing) -> RawListing:
 
 def _with_search_context(search: RawListing, detail: RawListing) -> RawListing:
     data = detail.model_dump()
-    for key in ("city", "district", "street", "market"):
+    for key in ("city", "district", "street", "market", "lat", "lon"):
         if data.get(key) in (None, ""):
             data[key] = getattr(search, key)
     data["images"] = list(dict.fromkeys([*detail.images, *search.images]))

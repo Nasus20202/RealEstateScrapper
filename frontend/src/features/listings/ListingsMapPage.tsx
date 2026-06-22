@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import { getListings } from "../../api/client";
-import type { ListingOut, ListingsQuery } from "../../api/types";
-import { ListingsMap, type MapMetric } from "./ListingsMap";
+import { getMapHexes, getMapPoints, getSettings } from "../../api/client";
+import type { ListingOut, ListingsQuery, MapBoundsQuery, MapHexOut } from "../../api/types";
+import { ListingsMap, type MapMetric, type MapViewport } from "./ListingsMap";
 
-const MAP_LIMIT = 1000;
+const MAP_LIMIT = 600;
 
 function queryFromParams(params: URLSearchParams): ListingsQuery {
   return {
@@ -27,31 +27,137 @@ function queryFromParams(params: URLSearchParams): ListingsQuery {
   };
 }
 
+function boundsFromViewport(viewport: MapViewport): MapBoundsQuery {
+  return {
+    north: viewport.north,
+    south: viewport.south,
+    east: viewport.east,
+    west: viewport.west,
+  };
+}
+
+function paramsFromFilters(form: MapFilterState, current: URLSearchParams): URLSearchParams {
+  const params = new URLSearchParams(current);
+  for (const key of [
+    "city",
+    "min_price",
+    "max_price",
+    "min_rooms",
+    "max_rooms",
+    "market",
+    "source_id",
+  ]) {
+    params.delete(key);
+  }
+  if (form.city.trim()) params.set("city", form.city.trim());
+  if (form.min_price.trim()) params.set("min_price", form.min_price.trim());
+  if (form.max_price.trim()) params.set("max_price", form.max_price.trim());
+  if (form.min_rooms.trim()) params.set("min_rooms", form.min_rooms.trim());
+  if (form.max_rooms.trim()) params.set("max_rooms", form.max_rooms.trim());
+  if (form.market) params.set("market", form.market);
+  for (const source of form.source_ids) params.append("source_id", source);
+  return params;
+}
+
+function filtersFromParams(params: URLSearchParams): MapFilterState {
+  return {
+    city: params.get("city") ?? "",
+    min_price: params.get("min_price") ?? "",
+    max_price: params.get("max_price") ?? "",
+    min_rooms: params.get("min_rooms") ?? "",
+    max_rooms: params.get("max_rooms") ?? "",
+    market: params.get("market") ?? "",
+    source_ids: params.getAll("source_id"),
+  };
+}
+
+interface MapFilterState {
+  city: string;
+  min_price: string;
+  max_price: string;
+  min_rooms: string;
+  max_rooms: string;
+  market: string;
+  source_ids: string[];
+}
+
 export function ListingsMapPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<ListingOut[]>([]);
+  const [hexes, setHexes] = useState<MapHexOut[]>([]);
+  const [filters, setFilters] = useState<MapFilterState>(() => filtersFromParams(searchParams));
+  const [sources, setSources] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [metric, setMetric] = useState<MapMetric>("price");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewport, setViewport] = useState<MapViewport | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await getListings(queryFromParams(searchParams));
-      setItems(res.items);
-      setTotal(res.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd pobierania mapy");
-    } finally {
-      setLoading(false);
-    }
-  }, [searchParams]);
+  const load = useCallback(
+    async (nextViewport: MapViewport | null) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const baseQuery = queryFromParams(searchParams);
+        const bounds = nextViewport ? boundsFromViewport(nextViewport) : {};
+        const query = { ...baseQuery, ...bounds };
+        const [res, mapHexes] = await Promise.all([getMapPoints(query), getMapHexes(query)]);
+        setItems(res.items);
+        setHexes(mapHexes);
+        setTotal(res.total);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Błąd pobierania mapy");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [searchParams],
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    setFilters(filtersFromParams(searchParams));
+    void load(viewport);
+  }, [load, searchParams, viewport]);
+
+  useEffect(() => {
+    void getSettings()
+      .then((settings) => setSources(settings.sources))
+      .catch(() => {});
+  }, []);
+
+  function update(field: keyof MapFilterState, value: string) {
+    setFilters((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function toggleSource(source: string) {
+    setFilters((prev) => ({
+      ...prev,
+      source_ids: prev.source_ids.includes(source)
+        ? prev.source_ids.filter((item) => item !== source)
+        : [...prev.source_ids, source],
+    }));
+  }
+
+  function applyFilters(event: React.FormEvent) {
+    event.preventDefault();
+    setSearchParams(paramsFromFilters(filters, searchParams));
+  }
+
+  function onViewport(nextViewport: MapViewport) {
+    setViewport((current) => {
+      if (
+        current &&
+        Math.abs(current.north - nextViewport.north) < 0.0005 &&
+        Math.abs(current.south - nextViewport.south) < 0.0005 &&
+        Math.abs(current.east - nextViewport.east) < 0.0005 &&
+        Math.abs(current.west - nextViewport.west) < 0.0005 &&
+        current.zoom === nextViewport.zoom
+      ) {
+        return current;
+      }
+      return nextViewport;
+    });
+  }
 
   return (
     <section className="map-page">
@@ -59,7 +165,7 @@ export function ListingsMapPage() {
         <div>
           <h2>Mapa ofert</h2>
           <p>
-            Pokazano {items.length} z {total} ofert z aktualnych filtrów.
+            Pokazano {items.length} z {total} ofert w widocznym obszarze.
             {loading && <span className="loading-dot"> •••</span>}
           </p>
         </div>
@@ -99,8 +205,73 @@ export function ListingsMapPage() {
           </Link>
         </div>
       </div>
+      <form className="map-filters" onSubmit={applyFilters}>
+        <label htmlFor="map-city">
+          Miasto
+          <input
+            id="map-city"
+            value={filters.city}
+            onChange={(event) => update("city", event.target.value)}
+            placeholder="np. Gdańsk"
+          />
+        </label>
+        <label htmlFor="map-min-price">
+          Cena min.
+          <input
+            id="map-min-price"
+            inputMode="numeric"
+            value={filters.min_price}
+            onChange={(event) => update("min_price", event.target.value)}
+          />
+        </label>
+        <label htmlFor="map-max-price">
+          Cena maks.
+          <input
+            id="map-max-price"
+            inputMode="numeric"
+            value={filters.max_price}
+            onChange={(event) => update("max_price", event.target.value)}
+          />
+        </label>
+        <label htmlFor="map-min-rooms">
+          Pokoje min.
+          <input
+            id="map-min-rooms"
+            inputMode="numeric"
+            value={filters.min_rooms}
+            onChange={(event) => update("min_rooms", event.target.value)}
+          />
+        </label>
+        <label htmlFor="map-market">
+          Rynek
+          <select
+            id="map-market"
+            value={filters.market}
+            onChange={(event) => update("market", event.target.value)}
+          >
+            <option value="">Wszystkie</option>
+            <option value="primary">Pierwotny</option>
+            <option value="secondary">Wtórny</option>
+          </select>
+        </label>
+        {sources.length > 0 && (
+          <div className="map-filters__sources">
+            {sources.map((source) => (
+              <label key={source} className="multi-select-option">
+                <input
+                  type="checkbox"
+                  checked={filters.source_ids.includes(source)}
+                  onChange={() => toggleSource(source)}
+                />
+                {source}
+              </label>
+            ))}
+          </div>
+        )}
+        <button type="submit">Filtruj mapę</button>
+      </form>
       {error && <p className="error">{error}</p>}
-      <ListingsMap listings={items} metric={metric} />
+      <ListingsMap listings={items} metric={metric} hexes={hexes} onViewport={onViewport} />
     </section>
   );
 }

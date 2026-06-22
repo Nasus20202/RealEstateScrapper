@@ -3,14 +3,14 @@
 ## Wymagania
 
 - **Python 3.14** + **uv** — menedżer pakietów i środowisk wirtualnych.
-- **Node.js 20+** (do frontendu; rozwijane na Node 26) — `npm` wbudowane.
+- **Node.js 22+** i **pnpm** (do frontendu; Vite 8 wymaga nowego Node; w Dockerze używany jest Corepack + pnpm 10.23.0).
 - **Docker** — do uruchomienia bazy danych PostgreSQL (i testów integracyjnych via testcontainers).
 
 ---
 
 ## 0. Najszybszy start: cały stack przez Docker Compose
 
-Jednym poleceniem stawiasz bazę (pgvector pg18), backend (FastAPI + Playwright) i frontend (nginx). Wymaga tylko Dockera (nie potrzebujesz lokalnie Pythona/Node):
+Jednym poleceniem stawiasz bazę (PostgreSQL 18.4 + pgvector + PostGIS), backend (FastAPI + Playwright) i frontend (nginx). Wymaga tylko Dockera (nie potrzebujesz lokalnie Pythona/Node):
 
 ```bash
 docker compose up -d --build
@@ -22,7 +22,7 @@ Serwisy:
 | --- | --- | --- |
 | `web` | http://localhost:8080 | Frontend SPA (nginx) |
 | `api` | http://localhost:8000 | REST API + SSE; migracje uruchamiane automatycznie przy starcie |
-| `db`  | localhost:5432 | PostgreSQL 18 + pgvector (wolumen `pgdata`) |
+| `db`  | localhost:5432 | PostgreSQL 18.4 + pgvector + PostGIS (wolumen `pgdata`) |
 
 Sprawdzenie: `curl http://localhost:8000/health` → `{"status":"ok","database":true}`, a w przeglądarce `http://localhost:8080`.
 
@@ -46,7 +46,7 @@ Pozostałe sekcje opisują uruchomienie **lokalne bez Dockera** (wygodne do dewe
 
 ## 1. Baza danych
 
-Projekt używa obrazu `pgvector/pgvector:0.8.3-pg18-trixie` (PostgreSQL 18 + pgvector, baza Debian 13).
+Projekt buduje własny obraz `docker/db/Dockerfile` na bazie `postgres:18.4-trixie` i instaluje pakiety `postgresql-18-postgis-3` oraz `postgresql-18-pgvector`.
 
 ```bash
 docker compose up -d db
@@ -86,13 +86,13 @@ uv sync --extra dev
 
 ## 4. Migracje bazy danych
 
-**Ważne:** Alembic **nie ładuje `.env` automatycznie**. Przed uruchomieniem migracji `EMBEDDING_DIM` musi być ustawiony jako zmienna środowiskowa i musi mieć tę samą wartość, co przy uruchomieniu aplikacji. Niezgodność wymiaru powoduje błąd przy zapisie embeddingów.
+**Ważne:** Alembic **nie ładuje `.env` automatycznie**. Przed uruchomieniem migracji `EMBEDDING_DIM` musi być ustawiony jako zmienna środowiskowa i musi mieć tę samą wartość, co przy uruchomieniu aplikacji. Niezgodność wymiaru powoduje błąd przy zapisie embeddingów. Migracja PostGIS dodaje `listings.geom`, indeks GiST i trigger synchronizujący `geom` z `lat/lon`.
 
 ```bash
 EMBEDDING_DIM=1536 uv run alembic upgrade head
 ```
 
-Aktualny migration head: `0007`.
+Aktualny migration head: `0009`.
 
 ---
 
@@ -110,12 +110,13 @@ Dokumentacja OpenAPI: `http://localhost:8000/docs`
 
 ## 6. Uruchomienie frontendu
 
-Frontend to samodzielny projekt w katalogu `frontend/`.
+Frontend jest workspace pnpm w katalogu `frontend/`.
+
+Stack frontendu: React 18, Vite 8, `@vitejs/plugin-react` 6, TypeScript 6, ESLint 10, Vitest 4 i jsdom 29.
 
 ```bash
-cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm --dir frontend dev
 ```
 
 Frontend dostępny pod: `http://localhost:5173`
@@ -123,7 +124,7 @@ Frontend dostępny pod: `http://localhost:5173`
 Zmienna środowiskowa `VITE_API_BASE` określa adres backendu (domyślnie `http://localhost:8000`). Przykład zmiany:
 
 ```bash
-VITE_API_BASE=http://localhost:9000 npm run dev
+VITE_API_BASE=http://localhost:9000 pnpm --dir frontend dev
 ```
 
 ---
@@ -176,5 +177,5 @@ EMBEDDING_DIM=1536 uv run alembic upgrade head
 uv run uvicorn realestate.api.app:app --reload
 
 # Terminal 3 — frontend
-cd frontend && npm install && npm run dev
+pnpm install && pnpm --dir frontend dev
 ```

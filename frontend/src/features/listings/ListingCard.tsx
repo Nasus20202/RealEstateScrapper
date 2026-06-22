@@ -2,13 +2,19 @@
 import { Link } from "react-router-dom";
 
 import type { ListingOut } from "../../api/types";
+import { formatPrice, formatPricePerM2 } from "./format";
 
-function formatPrice(value: number | null): string {
-  return value == null ? "—" : `${value.toLocaleString("pl-PL")} zł`;
-}
+type ListingCardVariant = "default" | "compact" | "list";
 
 function locationLine(listing: ListingOut): string {
   return [listing.street, listing.district, listing.city].filter(Boolean).join(", ") || "—";
+}
+
+function textFromHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function BuildingIcon() {
@@ -34,12 +40,16 @@ function BuildingIcon() {
 export function ListingCard({
   listing,
   onPreview,
+  variant = "default",
 }: {
   listing: ListingOut;
   onPreview?: (listing: ListingOut) => void;
+  variant?: ListingCardVariant;
 }) {
   const cover = listing.images[0];
   const detailUrl = `/listings/${listing.id}`;
+  const isList = variant === "list";
+  const description = listing.description ? textFromHtml(listing.description) : "";
 
   function openDetail(target: "_self" | "_blank") {
     if (target === "_self") {
@@ -51,16 +61,23 @@ export function ListingCard({
 
   return (
     <article
-      className="listing-card"
+      className={`listing-card listing-card--${variant}`}
       onClick={() => onPreview?.(listing)}
       onDoubleClick={(event) => {
         event.preventDefault();
         openDetail("_self");
       }}
+      onMouseDown={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+          event.stopPropagation();
+          openDetail("_blank");
+        }
+      }}
       onAuxClick={(event) => {
         if (event.button === 1) {
           event.preventDefault();
-          openDetail("_blank");
+          event.stopPropagation();
         }
       }}
       role={onPreview ? "button" : undefined}
@@ -98,9 +115,7 @@ export function ListingCard({
         <div className="listing-card__price-row">
           <span className="listing-card__price">{formatPrice(listing.price)}</span>
           <span className="listing-card__ppm">
-            {listing.price_per_m2 != null
-              ? `${listing.price_per_m2.toLocaleString("pl-PL")} zł/m²`
-              : ""}
+            {listing.price_per_m2 != null ? formatPricePerM2(listing.price_per_m2) : ""}
           </span>
         </div>
 
@@ -126,7 +141,37 @@ export function ListingCard({
           {listing.rooms != null && <span className="chip">{listing.rooms} pok.</span>}
           {listing.area_m2 != null && <span className="chip">{listing.area_m2} m²</span>}
           {listing.floor != null && <span className="chip">{listing.floor} p.</span>}
+          {listing.total_floors != null && (
+            <span className="chip">z {listing.total_floors} pięter</span>
+          )}
         </div>
+
+        {isList && (
+          <>
+            <dl className="listing-card__details">
+              <div>
+                <dt>Powierzchnia</dt>
+                <dd>{listing.area_m2 == null ? "—" : `${listing.area_m2} m²`}</dd>
+              </div>
+              <div>
+                <dt>Pokoje</dt>
+                <dd>{listing.rooms ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Piętro</dt>
+                <dd>
+                  {listing.floor ?? "—"}
+                  {listing.total_floors != null ? ` / ${listing.total_floors}` : ""}
+                </dd>
+              </div>
+              <div>
+                <dt>Rynek</dt>
+                <dd>{listing.market === "primary" ? "pierwotny" : (listing.market ?? "—")}</dd>
+              </div>
+            </dl>
+            <p className="listing-card__description">{description || "Brak opisu w ogłoszeniu."}</p>
+          </>
+        )}
 
         {listing.score != null && (
           <p className="listing-card__score">

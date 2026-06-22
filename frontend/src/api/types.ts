@@ -42,6 +42,61 @@ export interface ListingsResponse {
   total: number;
 }
 
+export interface MapHexOut {
+  id: string;
+  geometry: {
+    type: "Polygon";
+    coordinates: number[][][];
+  };
+  count: number;
+  avg_price: number | null;
+  avg_price_per_m2: number | null;
+}
+
+export interface StatsOverviewOut {
+  active_count: number;
+  total_count: number;
+  priced_count: number;
+  located_count: number;
+  with_images_count: number;
+  with_description_count: number;
+  avg_price: number | null;
+  avg_price_per_m2: number | null;
+  avg_area_m2: number | null;
+  avg_rooms: number | null;
+  min_price: number | null;
+  max_price: number | null;
+  latest_seen: string | null;
+}
+
+export interface StatsGroupOut {
+  key: string;
+  count: number;
+  priced_count: number;
+  located_count: number;
+  avg_price: number | null;
+  avg_price_per_m2: number | null;
+  avg_area_m2: number | null;
+  avg_rooms: number | null;
+  min_price: number | null;
+  max_price: number | null;
+}
+
+export interface StatsBucketOut {
+  key: string;
+  count: number;
+}
+
+export interface StatsOut {
+  overview: StatsOverviewOut;
+  by_district: StatsGroupOut[];
+  by_source: StatsGroupOut[];
+  by_city: StatsGroupOut[];
+  by_market: StatsGroupOut[];
+  by_rooms: StatsBucketOut[];
+  price_buckets: StatsBucketOut[];
+}
+
 export interface ListingsQuery {
   city?: string;
   district?: string[];
@@ -58,6 +113,13 @@ export interface ListingsQuery {
   sort_dir?: "asc" | "desc";
   limit?: number;
   offset?: number;
+}
+
+export interface MapBoundsQuery {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
 }
 
 export interface ScrapeRunOut {

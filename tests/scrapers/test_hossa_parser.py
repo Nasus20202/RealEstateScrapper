@@ -55,9 +55,29 @@ def test_parse_detail_api_returns_concrete_apartments():
     assert first.area_m2 == 58.23
     assert first.rooms == 1
     assert first.floor == 3
+    assert first.city == "Gdańsk"
+    assert first.district == "Wrzeszcz Górny"
+    assert first.street == "Garnizon"
+    assert first.lat == 54.3845063
+    assert first.lon == 18.5928283
     assert first.description == "Balkon i garaż"
     assert first.attributes["tags"] == ["Balkon"]
     assert first.images == ["https://www.hossa.gda.pl/content/uploads/plans/04/projection.jpg"]
+
+
+def test_parse_detail_api_sets_wiszace_ogrody_coordinates():
+    body = '{"data":[{"id":1,"number":"WO/1","rooms":2,"area":"45","price":"600000"}]}'
+    listings = HossaScraper().parse_detail(
+        body,
+        "https://www.hossa.gda.pl/api/apartments/?inv=wiszace-ogrody&type=a",
+    )
+    assert isinstance(listings, list)
+    first = listings[0]
+    assert first.city == "Gdańsk"
+    assert first.district == "Kiełpinek"
+    assert first.street == "Taneczna 13"
+    assert first.lat == 54.3531938
+    assert first.lon == 18.5319615
 
 
 def test_parse_search_ignores_category_links():

@@ -38,7 +38,11 @@ export function FavoritesPage() {
         {listings.map((listing) => (
           <div key={listing.id} className="favorite-item">
             <ListingCard listing={listing} />
-            <button type="button" onClick={() => void onRemove(listing.id)}>
+            <button
+              type="button"
+              className="favorite-item__remove btn-ghost btn-sm"
+              onClick={() => void onRemove(listing.id)}
+            >
               Usuń
             </button>
           </div>

@@ -130,6 +130,58 @@ class ListingsResponse(BaseModel):
     total: int
 
 
+class MapHexOut(BaseModel):
+    id: str
+    geometry: dict
+    count: int
+    avg_price: Decimal | None = None
+    avg_price_per_m2: Decimal | None = None
+
+
+class StatsOverviewOut(BaseModel):
+    active_count: int
+    total_count: int
+    priced_count: int
+    located_count: int
+    with_images_count: int
+    with_description_count: int
+    avg_price: Decimal | None = None
+    avg_price_per_m2: Decimal | None = None
+    avg_area_m2: float | None = None
+    avg_rooms: float | None = None
+    min_price: Decimal | None = None
+    max_price: Decimal | None = None
+    latest_seen: datetime | None = None
+
+
+class StatsGroupOut(BaseModel):
+    key: str
+    count: int
+    priced_count: int
+    located_count: int
+    avg_price: Decimal | None = None
+    avg_price_per_m2: Decimal | None = None
+    avg_area_m2: float | None = None
+    avg_rooms: float | None = None
+    min_price: Decimal | None = None
+    max_price: Decimal | None = None
+
+
+class StatsBucketOut(BaseModel):
+    key: str
+    count: int
+
+
+class StatsOut(BaseModel):
+    overview: StatsOverviewOut
+    by_district: list[StatsGroupOut]
+    by_source: list[StatsGroupOut]
+    by_city: list[StatsGroupOut]
+    by_market: list[StatsGroupOut]
+    by_rooms: list[StatsBucketOut]
+    price_buckets: list[StatsBucketOut]
+
+
 class ScrapeRunOut(BaseModel):
     id: int
     source_id: str

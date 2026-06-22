@@ -8,6 +8,7 @@ import { ListingsPage } from "./features/listings/ListingsPage";
 import { ScrapePage } from "./features/scrape/ScrapePage";
 import { SavedSearchesPage } from "./features/searches/SavedSearchesPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
+import { StatsPage } from "./features/stats/StatsPage";
 
 export function App() {
   return (
@@ -21,6 +22,7 @@ export function App() {
           Oferty
         </NavLink>
         <NavLink to="/mapa">Mapa</NavLink>
+        <NavLink to="/stats">Statystyki</NavLink>
         <NavLink to="/scrape">Scraping</NavLink>
         <NavLink to="/searches">Zapisane</NavLink>
         <NavLink to="/favorites">Ulubione</NavLink>
@@ -30,6 +32,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<ListingsPage />} />
           <Route path="/mapa" element={<ListingsMapPage />} />
+          <Route path="/stats" element={<StatsPage />} />
           <Route path="/listings/:id" element={<ListingDetailPage />} />
           <Route path="/scrape" element={<ScrapePage />} />
           <Route path="/searches" element={<SavedSearchesPage />} />

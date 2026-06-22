@@ -84,7 +84,9 @@ class IngestionService:
         return [run for source_runs in results for run in source_runs]
 
     def _new_fetcher(self):
-        if hasattr(self.fetcher, "__aenter__"):
+        from realestate.scrapers.browser import BrowserFetcher
+
+        if isinstance(self.fetcher, BrowserFetcher):
             return type(self.fetcher)()
         return self.fetcher
 

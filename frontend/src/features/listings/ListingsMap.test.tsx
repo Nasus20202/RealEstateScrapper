@@ -14,12 +14,25 @@ vi.mock("react-leaflet", () => ({
   CircleMarker: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="marker">{children}</div>
   ),
+  Polygon: ({ children }: { children: React.ReactNode }) => <div data-testid="hex">{children}</div>,
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Tooltip: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="tooltip">{children}</div>
   ),
+  useMap: () => ({}),
   useMapEvents: () => null,
 }));
+
+vi.mock("leaflet", () => ({
+  default: {
+    heatLayer: vi.fn(() => ({
+      addTo: vi.fn(),
+      remove: vi.fn(),
+    })),
+  },
+}));
+
+vi.mock("leaflet.heat", () => ({}));
 
 import { ListingsMap } from "./ListingsMap";
 
@@ -61,6 +74,14 @@ function renderMap(listings: ListingOut[]) {
   );
 }
 
+function renderHeatMap(listings: ListingOut[]) {
+  return render(
+    <MemoryRouter>
+      <ListingsMap listings={listings} metric="heat_price" />
+    </MemoryRouter>,
+  );
+}
+
 describe("ListingsMap", () => {
   it("pokazuje stan pusty, gdy żadna oferta nie ma współrzędnych", () => {
     renderMap([listing({ id: 1 }), listing({ id: 2 })]);
@@ -97,5 +118,14 @@ describe("ListingsMap", () => {
     expect(screen.getByTestId("tooltip")).toHaveTextContent("400K");
     expect(screen.getByRole("link", { name: /Pierwsza/ })).toHaveAttribute("href", "/listings/1");
     expect(screen.getByRole("link", { name: /Druga/ })).toHaveAttribute("href", "/listings/2");
+  });
+
+  it("renderuje heatmapę z punktów ofert, gdy API heksów zwróci pusto", async () => {
+    const L = await import("leaflet");
+    renderHeatMap([listing({ id: 1, lat: 54.35, lon: 18.65 })]);
+    expect(L.default.heatLayer).toHaveBeenCalledWith(
+      [[54.35, 18.65, expect.any(Number)]],
+      expect.objectContaining({ radius: 42 }),
+    );
   });
 });

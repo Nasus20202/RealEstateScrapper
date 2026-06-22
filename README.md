@@ -1,6 +1,6 @@
 # Agregator ofert nieruchomości (Trójmiasto)
 
-Lokalna aplikacja agregująca oferty mieszkań z wielu portali nieruchomości w Trójmieście (Gdańsk, Gdynia, Sopot). Pipeline: scraping Playwright → normalizacja z deduplikacją (`raw_hash`) → PostgreSQL 18 + pgvector → wzbogacanie LLM (podsumowania, cechy, embeddingi, dedup) → wyszukiwanie hybrydowe (filtry SQL → pgvector top-K → rerank LLM) → FastAPI REST + SSE → React/Vite/TS SPA.
+Lokalna aplikacja agregująca oferty mieszkań z wielu portali nieruchomości w Trójmieście (Gdańsk, Gdynia, Sopot). Pipeline: scraping Playwright → normalizacja z deduplikacją (`raw_hash`) → PostgreSQL 18.4 + pgvector + PostGIS → wzbogacanie LLM (podsumowania, cechy, embeddingi, dedup) → wyszukiwanie hybrydowe (filtry SQL → pgvector top-K → rerank LLM) i agregacje mapowe PostGIS → FastAPI REST + SSE → React/Vite/TS SPA.
 
 ---
 
@@ -15,7 +15,7 @@ Krótki przegląd:
 3. **Wzbogacanie LLM** — `EnrichmentService` (podsumowania, cechy), `DedupService` (grupy duplikatów), embeddingi pgvector.
 4. **Wyszukiwanie hybrydowe** — `SearchService`: filtry SQL → pgvector top-K → LLM rerank; degradacja przy braku LLM.
 5. **API** — FastAPI REST + SSE (`/events`), scheduler APScheduler.
-6. **Frontend** — React 18 + Vite + TypeScript SPA.
+6. **Frontend** — React 18 + Vite 8 + TypeScript 6 SPA.
 
 ---
 
@@ -23,7 +23,7 @@ Krótki przegląd:
 
 ### Najszybciej: cały stack przez Docker Compose
 
-Wymaga tylko Dockera. Stawia bazę (pgvector pg18), backend (FastAPI + Playwright, migracje uruchamiane automatycznie) i frontend (nginx):
+Wymaga tylko Dockera. Stawia bazę (PostgreSQL 18.4 + pgvector + PostGIS), backend (FastAPI + Playwright, migracje uruchamiane automatycznie) i frontend (nginx):
 
 ```bash
 docker compose up -d --build
@@ -47,7 +47,7 @@ EMBEDDING_DIM=1536 uv run alembic upgrade head
 uv run uvicorn realestate.api.app:app --reload
 
 # 4. Frontend (w osobnym terminalu)
-cd frontend && npm install && npm run dev
+pnpm install && pnpm --dir frontend dev
 ```
 
 ---
@@ -68,10 +68,11 @@ uv run pytest
 uv run ruff check .
 
 # Frontend (z katalogu frontend/)
-cd frontend && npm test -- --run
+pnpm --dir frontend exec vitest run
+pnpm --dir frontend build
 ```
 
-Testy backendowe wymagają Dockera (testcontainers uruchamia pg18+pgvector). Szczegóły: [`docs/testing.md`](docs/testing.md).
+Testy backendowe wymagają Dockera (testcontainers uruchamia pg18+pgvector; PostGIS jest no-op w tym obrazie testowym). Szczegóły: [`docs/testing.md`](docs/testing.md).
 
 ---
 

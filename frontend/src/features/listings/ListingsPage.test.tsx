@@ -27,7 +27,7 @@ function listing(overrides: Record<string, unknown> = {}) {
     district: "Wrzeszcz",
     street: null,
     market: "secondary",
-    description: null,
+    description: "<p>Duży balkon, zielona okolica i szybki dojazd do SKM.</p>",
     attributes: {},
     images: [],
     posted_at: null,
@@ -76,10 +76,10 @@ describe("ListingsPage", () => {
     renderPage();
     expect(await screen.findByText("Ładne 2pok")).toBeInTheDocument();
     expect(screen.getByText(/Znaleziono: 1/)).toBeInTheDocument();
-    expect(screen.getByText(/8000/)).toBeInTheDocument();
+    expect(screen.getByText(/8 000/)).toBeInTheDocument();
     expect(screen.getByText(/92/)).toBeInTheDocument();
     expect(screen.getByText(/blisko morza/)).toBeInTheDocument();
-    expect(screen.getByText("otodom")).toBeInTheDocument();
+    expect(screen.getAllByText("otodom").length).toBeGreaterThan(0);
   });
 
   it("wysyła filtry i NL query jako parametry zapytania", async () => {
@@ -97,9 +97,6 @@ describe("ListingsPage", () => {
     await userEvent.type(screen.getByLabelText("Miasto"), "Gdansk");
     await userEvent.type(screen.getByLabelText("Cena maks."), "500000");
     await userEvent.type(screen.getByLabelText("Pokoje min."), "2");
-
-    // Expand hidden filters
-    await userEvent.click(screen.getByRole("button", { name: /Więcej filtrów/i }));
 
     await userEvent.click(screen.getByLabelText("Wrzeszcz"));
     await userEvent.click(screen.getByLabelText("Oliwa"));
@@ -147,5 +144,31 @@ describe("ListingsPage", () => {
     await screen.findByText("Ładne 2pok");
     expect(screen.getByRole("link", { name: "Szczegóły" })).toHaveAttribute("href", "/listings/7");
     within(document.body); // sanity
+  });
+
+  it("przełącza widoki: domyślny, kompaktowy i lista", async () => {
+    setupSettings();
+    server.use(
+      http.get(`${BASE}/listings`, () => HttpResponse.json({ items: [listing()], total: 1 })),
+    );
+    renderPage();
+    await screen.findByText("Ładne 2pok");
+
+    expect(screen.getByRole("button", { name: "Domyślny" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Lista" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
+      expect(document.querySelector(".listings-grid--list")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Duży balkon/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Kompaktowy" }));
+    await waitFor(() => {
+      expect(document.querySelector(".listing-card--compact")).toBeInTheDocument();
+    });
   });
 });

@@ -1,5 +1,5 @@
 // frontend/src/features/scrape/ScrapePage.test.tsx
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -134,14 +134,16 @@ describe("ScrapePage", () => {
     render(<ScrapePage />);
     await waitFor(() => expect(lastHandler).not.toBeNull());
 
-    lastHandler!({
-      type: "scrape",
-      source_id: "otodom",
-      status: "running",
-      new: 2,
-      updated: 1,
-      gone: 0,
-      unchanged: 5,
+    await act(async () => {
+      lastHandler!({
+        type: "scrape",
+        source_id: "otodom",
+        status: "running",
+        new: 2,
+        updated: 1,
+        gone: 0,
+        unchanged: 5,
+      });
     });
 
     // Event row shows source, status and counts
@@ -153,10 +155,12 @@ describe("ScrapePage", () => {
     ).toBeInTheDocument();
     expect(await screen.findByText(/\+2 nowych/)).toBeInTheDocument();
 
-    lastHandler!({
-      type: "scrape_log",
-      source_id: "otodom",
-      message: "Pobieram stronę 1",
+    await act(async () => {
+      lastHandler!({
+        type: "scrape_log",
+        source_id: "otodom",
+        message: "Pobieram stronę 1",
+      });
     });
 
     expect(await screen.findByText("Pobieram stronę 1")).toBeInTheDocument();

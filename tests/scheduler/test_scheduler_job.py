@@ -24,6 +24,11 @@ class _OneSourceFetcher:
 
 
 @pytest.fixture(autouse=True)
+def _set_database_url(monkeypatch, pg_url):
+    monkeypatch.setenv("DATABASE_URL", pg_url)
+
+
+@pytest.fixture(autouse=True)
 def _only_otodom():
     import realestate.scrapers.base as base
     import realestate.scrapers.otodom  # noqa: F401

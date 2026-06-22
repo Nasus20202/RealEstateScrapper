@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
             from realestate.db.migrations import run_startup_migrations
 
             await run_startup_migrations()
+            configure_logging(structured=settings.structured_logging)
         from realestate.ingestion.geocode import get_geocoder
         from realestate.scrapers.browser import BrowserFetcher
 

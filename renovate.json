@@ -1,44 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["before 6am on monday"]
-  },
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
-    },
-    {
-      "description": "Backend Python deps (uv / pyproject) — group non-major into one PR",
-      "matchManagers": ["pep621"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "python (uv) non-major"
-    },
-    {
-      "description": "Frontend npm deps — group non-major into one PR",
-      "matchManagers": ["npm"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "frontend npm non-major"
-    },
-    {
-      "description": "Docker base images (Dockerfiles + compose) — group non-major into one PR",
-      "matchManagers": ["dockerfile", "docker-compose"],
-      "matchUpdateTypes": ["minor", "patch", "digest"],
-      "groupName": "docker images"
-    },
-    {
-      "description": "Pin the uv image to the Python 3.14 line — project requires-python >=3.14",
-      "matchManagers": ["dockerfile"],
-      "matchDepNames": ["ghcr.io/astral-sh/uv"],
-      "allowedVersions": "/-python3\\.14-/"
-    },
-    {
-      "description": "Pin the database image to the PostgreSQL 18 (pg18) line",
-      "matchManagers": ["docker-compose"],
-      "matchDepNames": ["pgvector/pgvector"],
-      "allowedVersions": "/-pg18-/"
     }
   ]
 }

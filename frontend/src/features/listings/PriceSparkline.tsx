@@ -1,5 +1,6 @@
 // frontend/src/features/listings/PriceSparkline.tsx
 import type { PriceHistoryEntry } from "../../api/types";
+import { formatNumber, formatPrice } from "./format";
 
 export function PriceSparkline({ history }: { history: PriceHistoryEntry[] }) {
   if (history.length < 2) {
@@ -15,7 +16,7 @@ export function PriceSparkline({ history }: { history: PriceHistoryEntry[] }) {
           {history.map((entry) => (
             <tr key={entry.observed_at}>
               <td>{entry.observed_at.slice(0, 10)}</td>
-              <td>{entry.price.toLocaleString("pl-PL")} zł</td>
+              <td>{formatPrice(entry.price)}</td>
             </tr>
           ))}
         </tbody>
@@ -45,7 +46,7 @@ export function PriceSparkline({ history }: { history: PriceHistoryEntry[] }) {
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Historia cen: od ${min.toLocaleString("pl-PL")} do ${max.toLocaleString("pl-PL")} zł`}
+      aria-label={`Historia cen: od ${formatNumber(min)} do ${formatNumber(max)} zł`}
     >
       <polyline fill="none" stroke="currentColor" strokeWidth="2" points={points} />
     </svg>

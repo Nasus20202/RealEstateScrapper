@@ -144,6 +144,90 @@ def _json_ld_address(tree: HTMLParser) -> tuple[str | None, str | None, str | No
     return None, None, None
 
 
+def _json_ld_detail(tree: HTMLParser) -> dict:
+    detail: dict = {}
+    for script in tree.css('script[type="application/ld+json"]'):
+        raw = script.text(strip=True)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        stack = data if isinstance(data, list) else [data]
+        for item in stack:
+            if not isinstance(item, dict):
+                continue
+            if item.get("description") and not detail.get("description"):
+                detail["description"] = item.get("description")
+            geo = item.get("geo")
+            if isinstance(geo, dict):
+                detail["lat"] = _float(geo.get("latitude"))
+                detail["lon"] = _float(geo.get("longitude"))
+    return detail
+
+
+def _float(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(str(value).replace(",", "."))
+    except ValueError, TypeError:
+        return None
+
+
+def _meta_content(tree: HTMLParser, *selectors: str) -> str | None:
+    for selector in selectors:
+        node = tree.css_first(selector)
+        value = node.attrs.get("content") if node else None
+        cleaned = _clean_text(value)
+        if cleaned:
+            return cleaned
+    return None
+
+
+def _detail_description(tree: HTMLParser) -> str | None:
+    selectors = [
+        ".description",
+        "#description",
+        ".offer-description",
+        '[itemprop="description"]',
+        '[class*="description"]',
+        '[class*="Description"]',
+    ]
+    for selector in selectors:
+        node = tree.css_first(selector)
+        if node:
+            raw = node.html or node.text()
+            if _clean_text(node.text()):
+                return raw
+    json_detail = _json_ld_detail(tree)
+    if json_detail.get("description"):
+        return str(json_detail["description"])
+    return _meta_content(
+        tree,
+        'meta[property="og:description"]',
+        'meta[name="description"]',
+    )
+
+
+def _detail_coordinates(tree: HTMLParser) -> tuple[float | None, float | None]:
+    json_detail = _json_ld_detail(tree)
+    lat = json_detail.get("lat")
+    lon = json_detail.get("lon")
+    if lat is not None and lon is not None:
+        return lat, lon
+    lat = _float(_meta_content(tree, 'meta[property="place:location:latitude"]'))
+    lon = _float(_meta_content(tree, 'meta[property="place:location:longitude"]'))
+    if lat is not None and lon is not None:
+        return lat, lon
+    html = tree.html or ""
+    match = re.search(r'"latitude"\s*:\s*"?([0-9.,-]+)"?.*?"longitude"\s*:\s*"?([0-9.,-]+)"?', html)
+    if match:
+        return _float(match.group(1)), _float(match.group(2))
+    return None, None
+
+
 def _detail_address(tree: HTMLParser) -> tuple[str | None, str | None, str | None]:
     city, district, street = _json_ld_address(tree)
     if city or district or street:
@@ -294,11 +378,10 @@ class NieruchomosciOnlineScraper:
         h1 = tree.css_first("h1")
         title = h1.text().strip() if h1 else ""
 
-        # Description
-        desc_el = tree.css_first(".description, #description, .offer-description")
-        description = desc_el.html if desc_el else None
+        description = _detail_description(tree)
 
         city, district, street = _detail_address(tree)
+        lat, lon = _detail_coordinates(tree)
 
         # Images
         images: list[str] = []
@@ -316,6 +399,8 @@ class NieruchomosciOnlineScraper:
             city=city,
             district=district,
             street=street,
+            lat=lat,
+            lon=lon,
             images=unique_listing_images(images),
         )
 

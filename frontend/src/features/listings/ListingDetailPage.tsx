@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { addFavorite, ApiError, getFavorites, getListing, removeFavorite } from "../../api/client";
 import type { ListingDetailOut } from "../../api/types";
+import { formatPrice, formatPricePerM2 } from "./format";
 import { HtmlDescription } from "./html";
 import { PriceSparkline } from "./PriceSparkline";
 
@@ -93,15 +94,11 @@ export function ListingDetailPage() {
       <dl className="listing-detail__fields">
         <div>
           <dt>Cena</dt>
-          <dd>{listing.price == null ? "—" : `${listing.price.toLocaleString("pl-PL")} zł`}</dd>
+          <dd>{formatPrice(listing.price)}</dd>
         </div>
         <div>
           <dt>Cena/m²</dt>
-          <dd>
-            {listing.price_per_m2 == null
-              ? "—"
-              : `${listing.price_per_m2.toLocaleString("pl-PL")} zł/m²`}
-          </dd>
+          <dd>{formatPricePerM2(listing.price_per_m2)}</dd>
         </div>
         <div>
           <dt>Powierzchnia</dt>

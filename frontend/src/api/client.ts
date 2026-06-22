@@ -6,6 +6,8 @@ import type {
   ListingOut,
   ListingsQuery,
   ListingsResponse,
+  MapBoundsQuery,
+  MapHexOut,
   SavedSearchOut,
   ScrapeRequest,
   ScrapeResponse,
@@ -13,6 +15,7 @@ import type {
   SettingsOut,
   SettingsUpdate,
   CleanupResponse,
+  StatsOut,
 } from "./types";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
@@ -47,7 +50,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-function buildListingsQuery(query: ListingsQuery): string {
+function buildListingsQuery(query: ListingsQuery & Partial<MapBoundsQuery>): string {
   const params = new URLSearchParams();
   if (query.city) params.set("city", query.city);
   for (const d of query.district ?? []) params.append("district", d);
@@ -62,6 +65,10 @@ function buildListingsQuery(query: ListingsQuery): string {
   if (query.q) params.set("q", query.q);
   if (query.sort_by) params.set("sort_by", query.sort_by);
   if (query.sort_dir) params.set("sort_dir", query.sort_dir);
+  if (query.north != null) params.set("north", String(query.north));
+  if (query.south != null) params.set("south", String(query.south));
+  if (query.east != null) params.set("east", String(query.east));
+  if (query.west != null) params.set("west", String(query.west));
   params.set("limit", String(query.limit ?? 50));
   params.set("offset", String(query.offset ?? 0));
   return params.toString();
@@ -75,8 +82,24 @@ export function getListings(query: ListingsQuery): Promise<ListingsResponse> {
   return request<ListingsResponse>(`/listings?${buildListingsQuery(query)}`);
 }
 
+export function getMapHexes(query: ListingsQuery, sizeM = 850): Promise<MapHexOut[]> {
+  const params = buildListingsQuery({ ...query, limit: undefined, offset: undefined });
+  return request<MapHexOut[]>(`/listings/map/hexes?${params}&size_m=${sizeM}`);
+}
+
+export function getMapPoints(
+  query: ListingsQuery & Partial<MapBoundsQuery>,
+): Promise<ListingsResponse> {
+  const params = buildListingsQuery({ ...query, offset: undefined });
+  return request<ListingsResponse>(`/listings/map/points?${params}`);
+}
+
 export function getListing(id: number): Promise<ListingDetailOut> {
   return request<ListingDetailOut>(`/listings/${id}`);
+}
+
+export function getStats(): Promise<StatsOut> {
+  return request<StatsOut>("/stats");
 }
 
 export function postScrape(body: ScrapeRequest): Promise<ScrapeResponse> {
@@ -150,6 +173,8 @@ export type {
   ListingOut,
   ListingsQuery,
   ListingsResponse,
+  MapBoundsQuery,
+  MapHexOut,
   SavedSearchOut,
   ScrapeRequest,
   ScrapeResponse,
@@ -157,4 +182,5 @@ export type {
   SettingsOut,
   SettingsUpdate,
   CleanupResponse,
+  StatsOut,
 };
