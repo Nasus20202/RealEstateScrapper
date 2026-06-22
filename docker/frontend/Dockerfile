@@ -1,8 +1,8 @@
 # Frontend SPA — build with pnpm, serve static files with nginx.
-FROM node:22.23.0-alpine3.24 AS build
+FROM node:24.17.0-alpine3.24 AS build
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY frontend/package.json ./frontend/package.json
 RUN pnpm install --frozen-lockfile

@@ -8,5 +8,10 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    server: {
+      deps: {
+        inline: ["react", "react-dom"],
+      },
+    },
   },
 });

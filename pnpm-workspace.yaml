@@ -1,4 +1,7 @@
 packages:
   - frontend
 
+onlyBuiltDependencies:
+  - msw
+
 minimumReleaseAge: 0
