@@ -1,5 +1,5 @@
 // frontend/src/features/listings/ListingDetailPage.tsx
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import { Link, useParams } from "react-router-dom";
 
@@ -28,25 +28,23 @@ export function ListingDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [busy, setBusy] = useState(false);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
-
-  const load = useCallback(async () => {
-    setNotFound(false);
-    try {
-      const [detail, favorites] = await Promise.all([getListing(listingId), getFavorites()]);
-      setListing(detail);
-      setIsFavorite(favorites.some((f) => f.listing_id === listingId));
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        setNotFound(true);
-      } else {
-        throw err;
-      }
-    }
-  }, [listingId]);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    startTransition(async () => {
+      try {
+        const [detail, favorites] = await Promise.all([getListing(listingId), getFavorites()]);
+        setListing(detail);
+        setIsFavorite(favorites.some((f) => f.listing_id === listingId));
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          setNotFound(true);
+        } else {
+          throw err;
+        }
+      }
+    });
+  }, [listingId]);
 
   async function toggleFavorite() {
     setBusy(true);
@@ -63,6 +61,9 @@ export function ListingDetailPage() {
     }
   }
 
+  if (isPending) {
+    return <p className="loading">Ładowanie…</p>;
+  }
   if (notFound) {
     return <p className="error">Nie znaleziono oferty.</p>;
   }
