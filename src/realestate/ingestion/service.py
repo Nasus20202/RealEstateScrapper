@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
@@ -15,6 +16,8 @@ from realestate.models.scrape_run import ScrapeRun
 from realestate.repositories.scrape_runs import ScrapeRunRepository
 from realestate.scrapers.base import ScraperBlocked, SearchCriteria, get_scraper, get_scrapers
 from realestate.scrapers.runner import run_search
+
+logger = logging.getLogger(__name__)
 
 
 class IngestionService:
@@ -38,6 +41,7 @@ class IngestionService:
             try:
                 coords = await self.geocoder.geocode(query)
             except Exception:
+                logger.exception("Geocoding failed for %s", query)
                 coords = None
             if coords:
                 listing.lat, listing.lon = coords
@@ -48,6 +52,7 @@ class IngestionService:
         *,
         source_ids: list[str] | None = None,
         max_pages: int = 1,
+        mark_missing_gone: bool = True,
         on_run: Callable[[ScrapeRun], Awaitable[None]] | None = None,
     ) -> list[ScrapeRun]:
         now = datetime.now(UTC)
@@ -66,7 +71,13 @@ class IngestionService:
             if hasattr(fetcher, "__aenter__"):
                 fetcher = await stack.enter_async_context(fetcher)
             return await self._ingest_with(
-                fetcher, scrapers, criteria, now, max_pages=max_pages, on_run=on_run
+                fetcher,
+                scrapers,
+                criteria,
+                now,
+                max_pages=max_pages,
+                mark_missing_gone=mark_missing_gone,
+                on_run=on_run,
             )
 
     async def _ingest_with(
@@ -77,11 +88,18 @@ class IngestionService:
         now: datetime,
         *,
         max_pages: int,
+        mark_missing_gone: bool,
         on_run: Callable[[ScrapeRun], Awaitable[None]] | None,
     ) -> list[ScrapeRun]:
         runs: list[ScrapeRun] = []
 
         for source_id, scraper in scrapers.items():
+            logger.info(
+                "Starting scrape source=%s city=%s max_pages=%s",
+                source_id,
+                criteria.city,
+                max_pages,
+            )
             run = ScrapeRun(
                 source_id=source_id,
                 started_at=now,
@@ -89,11 +107,18 @@ class IngestionService:
             )
             async with self.session_factory() as session:
                 try:
-                    raws = await run_search(scraper, fetcher, criteria, max_pages=max_pages)
+                    raws = await run_search(
+                        scraper,
+                        fetcher,
+                        criteria,
+                        max_pages=max_pages,
+                        fetch_details=source_id in {"otodom", "nieruchomosci-online", "hossa"},
+                    )
+                    logger.info("Parsed %s raw listings source=%s", len(raws), source_id)
                     listings = [to_listing(r, now=now) for r in raws]
                     await self._geocode(listings)
                     stats = await IncrementalEngine(session).sync_source(
-                        source_id, listings, now=now, mark_missing_gone=True
+                        source_id, listings, now=now, mark_missing_gone=mark_missing_gone
                     )
                     run.new_count = stats.new
                     run.updated_count = stats.updated
@@ -102,19 +127,31 @@ class IngestionService:
                 except ScraperBlocked as e:
                     run.status = ScrapeRunStatus.BLOCKED
                     run.error_message = str(e)
+                    logger.warning("Scraper blocked source=%s error=%s", source_id, e)
                 except Exception as e:
                     run.status = ScrapeRunStatus.FAILED
                     run.error_message = str(e)
+                    logger.exception("Scrape failed source=%s", source_id)
                 finally:
                     run.finished_at = datetime.now(UTC)
                     await ScrapeRunRepository(session).add(run)
                     await session.commit()
 
             runs.append(run)
+            logger.info(
+                "Finished scrape source=%s status=%s new=%s updated=%s gone=%s unchanged=%s",
+                source_id,
+                run.status.value,
+                run.new_count,
+                run.updated_count,
+                run.gone_count,
+                run.unchanged_count,
+            )
             if on_run is not None:
                 try:
                     await on_run(run)
                 except Exception:
+                    logger.exception("Scrape on_run callback failed source=%s", source_id)
                     pass
 
         return runs

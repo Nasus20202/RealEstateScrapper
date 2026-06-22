@@ -17,6 +17,9 @@ function settings(overrides: Record<string, unknown> = {}) {
     llm_embedding_model: "text-embed",
     llm_api_key_set: true,
     scheduler_interval_minutes: 60,
+    scheduler_enabled: false,
+    scheduler_cron: null,
+    default_cities: ["Gdańsk", "Gdynia", "Sopot"],
     sources: ["otodom", "olx"],
     ...overrides,
   };
@@ -54,6 +57,9 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(body).toEqual({
         scheduler_interval_minutes: 120,
+        scheduler_enabled: false,
+        scheduler_cron: null,
+        default_cities: ["Gdańsk", "Gdynia", "Sopot"],
         enabled_source_ids: ["otodom"],
       }),
     );

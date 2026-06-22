@@ -35,6 +35,27 @@ def test_parse_search_has_images():
     assert all(img.startswith("http") for x in with_images for img in x.images)
 
 
+def test_parse_detail_extracts_gallery_images_as_absolute_urls():
+    html = """
+    <html><body>
+      <h1>Mieszkanie testowe</h1>
+      <div class="description">Opis detalu</div>
+      <div class="gallery">
+        <img src="/media/a.jpg">
+        <img data-src="//img.nieruchomosci-online.pl/b.jpg">
+        <img src="https://www.nieruchomosci-online.pl/media/a.jpg">
+      </div>
+    </body></html>
+    """
+    detail = NieruchomosciOnlineScraper().parse_detail(
+        html, "https://www.nieruchomosci-online.pl/oferta/123.html"
+    )
+    assert detail.images == [
+        "https://www.nieruchomosci-online.pl/media/a.jpg",
+        "https://img.nieruchomosci-online.pl/b.jpg",
+    ]
+
+
 def test_build_search_url_contains_city():
     url = NieruchomosciOnlineScraper().build_search_url(SearchCriteria(city="gdansk"), page=1)
     assert "gda" in url.lower()

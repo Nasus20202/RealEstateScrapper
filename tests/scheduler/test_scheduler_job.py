@@ -55,9 +55,9 @@ async def test_job_runs_ingest_for_saved_search_with_city(engine):
         assert await ListingRepository(s).count_active() >= 20
 
 
-async def test_job_noop_without_saved_searches(engine):
+async def test_job_uses_default_cities_without_saved_searches(engine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     factory = create_session_factory(engine)
     bus = EventBus()
-    assert await run_scheduled_scrape(factory, _OneSourceFetcher(), bus) == 0
+    assert await run_scheduled_scrape(factory, _OneSourceFetcher(), bus) == 3

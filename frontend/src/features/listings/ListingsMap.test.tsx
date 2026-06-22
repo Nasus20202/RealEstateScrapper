@@ -15,6 +15,7 @@ vi.mock("react-leaflet", () => ({
     <div data-testid="marker">{children}</div>
   ),
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip">{children}</div>,
 }));
 
 import { ListingsMap } from "./ListingsMap";
@@ -72,5 +73,13 @@ describe("ListingsMap", () => {
     const link = screen.getByText("Z mapą").closest("a");
     expect(link).toHaveAttribute("href", "/listings/1");
     expect(screen.queryByText("Bez mapy")).not.toBeInTheDocument();
+  });
+
+  it("pokazuje ceny stale przy markerach i szczegóły w popupie", () => {
+    renderMap([listing({ id: 1, lat: 54.35, lon: 18.65, price: 400000 })]);
+    expect(screen.getByTestId("tooltip")).toHaveTextContent("400 000 zł");
+    expect(screen.getByText(/8000 zł\/m²|8 000 zł\/m²/)).toBeInTheDocument();
+    expect(screen.getByText("2 pok. · 50 m²")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Szczegóły" })).toHaveAttribute("href", "/listings/1");
   });
 });

@@ -34,18 +34,21 @@ def create_app() -> FastAPI:
         app.state.session_factory = create_session_factory(engine)
         app.state.event_bus = EventBus()
         app.state.scheduler = None
-        if settings.scheduler_enabled:
-            from realestate.ingestion.geocode import get_geocoder
-            from realestate.scrapers.browser import BrowserFetcher
+        from realestate.ingestion.geocode import get_geocoder
+        from realestate.scrapers.browser import BrowserFetcher
 
-            scheduler = ScrapeScheduler(
-                app.state.session_factory,
-                BrowserFetcher(),
-                app.state.event_bus,
-                geocoder=get_geocoder(),
-            )
-            scheduler.start(interval_minutes=settings.scheduler_default_interval_minutes)
-            app.state.scheduler = scheduler
+        scheduler = ScrapeScheduler(
+            app.state.session_factory,
+            BrowserFetcher(),
+            app.state.event_bus,
+            geocoder=get_geocoder(),
+        )
+        app.state.scheduler = scheduler
+        if settings.scheduler_enabled:
+            if settings.scheduler_cron:
+                scheduler.start(cron=settings.scheduler_cron)
+            else:
+                scheduler.start(interval_minutes=settings.scheduler_default_interval_minutes)
         try:
             yield
         finally:

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from realestate.config import get_settings
 from realestate.events.bus import EventBus
 from realestate.ingestion.service import IngestionService
-from realestate.repositories.user_data import SavedSearchRepository
+from realestate.repositories.user_data import AppSettingRepository, SavedSearchRepository
 from realestate.scrapers.base import SearchCriteria
 
 
@@ -27,6 +28,13 @@ async def run_scheduled_scrape(
 ) -> int:
     async with session_factory() as session:
         searches = await SavedSearchRepository(session).list_all()
+        settings_repo = AppSettingRepository(session)
+        source_setting = await settings_repo.get("enabled_source_ids")
+        cities_setting = await settings_repo.get("default_cities")
+    source_ids = source_setting["v"] if source_setting else None
+    default_cities = (
+        cities_setting["v"] if cities_setting else get_settings().scraper_default_cities
+    )
 
     async def on_run(run) -> None:
         bus.publish({
@@ -42,6 +50,16 @@ async def run_scheduled_scrape(
         if criteria is None:
             continue
         pages = (search.filters or {}).get("max_pages", max_pages)
-        await service.ingest(criteria, max_pages=pages, on_run=on_run)
+        await service.ingest(criteria, source_ids=source_ids, max_pages=pages, on_run=on_run)
         processed += 1
+    if processed == 0:
+        for city in default_cities:
+            await service.ingest(
+                SearchCriteria(city=city),
+                source_ids=source_ids,
+                max_pages=max_pages,
+                mark_missing_gone=False,
+                on_run=on_run,
+            )
+            processed += 1
     return processed

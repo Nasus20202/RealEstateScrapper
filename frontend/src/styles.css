@@ -105,7 +105,7 @@ a:hover {
   color: var(--text);
   background: var(--bg-elev-2);
 }
-.app-nav a.active {
+.app-nav a:not(.app-nav__brand).active {
   color: var(--accent-ink);
   background: var(--accent);
 }
@@ -113,7 +113,7 @@ a:hover {
 .app-main {
   flex: 1;
   width: 100%;
-  max-width: 1320px;
+  max-width: 1560px;
   margin: 0 auto;
   padding: 1.6rem 1.25rem 3rem;
 }
@@ -274,6 +274,17 @@ button.btn-ghost:hover {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.1rem;
 }
+.listings-grid--compact {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+.listings-grid--compact .listing-card__body {
+  gap: 0.45rem;
+  padding: 0.75rem;
+}
+.listings-grid--compact .listing-card__media {
+  aspect-ratio: 16 / 8.5;
+}
 
 .listing-card {
   display: flex;
@@ -324,6 +335,10 @@ button.btn-ghost:hover {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  max-width: calc(100% - 6rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .listing-card__score-badge {
   position: absolute;
@@ -413,9 +428,49 @@ button.btn-ghost:hover {
   font-weight: 800;
   font-size: 1.05rem;
 }
+.map-price-label {
+  padding: 0.16rem 0.42rem;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  font-weight: 800;
+  box-shadow: var(--shadow);
+}
+.map-popup {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 190px;
+  color: #111827;
+}
+.map-popup__image {
+  width: 100%;
+  height: 86px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 0.25rem;
+}
+.map-popup__muted {
+  color: #4b5563;
+  font-size: 0.82rem;
+}
+.map-popup__facts {
+  font-weight: 700;
+  color: #111827;
+}
 .map-popup__title {
   display: block;
   margin: 0.15rem 0;
+  font-weight: 700;
+}
+.map-popup__button {
+  justify-self: start;
+  margin-top: 0.25rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
 }
 .map-empty {
   display: grid;
@@ -451,12 +506,74 @@ button.btn-ghost:hover {
   gap: 0.6rem;
   margin: 1rem 0;
 }
+.gallery-thumb {
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  overflow: hidden;
+}
+.gallery-thumb:hover {
+  background: transparent;
+}
 .listing-detail__gallery img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+}
+.listing-detail__map-section {
+  margin: 1.2rem 0;
+}
+.listing-detail__map {
+  height: 360px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  margin-bottom: 0.6rem;
+}
+.listing-detail__lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 2rem 4rem;
+  background: rgba(0, 0, 0, 0.88);
+}
+.listing-detail__lightbox img {
+  max-width: 100%;
+  max-height: 88vh;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+.lightbox-close,
+.lightbox-nav {
+  position: fixed;
+  z-index: 2001;
+  color: var(--text);
+  background: rgba(22, 27, 34, 0.82);
+  border-color: var(--border-strong);
+}
+.lightbox-close {
+  top: 1rem;
+  right: 1rem;
+}
+.lightbox-nav {
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 2rem;
+  padding: 0.6rem 0.9rem;
+}
+.lightbox-nav--prev {
+  left: 1rem;
+}
+.lightbox-nav--next {
+  right: 1rem;
 }
 .listing-detail__fields {
   display: grid;
@@ -509,6 +626,7 @@ button.btn-ghost:hover {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  max-width: 5.2rem;
 }
 .badge--market-primary {
   background: rgba(45, 212, 191, 0.88);
@@ -641,6 +759,16 @@ button.btn-ghost:hover {
   box-shadow: none;
   padding: 0;
   margin: 0;
+}
+
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.settings-check input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
 }
 .sources-label {
   font-size: 0.72rem;
@@ -811,5 +939,8 @@ button.btn-ghost:hover {
   }
   .app-main {
     padding: 1.1rem 0.9rem 2.5rem;
+  }
+  .listing-detail__lightbox {
+    padding: 1rem 3.2rem;
   }
 }

@@ -1,21 +1,9 @@
-"""Hossa.gda.pl scraper — Tricity property developer, parses DOM via selectolax.
-
-The home page renders investment cards via Vue/custom web components
-(<investments-slider>, <offers-page>) which are not present in the static HTML.
-The only statically-rendered offer-category links point to city landing pages:
-
-  https://www.hossa.gda.pl/nowe-mieszkania-gdansk/  — Gdańsk
-  https://www.hossa.gda.pl/nowe-mieszkania-gdynia/  — Gdynia
-  https://www.hossa.gda.pl/mieszkania/              — all apartments (fallback)
-
-build_search_url targets the city-specific page directly so scraped results stay
-relevant to the requested city.  parse_search extracts offer-category links as
-RawListing entries (market="primary", price=None).  external_id is the URL slug.
-"""
+"""Hossa.gda.pl scraper — Tricity property developer, parses rendered DOM cards."""
 from __future__ import annotations
 
 import re
 import unicodedata
+from decimal import Decimal, InvalidOperation
 
 from selectolax.parser import HTMLParser
 
@@ -92,6 +80,56 @@ def _slug(url: str) -> str:
     return path or url
 
 
+def _money(text: str | None) -> Decimal | None:
+    if not text:
+        return None
+    match = re.search(r"(?<![-\w])(\d[\d\s\xa0]*(?:,\d+)?)\s*zł", text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    cleaned = match.group(1).replace("\xa0", "").replace(" ", "")
+    cleaned = re.sub(r"[^\d,]", "", cleaned).replace(",", ".")
+    if not cleaned:
+        return None
+    try:
+        return Decimal(cleaned)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _area(text: str | None) -> float | None:
+    if not text:
+        return None
+    match = re.search(r"(\d+(?:[,.]\d+)?)\s*m", text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    cleaned = match.group(1).replace("\xa0", "").replace(" ", "")
+    cleaned = re.sub(r"[^\d,]", "", cleaned).replace(",", ".")
+    if not cleaned:
+        return None
+    try:
+        return float(cleaned)
+    except (TypeError, ValueError):
+        return None
+
+
+def _rooms(text: str | None) -> int | None:
+    if not text:
+        return None
+    match = re.search(r"(\d+)\s*(?:pok|poko)", text, flags=re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
+def _image_url(node) -> str:
+    for attr in ("src", "data-src", "data-lazy", "data-original"):
+        value = node.attributes.get(attr, "") or ""
+        if value:
+            return _absolute_url(value)
+    srcset = node.attributes.get("srcset", "") or ""
+    if srcset:
+        return _absolute_url(srcset.split(",")[0].strip().split(" ")[0])
+    return ""
+
+
 def _city_from_slug(slug: str) -> str | None:
     """Derive city name from a URL slug like 'nowe-mieszkania-gdansk'."""
     for key, name in _CITY_MAP.items():
@@ -134,33 +172,54 @@ class HossaScraper:
         return f"{_BASE_URL}/{path}/"
 
     def parse_search(self, html: str) -> list[RawListing]:
-        """Parse the Hossa home page and return investment/offer category RawListings.
-
-        The home page renders its investment cards via JavaScript web components,
-        so only the static city-landing-page links are available in the raw HTML.
-        Each unique offer-category link becomes one RawListing.
-        """
+        """Parse rendered Hossa flat cards; never return city/category links."""
         tree = HTMLParser(html)
         listings: list[RawListing] = []
         seen_ids: set[str] = set()
 
-        for a in tree.css("a[href]"):
-            href = a.attributes.get("href", "") or ""
-            text = a.text(strip=True)
+        card_selectors = (
+            "[data-flat-id]",
+            "[data-offer-id]",
+            ".flat-card",
+            ".offer-card",
+            ".apartment-card",
+            ".mieszkanie-card",
+            ".search-results__item",
+        )
+        cards = []
+        for selector in card_selectors:
+            cards.extend(tree.css(selector))
 
-            if not _is_offer_link(href, text):
+        for card in cards:
+            link = card.css_first("a[href]")
+            href = link.attributes.get("href", "") if link else ""
+            text = (
+                (card.css_first("h1, h2, h3, .title, .name") or link or card).text(strip=True)
+            )
+
+            if not href or not text or not _is_offer_link(href, text):
                 continue
 
             url = _absolute_url(href.split("#")[0])
             if not url:
                 continue
 
-            ext_id = _slug(url)
+            ext_id = (
+                card.attributes.get("data-flat-id")
+                or card.attributes.get("data-offer-id")
+                or _slug(url)
+            )
             if ext_id in seen_ids:
                 continue
             seen_ids.add(ext_id)
 
+            card_text = card.text(separator=" ", strip=True)
             city = _city_from_slug(ext_id)
+            images: list[str] = []
+            for img in card.css("img"):
+                src = _image_url(img)
+                if src and not src.endswith(".svg") and src not in images:
+                    images.append(src)
 
             listings.append(
                 RawListing(
@@ -168,9 +227,12 @@ class HossaScraper:
                     external_id=ext_id,
                     url=url,
                     title=text,
-                    price=None,
+                    price=_money(card_text),
+                    area_m2=_area(card_text),
+                    rooms=_rooms(card_text),
                     city=city,
                     market="primary",
+                    images=images,
                 )
             )
 
@@ -200,7 +262,7 @@ class HossaScraper:
         # Images
         images: list[str] = []
         for img in tree.css("img[src]"):
-            src = img.attributes.get("src", "") or ""
+            src = _image_url(img)
             if src and src not in images and not src.endswith(".svg"):
                 images.append(_absolute_url(src))
 

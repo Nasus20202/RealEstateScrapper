@@ -11,6 +11,7 @@ from realestate.api.deps import (
     get_session_factory,
 )
 from realestate.api.schemas import ScrapeRequest, ScrapeResponse, ScrapeRunOut
+from realestate.config import get_settings
 from realestate.events.bus import EventBus
 from realestate.ingestion.service import IngestionService
 from realestate.repositories.scrape_runs import ScrapeRunRepository
@@ -27,15 +28,10 @@ async def trigger_scrape(
     geocoder=Depends(get_geocoder_dep),  # noqa: B008
     bus: EventBus = Depends(get_event_bus_dep),  # noqa: B008
 ) -> ScrapeResponse:
-    criteria = SearchCriteria(
-        city=body.city,
-        min_price=body.min_price,
-        max_price=body.max_price,
-        min_area=body.min_area,
-        max_area=body.max_area,
-        min_rooms=body.min_rooms,
-        max_rooms=body.max_rooms,
-        market=body.market,
+    cities = (
+        [body.city.strip()]
+        if body.city and body.city.strip()
+        else get_settings().scraper_default_cities
     )
 
     async def on_run(run) -> None:
@@ -50,9 +46,25 @@ async def trigger_scrape(
         })
 
     service = IngestionService(session_factory, fetcher, geocoder=geocoder)
-    runs = await service.ingest(
-        criteria, source_ids=body.source_ids, max_pages=body.max_pages, on_run=on_run
-    )
+    runs = []
+    for city in cities:
+        criteria = SearchCriteria(
+            city=city,
+            min_price=body.min_price,
+            max_price=body.max_price,
+            min_area=body.min_area,
+            max_area=body.max_area,
+            min_rooms=body.min_rooms,
+            max_rooms=body.max_rooms,
+            market=body.market,
+        )
+        runs.extend(await service.ingest(
+            criteria,
+            source_ids=body.source_ids,
+            max_pages=body.max_pages,
+            mark_missing_gone=len(cities) == 1,
+            on_run=on_run,
+        ))
     return ScrapeResponse(runs=[ScrapeRunOut.from_run(r) for r in runs])
 
 

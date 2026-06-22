@@ -26,6 +26,7 @@ export function ScrapePage() {
   const [city, setCity] = useState("Gdańsk");
   const [maxPages, setMaxPages] = useState("1");
   const [availableSources, setAvailableSources] = useState<string[]>([]);
+  const [defaultCities, setDefaultCities] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [runs, setRuns] = useState<ScrapeRunOut[]>([]);
   const [events, setEvents] = useState<ScrapeEvent[]>([]);
@@ -38,7 +39,12 @@ export function ScrapePage() {
 
   useEffect(() => {
     void loadRuns();
-    void getSettings().then((s) => setAvailableSources(s.sources)).catch(() => {});
+    void getSettings().then((s) => {
+      setAvailableSources(s.sources);
+      const cities = s.default_cities ?? [];
+      setDefaultCities(cities);
+      setCity(cities[0] ?? "Gdańsk");
+    }).catch(() => {});
   }, [loadRuns]);
 
   useEffect(() => {
@@ -56,18 +62,14 @@ export function ScrapePage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (city.trim() === "") {
-      setError("Miasto jest wymagane");
-      return;
-    }
     setBusy(true);
     setError(null);
     setEvents([]);
     try {
       const body: ScrapeRequest = {
-        city: city.trim(),
         max_pages: toNumber(maxPages) ?? 1,
       };
+      if (city.trim()) body.city = city.trim();
       if (selectedSources.length > 0) body.source_ids = selectedSources;
       await postScrape(body);
       await loadRuns();
@@ -85,7 +87,18 @@ export function ScrapePage() {
           <h2 className="scrape-section-title">Uruchom scraping</h2>
           <form className="scrape-form" onSubmit={onSubmit}>
             <label htmlFor="s-city">Miasto</label>
-            <input id="s-city" value={city} onChange={(e) => setCity(e.target.value)} />
+            <input
+              id="s-city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              list="default-cities"
+              placeholder="puste = miasta domyślne"
+            />
+            <datalist id="default-cities">
+              {defaultCities.map((defaultCity) => (
+                <option key={defaultCity} value={defaultCity} />
+              ))}
+            </datalist>
 
             <label htmlFor="s-pages">Maks. stron</label>
             <input

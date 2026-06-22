@@ -12,12 +12,30 @@ from __future__ import annotations
 from realestate.scrapers.base import RawListing, Scraper, SearchCriteria
 
 
+def _merge_detail(search: RawListing, detail: RawListing) -> RawListing:
+    data = search.model_dump()
+    detail_data = detail.model_dump()
+    for key, value in detail_data.items():
+        if key in {"source_id", "external_id", "url"}:
+            continue
+        if key == "images":
+            data[key] = list(dict.fromkeys([*search.images, *detail.images]))
+            continue
+        if key == "raw":
+            data[key] = search.raw or detail.raw
+            continue
+        if data.get(key) in (None, "", []):
+            data[key] = value
+    return RawListing(**data)
+
+
 async def run_search(
     scraper: Scraper,
     fetcher,
     criteria: SearchCriteria,
     *,
     max_pages: int = 1,
+    fetch_details: bool = False,
 ) -> list[RawListing]:
     seen: set[tuple[str, str]] = set()
     results: list[RawListing] = []
@@ -32,5 +50,9 @@ async def run_search(
             if key in seen:
                 continue
             seen.add(key)
+            if fetch_details:
+                detail_html = await fetcher.fetch(listing.url)
+                detail = scraper.parse_detail(detail_html, listing.url)
+                listing = _merge_detail(listing, detail)
             results.append(listing)
     return results

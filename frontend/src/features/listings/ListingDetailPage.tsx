@@ -1,5 +1,6 @@
 // frontend/src/features/listings/ListingDetailPage.tsx
 import { useCallback, useEffect, useState } from "react";
+import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import { Link, useParams } from "react-router-dom";
 
 import {
@@ -12,6 +13,17 @@ import {
 import type { ListingDetailOut } from "../../api/types";
 import { PriceSparkline } from "./PriceSparkline";
 
+function addressLine(listing: ListingDetailOut): string {
+  return [listing.street, listing.district, listing.city].filter(Boolean).join(", ") || "—";
+}
+
+function openStreetMapUrl(listing: ListingDetailOut): string {
+  if (listing.lat != null && listing.lon != null) {
+    return `https://www.openstreetmap.org/?mlat=${listing.lat}&mlon=${listing.lon}#map=17/${listing.lat}/${listing.lon}`;
+  }
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(addressLine(listing))}`;
+}
+
 export function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const listingId = Number(id);
@@ -19,6 +31,7 @@ export function ListingDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setNotFound(false);
@@ -64,6 +77,18 @@ export function ListingDetailPage() {
     return <p className="loading">Ładowanie…</p>;
   }
 
+  const mapPosition: [number, number] | null =
+    listing.lat != null && listing.lon != null ? [listing.lat, listing.lon] : null;
+  const images = listing.images;
+  const currentImage = selectedImage == null ? null : images[selectedImage];
+
+  function moveImage(delta: number) {
+    setSelectedImage((current) => {
+      if (current == null || images.length === 0) return current;
+      return (current + delta + images.length) % images.length;
+    });
+  }
+
   return (
     <article className="listing-detail">
       <header className="listing-detail__header">
@@ -99,11 +124,7 @@ export function ListingDetailPage() {
         </div>
         <div>
           <dt>Lokalizacja</dt>
-          <dd>
-            {[listing.city, listing.district, listing.street]
-              .filter(Boolean)
-              .join(", ") || "—"}
-          </dd>
+          <dd>{addressLine(listing)}</dd>
         </div>
         <div>
           <dt>Rynek</dt>
@@ -122,8 +143,71 @@ export function ListingDetailPage() {
       {listing.images.length > 0 && (
         <div className="listing-detail__gallery">
           {listing.images.map((src, index) => (
-            <img key={src} src={src} alt={`${listing.title} — zdjęcie ${index + 1}`} />
+            <button
+              key={src}
+              type="button"
+              className="gallery-thumb"
+              onClick={() => setSelectedImage(index)}
+              aria-label={`Powiększ zdjęcie ${index + 1}`}
+            >
+              <img src={src} alt={`${listing.title} — zdjęcie ${index + 1}`} />
+            </button>
           ))}
+        </div>
+      )}
+
+      {mapPosition && (
+        <section className="listing-detail__map-section">
+          <h3>Mapa miejsca</h3>
+          <div className="listing-detail__map">
+            <MapContainer center={mapPosition} zoom={16} scrollWheelZoom>
+              <TileLayer
+                attribution='&copy; OpenStreetMap contributors &copy; CARTO'
+                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              />
+              <Marker position={mapPosition}>
+                <Popup>{addressLine(listing)}</Popup>
+              </Marker>
+            </MapContainer>
+          </div>
+          <a href={openStreetMapUrl(listing)} target="_blank" rel="noreferrer">
+            Otwórz w OpenStreetMap
+          </a>
+        </section>
+      )}
+
+      {currentImage && selectedImage != null && (
+        <div
+          className="listing-detail__lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Galeria zdjęć"
+        >
+          <button
+            type="button"
+            className="lightbox-close"
+            onClick={() => setSelectedImage(null)}
+            aria-label="Zamknij galerię"
+          >
+            ×
+          </button>
+          <button
+            type="button"
+            className="lightbox-nav lightbox-nav--prev"
+            onClick={() => moveImage(-1)}
+            aria-label="Poprzednie zdjęcie"
+          >
+            ‹
+          </button>
+          <img src={currentImage} alt={`${listing.title} — zdjęcie ${selectedImage + 1} z ${images.length}`} />
+          <button
+            type="button"
+            className="lightbox-nav lightbox-nav--next"
+            onClick={() => moveImage(1)}
+            aria-label="Następne zdjęcie"
+          >
+            ›
+          </button>
         </div>
       )}
 

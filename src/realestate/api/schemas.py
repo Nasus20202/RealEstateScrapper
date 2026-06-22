@@ -39,11 +39,17 @@ class SettingsOut(BaseModel):
     llm_embedding_model: str | None
     llm_api_key_set: bool
     scheduler_interval_minutes: int | None
+    scheduler_enabled: bool
+    scheduler_cron: str | None
+    default_cities: list[str]
     sources: list[str]
 
 
 class SettingsUpdate(BaseModel):
     scheduler_interval_minutes: int | None = None
+    scheduler_enabled: bool | None = None
+    scheduler_cron: str | None = None
+    default_cities: list[str] | None = None
     enabled_source_ids: list[str] | None = None
 
 
@@ -132,7 +138,7 @@ class ScrapeRunOut(BaseModel):
 
 
 class ScrapeRequest(BaseModel):
-    city: str
+    city: str | None = None
     min_price: int | None = None
     max_price: int | None = None
     min_area: float | None = None

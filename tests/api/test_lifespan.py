@@ -9,7 +9,8 @@ async def test_lifespan_sets_state_without_scheduler_by_default(pg_url, monkeypa
         assert app.state.engine is not None
         assert app.state.session_factory is not None
         assert app.state.event_bus is not None
-        assert app.state.scheduler is None  # domyślnie wyłączony
+        assert app.state.scheduler is not None
+        assert app.state.scheduler.jobs() == []  # domyślnie bez aktywnego joba
 
 
 async def test_lifespan_starts_scheduler_when_enabled(pg_url, monkeypatch):

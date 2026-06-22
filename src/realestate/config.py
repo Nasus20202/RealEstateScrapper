@@ -4,6 +4,7 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EMBEDDING_DIM_DEFAULT = 1536
+DEFAULT_CITIES = ["Gdańsk", "Gdynia", "Sopot"]
 
 
 def get_embedding_dim() -> int:
@@ -53,6 +54,8 @@ class Settings(BaseSettings):
 
     scheduler_enabled: bool = False
     scheduler_default_interval_minutes: int = 360
+    scheduler_cron: str | None = None
+    scraper_default_cities: list[str] = DEFAULT_CITIES
 
     # --- Geocoding (OpenStreetMap/Nominatim by default; nothing hardcoded). ---
     # Scraped listing data has no coordinates, so addresses are geocoded at

@@ -71,7 +71,7 @@ export interface ScrapeRunOut {
 }
 
 export interface ScrapeRequest {
-  city: string;
+  city?: string;
   min_price?: number;
   max_price?: number;
   min_area?: number;
@@ -114,11 +114,17 @@ export interface SettingsOut {
   llm_embedding_model: string | null;
   llm_api_key_set: boolean;
   scheduler_interval_minutes: number | null;
+  scheduler_enabled: boolean;
+  scheduler_cron: string | null;
+  default_cities: string[];
   sources: string[];
 }
 
 export interface SettingsUpdate {
   scheduler_interval_minutes?: number;
+  scheduler_enabled?: boolean;
+  scheduler_cron?: string | null;
+  default_cities?: string[];
   enabled_source_ids?: string[];
 }
 

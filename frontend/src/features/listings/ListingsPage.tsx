@@ -8,7 +8,7 @@ import { ListingsMap } from "./ListingsMap";
 
 const PAGE_SIZE = 50;
 
-type View = "list" | "map";
+type View = "list" | "compact" | "map";
 
 interface FormState {
   city: string;
@@ -260,6 +260,14 @@ export function ListingsPage() {
             </button>
             <button
               type="button"
+              className={view === "compact" ? "active" : ""}
+              aria-pressed={view === "compact"}
+              onClick={() => setView("compact")}
+            >
+              Kompakt
+            </button>
+            <button
+              type="button"
               className={view === "map" ? "active" : ""}
               aria-pressed={view === "map"}
               onClick={() => setView("map")}
@@ -277,7 +285,7 @@ export function ListingsPage() {
       ) : items.length === 0 && !loading ? (
         <p className="empty-state">Brak ofert. Zmień filtry lub uruchom scraping.</p>
       ) : (
-        <div className="listings-grid">
+        <div className={view === "compact" ? "listings-grid listings-grid--compact" : "listings-grid"}>
           {items.map((item) => (
             <ListingCard key={item.id} listing={item} />
           ))}

@@ -75,6 +75,17 @@ def _absolute_url(href: str) -> str:
     return _BASE_URL + href
 
 
+def _image_url(node) -> str:
+    for attr in ("src", "data-src", "data-lazy", "data-original"):
+        value = node.attrs.get(attr, "")
+        if value:
+            return _absolute_url(value)
+    srcset = node.attrs.get("srcset", "")
+    if srcset:
+        return _absolute_url(srcset.split(",")[0].strip().split(" ")[0])
+    return ""
+
+
 def _parse_rooms(tile: object) -> int | None:
     """Extract rooms count from .attributes__box--item containing 'pokoi'."""
     for item in tile.css(".attributes__box--item"):  # type: ignore[attr-defined]
@@ -174,11 +185,10 @@ class NieruchomosciOnlineScraper:
 
             # --- Thumbnail image ---
             images: list[str] = []
-            img_el = tile.css_first("img.state--fit-type--fill__main-photo")
-            if img_el:
-                src = img_el.attrs.get("src", "")
-                if src:
-                    images.append(_absolute_url(src))
+            for img_el in tile.css("img"):
+                src = _image_url(img_el)
+                if src and src not in images:
+                    images.append(src)
 
             listings.append(
                 RawListing(
@@ -214,8 +224,8 @@ class NieruchomosciOnlineScraper:
 
         # Images
         images: list[str] = []
-        for img in tree.css("img[src*='nieruchomosci-online'], .gallery img"):
-            src = img.attrs.get("src", "")
+        for img in tree.css("img, .gallery [data-src], [data-gallery] img"):
+            src = _image_url(img)
             if src and src not in images:
                 images.append(src)
 

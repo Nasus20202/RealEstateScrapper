@@ -1,5 +1,5 @@
 // frontend/src/features/listings/ListingsMap.tsx
-import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
+import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
 import { Link } from "react-router-dom";
 
 import type { ListingOut } from "../../api/types";
@@ -17,6 +17,14 @@ function averageCenter(points: [number, number][]): [number, number] {
     [0, 0],
   );
   return [sum[0] / points.length, sum[1] / points.length];
+}
+
+
+function facts(listing: ListingOut): string {
+  return [
+    listing.rooms != null ? `${listing.rooms} pok.` : null,
+    listing.area_m2 != null ? `${listing.area_m2} m²` : null,
+  ].filter(Boolean).join(" · ");
 }
 
 export function ListingsMap({ listings }: { listings: ListingOut[] }) {
@@ -55,12 +63,23 @@ export function ListingsMap({ listings }: { listings: ListingOut[] }) {
               weight: 2,
             }}
           >
+            <Tooltip permanent direction="top" offset={[0, -8]} opacity={0.95} className="map-price-label">
+              {formatPrice(l.price)}
+            </Tooltip>
             <Popup>
-              <div className="map-popup__price">{formatPrice(l.price)}</div>
-              <Link className="map-popup__title" to={`/listings/${l.id}`}>
-                {l.title}
-              </Link>
-              <div>{[l.district, l.city].filter(Boolean).join(", ") || "—"}</div>
+              <div className="map-popup">
+                {l.images[0] && <img className="map-popup__image" src={l.images[0]} alt="" />}
+                <div className="map-popup__price">{formatPrice(l.price)}</div>
+                {l.price_per_m2 != null && (
+                  <div className="map-popup__muted">{l.price_per_m2.toLocaleString("pl-PL")} zł/m²</div>
+                )}
+                {facts(l) && <div className="map-popup__facts">{facts(l)}</div>}
+                <Link className="map-popup__title" to={`/listings/${l.id}`}>
+                  {l.title}
+                </Link>
+                <div className="map-popup__muted">{[l.street, l.district, l.city].filter(Boolean).join(", ") || "—"}</div>
+                <Link className="map-popup__button" to={`/listings/${l.id}`}>Szczegóły</Link>
+              </div>
             </Popup>
           </CircleMarker>
         ))}

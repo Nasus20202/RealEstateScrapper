@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from typing import TYPE_CHECKING
 
@@ -84,6 +85,9 @@ class BrowserFetcher:
                 wait_until=self._settings.scraper_wait_until,
                 timeout=self._settings.scraper_nav_timeout_ms,
             )
+            if "hossa.gda.pl" in url:
+                with contextlib.suppress(Exception):
+                    await page.wait_for_load_state("networkidle", timeout=5000)
             html = await page.content()
         finally:
             await page.close()
