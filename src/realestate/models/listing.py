@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy import (
     Enum as SAEnum,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from realestate.config import get_embedding_dim
@@ -54,6 +54,7 @@ class Listing(Base):
         SAEnum(MarketType, values_callable=enum_values), nullable=True
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attributes: Mapped[dict] = mapped_column(JSONB, default=dict)
     images: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

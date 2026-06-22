@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from realestate.scrapers.base import SearchCriteria
 from realestate.scrapers.hossa import HossaScraper
 from tests.fixtures.loader import load_fixture
@@ -24,12 +26,38 @@ def test_parse_search_returns_items():
     first = listings[0]
     assert first.source_id == "hossa"
     assert first.url.startswith("http")
+    assert "/api/apartments/" in first.url
     assert first.title == "Garnizon"
     assert first.external_id
     assert first.city == "Gdańsk"
     assert first.district == "Wrzeszcz"
     assert first.street == "M. Hemara, B. Leśmiana"
     assert first.images == ["https://www.hossa.gda.pl/content/uploads/garnizon.jpg"]
+
+
+def test_parse_detail_api_returns_concrete_apartments():
+    body = """
+    {"data":[{"id":6243,"investment_slug":"garnizon-loftyapartamenty","number":"GR/L4/315",
+    "floor":3,"rooms":1,"area_usable":"58.23","description":"Balkon i garaż",
+    "price":"958698.72","building":"Leśmiana 4","availability":"2028-3",
+    "status_label":"dostępny","price_per_usable_m2":"16464.00","tags":["Balkon"],
+    "media":[{"picture":"/content/uploads/plans/04/projection.jpg"}]}]}
+    """
+    listings = HossaScraper().parse_detail(
+        body,
+        "https://www.hossa.gda.pl/api/apartments/?inv=garnizon-loftyapartamenty&type=a",
+    )
+    assert isinstance(listings, list)
+    first = listings[0]
+    assert first.external_id == "apartment-6243"
+    assert first.title == "Garnizon Loftyapartamenty GR/L4/315"
+    assert first.price == Decimal("958698.72")
+    assert first.area_m2 == 58.23
+    assert first.rooms == 1
+    assert first.floor == 3
+    assert first.description == "Balkon i garaż"
+    assert first.attributes["tags"] == ["Balkon"]
+    assert first.images == ["https://www.hossa.gda.pl/content/uploads/plans/04/projection.jpg"]
 
 
 def test_parse_search_ignores_category_links():

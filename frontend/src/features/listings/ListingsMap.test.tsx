@@ -39,6 +39,8 @@ function listing(over: Partial<ListingOut> = {}): ListingOut {
     lat: null,
     lon: null,
     market: "secondary",
+    description: null,
+    attributes: {},
     images: [],
     posted_at: null,
     status: "active",

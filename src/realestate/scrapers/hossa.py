@@ -1,15 +1,19 @@
 """Hossa.gda.pl scraper — Tricity property developer, parses rendered DOM cards."""
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from decimal import Decimal, InvalidOperation
+from urllib.parse import parse_qs, urlparse
 
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.images import unique_listing_images
 
 _BASE_URL = "https://www.hossa.gda.pl"
+_APARTMENTS_LIMIT = 500
 
 # City slug → Polish city name
 _CITY_MAP: dict[str, str] = {
@@ -83,6 +87,11 @@ def _slug(url: str) -> str:
 def _money(text: str | None) -> Decimal | None:
     if not text:
         return None
+    if re.fullmatch(r"\d+(?:\.\d+)?", text.strip()):
+        try:
+            return Decimal(text.strip())
+        except (InvalidOperation, ValueError):
+            return None
     match = re.search(r"(?<![-\w])(\d[\d\s\xa0]*(?:,\d+)?)\s*zł", text, flags=re.IGNORECASE)
     if not match:
         return None
@@ -99,6 +108,11 @@ def _money(text: str | None) -> Decimal | None:
 def _area(text: str | None) -> float | None:
     if not text:
         return None
+    if re.fullmatch(r"\d+(?:[,.]\d+)?", text.strip()):
+        try:
+            return float(text.strip().replace(",", "."))
+        except (TypeError, ValueError):
+            return None
     match = re.search(r"(\d+(?:[,.]\d+)?)\s*m", text, flags=re.IGNORECASE)
     if not match:
         return None
@@ -183,8 +197,12 @@ class HossaScraper:
     source_id = "hossa"
     display_name = "Hossa"
 
+    def __init__(self) -> None:
+        self._last_city: str | None = None
+
     def build_search_url(self, criteria: SearchCriteria, page: int = 1) -> str:
         """Return the Hossa city-specific offers page URL for the given criteria."""
+        self._last_city = criteria.city
         path = _city_path(criteria.city)
         return f"{_BASE_URL}/{path}/"
 
@@ -226,7 +244,15 @@ class HossaScraper:
                 street_parts = [span.text(strip=True) for span in address_el.css("span")]
                 street = ", ".join(part for part in street_parts if part) or None
             city = _city_from_text(place or card_text) or _city_from_slug(ext_id)
+            if self._last_city and city:
+                requested = _city_from_text(self._last_city) or self._last_city
+                if requested.lower() not in city.lower():
+                    continue
             district = _district_from_place(place, city)
+            api_url = (
+                f"{_BASE_URL}/api/apartments/?inv={ext_id}&type=a&"
+                f"a_status=dost%C4%99pny&limit={_APARTMENTS_LIMIT}&page=1"
+            )
             images: list[str] = []
             outer_image = _image_url(outer_card)
             if outer_image and not outer_image.endswith(".svg"):
@@ -240,7 +266,7 @@ class HossaScraper:
                 RawListing(
                     source_id=self.source_id,
                     external_id=ext_id,
-                    url=url,
+                    url=api_url,
                     title=text,
                     price=_money(card_text),
                     area_m2=_area(card_text),
@@ -249,13 +275,17 @@ class HossaScraper:
                     district=district,
                     street=street,
                     market="primary",
-                    images=images,
+                    images=unique_listing_images(images),
+                    attributes={"investment": ext_id, "investment_url": url},
                 )
             )
 
         return listings
 
-    def parse_detail(self, html: str, url: str) -> RawListing:
+    def parse_detail(self, html: str, url: str) -> RawListing | list[RawListing]:
+        if "/api/apartments/" in url:
+            return self._parse_apartments_api(html, url)
+
         """Parse a Hossa investment/offer detail page; returns a minimal RawListing."""
         ext_id = _slug(url)
         tree = HTMLParser(html)
@@ -295,6 +325,62 @@ class HossaScraper:
             city=city,
             market="primary",
         )
+
+    def _parse_apartments_api(self, body: str, url: str) -> list[RawListing]:
+        raw_body = body.strip()
+        if not raw_body.startswith("{"):
+            tree = HTMLParser(body)
+            raw_body = tree.body.text(strip=True) if tree.body else raw_body
+        try:
+            payload = json.loads(raw_body)
+        except json.JSONDecodeError:
+            return []
+        rows = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(rows, list):
+            return []
+
+        query = parse_qs(urlparse(url).query)
+        investment_slug = (query.get("inv") or [""])[0]
+        listings: list[RawListing] = []
+        for item in rows:
+            if not isinstance(item, dict) or item.get("id") is None:
+                continue
+            item_id = item["id"]
+            investment = str(item.get("investment_slug") or investment_slug)
+            number = str(item.get("number") or item_id)
+            images = []
+            for media in item.get("media") or []:
+                if isinstance(media, dict):
+                    picture = media.get("picture") or media.get("thumb")
+                    if isinstance(picture, str):
+                        images.append(_absolute_url(picture))
+            attributes = {
+                "investment": investment,
+                "building": item.get("building"),
+                "availability": item.get("availability"),
+                "status": item.get("status_label"),
+                "price_per_usable_m2": item.get("price_per_usable_m2"),
+                "tags": item.get("tags") or [],
+            }
+            attributes = {k: v for k, v in attributes.items() if v not in (None, "", [])}
+            listings.append(
+                RawListing(
+                    source_id=self.source_id,
+                    external_id=f"apartment-{item_id}",
+                    url=f"{_BASE_URL}/{investment}/wyniki-wyszukiwania/#id={item_id}",
+                    title=f"{investment.replace('-', ' ').title()} {number}",
+                    price=_money(str(item.get("price") or "")),
+                    area_m2=_area(str(item.get("area_usable") or item.get("area") or "")),
+                    rooms=int(item["rooms"]) if item.get("rooms") is not None else None,
+                    floor=int(item["floor"]) if item.get("floor") is not None else None,
+                    description=item.get("description"),
+                    attributes=attributes,
+                    market="primary",
+                    images=unique_listing_images(images),
+                    raw=item,
+                )
+            )
+        return listings
 
 
 register(HossaScraper())

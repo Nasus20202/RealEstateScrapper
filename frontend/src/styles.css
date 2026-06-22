@@ -322,9 +322,6 @@ button.btn-ghost:hover {
   font-size: 0.8rem;
 }
 .badge--source {
-  position: absolute;
-  top: 0.6rem;
-  left: 0.6rem;
   padding: 0.2rem 0.55rem;
   background: rgba(13, 17, 23, 0.78);
   backdrop-filter: blur(6px);
@@ -339,6 +336,12 @@ button.btn-ghost:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.listing-card__badges {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
 .listing-card__score-badge {
   position: absolute;
@@ -458,6 +461,15 @@ button.btn-ghost:hover {
   font-weight: 700;
   color: #111827;
 }
+.map-popup__list {
+  display: grid;
+  gap: 0.35rem;
+}
+.map-popup__list a {
+  display: block;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
 .map-popup__title {
   display: block;
   margin: 0.15rem 0;
@@ -526,6 +538,33 @@ button.btn-ghost:hover {
 }
 .listing-detail__map-section {
   margin: 1.2rem 0;
+}
+.listing-detail__description,
+.listing-detail__attributes {
+  margin: 1.2rem 0;
+  padding: 1rem 1.15rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.listing-detail__description p {
+  color: var(--text-muted);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+.attribute-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.attribute-chip {
+  padding: 0.25rem 0.6rem;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 .listing-detail__map {
   height: 360px;
@@ -616,9 +655,6 @@ button.btn-ghost:hover {
 
 /* ---------- Market badge ---------- */
 .badge--market {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
   padding: 0.2rem 0.55rem;
   backdrop-filter: blur(6px);
   border-radius: 999px;

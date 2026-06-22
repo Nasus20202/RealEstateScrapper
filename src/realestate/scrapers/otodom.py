@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode, urljoin
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.images import unique_listing_images
 
 
 def _slugify_city(city: str) -> str:
@@ -92,7 +93,21 @@ def _extract_images(item: dict) -> list[str]:
         url = img.get("large") or img.get("medium") or img.get("url")
         if url and isinstance(url, str):
             urls.append(url)
-    return urls
+    return unique_listing_images(urls)
+
+
+def _extract_attributes(item: dict) -> dict:
+    attrs: dict = {}
+    tags = item.get("tags") or []
+    if isinstance(tags, list):
+        values = [tag.get("value") for tag in tags if isinstance(tag, dict) and tag.get("value")]
+        if values:
+            attrs["tags"] = values
+    if item.get("isPrivateOwner") is not None:
+        attrs["private_owner"] = bool(item.get("isPrivateOwner"))
+    if item.get("isExclusiveOffer") is not None:
+        attrs["exclusive"] = bool(item.get("isExclusiveOffer"))
+    return attrs
 
 
 def _extract_district(item: dict) -> str | None:
@@ -256,6 +271,8 @@ class OtodomScraper:
                     ),
                     district=_extract_district(item),
                     market=_map_market(item),
+                    description=item.get("shortDescription"),
+                    attributes=_extract_attributes(item),
                     posted_at=_parse_dt(item.get("dateCreated")),
                     images=_extract_images(item),
                     raw=item,
@@ -312,6 +329,7 @@ class OtodomScraper:
             street=street,
             market=_map_market(ad),
             description=ad.get("description"),
+            attributes=_extract_attributes(ad),
             images=_extract_images(ad),
             raw=ad,
         )

@@ -220,6 +220,26 @@ export function ListingDetailPage() {
         )}
       </section>
 
+      {listing.description && (
+        <section className="listing-detail__description">
+          <h3>Opis</h3>
+          <p>{listing.description}</p>
+        </section>
+      )}
+
+      {Object.keys(listing.attributes).length > 0 && (
+        <section className="listing-detail__attributes">
+          <h3>Tagi i cechy z ogłoszenia</h3>
+          <div className="attribute-list">
+            {Object.entries(listing.attributes).map(([key, value]) => (
+              <span key={key} className="attribute-chip">
+                {key}: {Array.isArray(value) ? value.join(", ") : String(value)}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
       {listing.summary && (
         <section className="listing-detail__summary">
           <h3>Podsumowanie LLM</h3>

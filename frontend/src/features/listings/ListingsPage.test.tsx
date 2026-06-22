@@ -27,6 +27,8 @@ function listing(overrides: Record<string, unknown> = {}) {
     district: "Wrzeszcz",
     street: null,
     market: "secondary",
+    description: null,
+    attributes: {},
     images: [],
     posted_at: null,
     status: "active",

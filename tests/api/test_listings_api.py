@@ -18,7 +18,8 @@ async def _seed(engine):
         now = datetime.now(UTC)
         listing = Listing(source_id="otodom", external_id="x1", url="http://x", title="Ładne 2pok",
                           price=Decimal(400000), price_per_m2=Decimal(8000), area_m2=50.0, rooms=2,
-                          city="Gdansk", district="Wrzeszcz", raw_hash="h1",
+                          city="Gdansk", district="Wrzeszcz", raw_hash="h1", description="opis",
+                          attributes={"tags": ["BALCONY"]},
                           status=ListingStatus.ACTIVE, first_seen=now, last_seen=now, images=[])
         s.add(listing)
         await s.flush()
@@ -66,5 +67,7 @@ async def test_listing_detail(engine):
     body = resp.json()
     assert body["summary"] == "świetne"
     assert body["features"] == {"balkon": True}
+    assert body["description"] == "opis"
+    assert body["attributes"] == {"tags": ["BALCONY"]}
     assert len(body["price_history"]) == 1
     assert missing.status_code == 404

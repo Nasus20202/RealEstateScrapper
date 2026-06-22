@@ -71,6 +71,8 @@ class ListingOut(BaseModel):
     lat: float | None = None
     lon: float | None = None
     market: str | None = None
+    description: str | None = None
+    attributes: dict = {}
     images: list[str] = []
     posted_at: datetime | None = None
     status: str
@@ -87,6 +89,8 @@ class ListingOut(BaseModel):
             district=listing.district, street=listing.street,
             lat=listing.lat, lon=listing.lon,
             market=listing.market.value if listing.market else None,
+            description=listing.description,
+            attributes=listing.attributes or {},
             images=list(listing.images or []), posted_at=listing.posted_at,
             status=listing.status.value, score=score, reason=reason,
         )

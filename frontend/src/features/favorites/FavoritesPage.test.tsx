@@ -27,6 +27,8 @@ function listing(id: number, title: string) {
     district: "Wrzeszcz",
     street: null,
     market: "secondary",
+    description: null,
+    attributes: {},
     images: [],
     posted_at: null,
     status: "active",

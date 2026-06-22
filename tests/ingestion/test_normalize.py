@@ -9,7 +9,7 @@ from realestate.scrapers.base import RawListing
 def _raw(**kw):
     base = dict(source_id="otodom", external_id="1", url="https://x/1", title="Mieszkanie",
                 price=Decimal("600000"), area_m2=50.0, rooms=3, market="secondary",
-                images=["b.jpg", "a.jpg"])
+                images=["b.jpg", "a.jpg"], attributes={"tags": ["BALCONY"]})
     base.update(kw)
     return RawListing(**base)
 
@@ -23,6 +23,7 @@ def test_to_listing_maps_fields_and_computes_ppm2():
     assert listing.status == ListingStatus.ACTIVE
     assert listing.first_seen == now and listing.last_seen == now
     assert listing.embedding is None
+    assert listing.attributes == {"tags": ["BALCONY"]}
     assert listing.raw_hash
 
 

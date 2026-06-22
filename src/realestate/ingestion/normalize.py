@@ -13,7 +13,7 @@ def compute_raw_hash(raw: RawListing) -> str:
     """Compute SHA-256 hash of canonical JSON of significant fields.
 
     Fields: title, price, area_m2, rooms, floor, total_floors, city, district,
-    street, market, description, sorted(images). Images are sorted to ensure
+    street, market, description, attributes, sorted(images). Images are sorted to ensure
     order doesn't affect the hash. Decimal and datetime objects are serialized
     as strings.
     """
@@ -29,6 +29,7 @@ def compute_raw_hash(raw: RawListing) -> str:
         "street": raw.street,
         "market": raw.market,
         "description": raw.description,
+        "attributes": raw.attributes,
         "images": sorted(raw.images),
     }
 
@@ -83,6 +84,7 @@ def to_listing(raw: RawListing, *, now: datetime) -> Listing:
         lon=raw.lon,
         market=market,
         description=raw.description,
+        attributes=raw.attributes,
         images=raw.images,
         posted_at=raw.posted_at,
         raw_hash=raw_hash,

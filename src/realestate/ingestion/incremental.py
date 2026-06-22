@@ -76,6 +76,7 @@ class IncrementalEngine:
                 existing.lon = incoming.lon
                 existing.market = incoming.market
                 existing.description = incoming.description
+                existing.attributes = incoming.attributes
                 existing.images = incoming.images
                 existing.posted_at = incoming.posted_at
                 existing.raw_hash = incoming.raw_hash

@@ -35,6 +35,7 @@ class RawListing(BaseModel):
     lon: float | None = None
     market: str | None = None
     description: str | None = None
+    attributes: dict = Field(default_factory=dict)
     images: list[str] = Field(default_factory=list)
     posted_at: datetime | None = None
     raw: dict = Field(default_factory=dict)
@@ -51,7 +52,7 @@ class Scraper(Protocol):
 
     def build_search_url(self, criteria: SearchCriteria, page: int) -> str: ...
     def parse_search(self, html: str) -> list[RawListing]: ...
-    def parse_detail(self, html: str, url: str) -> RawListing: ...
+    def parse_detail(self, html: str, url: str) -> RawListing | list[RawListing]: ...
 
 
 _REGISTRY: dict[str, Scraper] = {}

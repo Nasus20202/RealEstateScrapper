@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.images import looks_like_listing_image, unique_listing_images
 
 _BASE_URL = "https://www.nieruchomosci-online.pl"
 
@@ -187,7 +188,7 @@ class NieruchomosciOnlineScraper:
             images: list[str] = []
             for img_el in tile.css("img"):
                 src = _image_url(img_el)
-                if src and src not in images:
+                if src and looks_like_listing_image(src) and src not in images:
                     images.append(src)
 
             listings.append(
@@ -203,7 +204,7 @@ class NieruchomosciOnlineScraper:
                     city=city_str,
                     district=district,
                     market=market,
-                    images=images,
+                    images=unique_listing_images(images),
                 )
             )
 
@@ -226,7 +227,7 @@ class NieruchomosciOnlineScraper:
         images: list[str] = []
         for img in tree.css("img, .gallery [data-src], [data-gallery] img"):
             src = _image_url(img)
-            if src and src not in images:
+            if src and looks_like_listing_image(src) and src not in images:
                 images.append(src)
 
         return RawListing(
@@ -235,7 +236,7 @@ class NieruchomosciOnlineScraper:
             url=url,
             title=title,
             description=description,
-            images=images,
+            images=unique_listing_images(images),
         )
 
 

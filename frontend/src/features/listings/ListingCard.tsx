@@ -45,17 +45,20 @@ export function ListingCard({ listing }: { listing: ListingOut }) {
             <span>brak zdjęcia</span>
           </div>
         )}
-        <span className="badge badge--source" data-source={listing.source_id}>
-          {listing.source_id}
-        </span>
-        {listing.market && (
-          <span className={`badge badge--market badge--market-${listing.market}`}>
-            {listing.market === "primary" ? "nowe" : "wtórny"}
-          </span>
-        )}
       </div>
 
       <div className="listing-card__body">
+        <div className="listing-card__badges">
+          <span className="badge badge--source" data-source={listing.source_id}>
+            {listing.source_id}
+          </span>
+          {listing.market && (
+            <span className={`badge badge--market badge--market-${listing.market}`}>
+              {listing.market === "primary" ? "nowe" : "wtórny"}
+            </span>
+          )}
+        </div>
+
         <div className="listing-card__price-row">
           <span className="listing-card__price">{formatPrice(listing.price)}</span>
           <span className="listing-card__ppm">

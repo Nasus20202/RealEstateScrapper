@@ -31,6 +31,16 @@ def _merge_detail(search: RawListing, detail: RawListing) -> RawListing:
     return RawListing(**data)
 
 
+def _with_search_context(search: RawListing, detail: RawListing) -> RawListing:
+    data = detail.model_dump()
+    for key in ("city", "district", "street", "market"):
+        if data.get(key) in (None, ""):
+            data[key] = getattr(search, key)
+    data["images"] = list(dict.fromkeys([*detail.images, *search.images]))
+    data["attributes"] = {**search.attributes, **detail.attributes}
+    return RawListing(**data)
+
+
 async def run_search(
     scraper: Scraper,
     fetcher,
@@ -62,6 +72,9 @@ async def run_search(
                     await on_log(f"Pobieram szczegóły: {listing.url}")
                 detail_html = await fetcher.fetch(listing.url)
                 detail = scraper.parse_detail(detail_html, listing.url)
+                if isinstance(detail, list):
+                    results.extend(_with_search_context(listing, item) for item in detail)
+                    continue
                 listing = _merge_detail(listing, detail)
             results.append(listing)
     return results

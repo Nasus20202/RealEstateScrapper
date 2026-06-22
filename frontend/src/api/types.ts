@@ -16,6 +16,8 @@ export interface ListingOut {
   lat: number | null;
   lon: number | null;
   market: string | null;
+  description: string | null;
+  attributes: Record<string, unknown>;
   images: string[];
   posted_at: string | null;
   status: string;

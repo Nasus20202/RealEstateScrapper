@@ -38,6 +38,8 @@ function detail(overrides: Record<string, unknown> = {}) {
     district: "Oliwa",
     street: "Morska",
     market: "secondary",
+    description: "Opis ogłoszenia z portalu",
+    attributes: { tags: ["BALCONY", "PARKING_SPOT"] },
     images: ["http://img/1.jpg", "http://img/2.jpg"],
     posted_at: "2026-06-01T00:00:00Z",
     status: "active",
@@ -75,6 +77,8 @@ describe("ListingDetailPage", () => {
     renderAt(7);
     expect(await screen.findByText("Mieszkanie z widokiem")).toBeInTheDocument();
     expect(screen.getByText("Słoneczne, blisko parku")).toBeInTheDocument();
+    expect(screen.getByText("Opis ogłoszenia z portalu")).toBeInTheDocument();
+    expect(screen.getByText(/BALCONY/)).toBeInTheDocument();
     expect(screen.getByText(/balkon/)).toBeInTheDocument();
     expect(screen.getAllByRole("img").length).toBeGreaterThanOrEqual(2);
     const dup8 = screen.getByRole("link", { name: "8" });
