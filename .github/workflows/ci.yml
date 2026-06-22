@@ -46,7 +46,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Test backend
-        run: uv run pytest
+        run: uv run pytest -n 4
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -119,6 +119,7 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=1.${{ github.run_number }}.0,enable=${{ github.event_name == 'push' }}
             type=sha
             type=raw,value={{date 'YYYYMMDD-HHmmss'}},enable=${{ github.event_name == 'push' }}
 
