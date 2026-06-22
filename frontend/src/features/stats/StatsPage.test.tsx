@@ -47,6 +47,23 @@ describe("StatsPage", () => {
           by_market: [],
           by_rooms: [{ key: "2", count: 500 }],
           price_buckets: [{ key: "600k-800k", count: 300 }],
+          by_provider: [],
+        }),
+      ),
+      http.get(`${BASE}/settings`, () =>
+        HttpResponse.json({
+          llm_enabled: false,
+          llm_base_url: "",
+          llm_model: null,
+          llm_embedding_model: null,
+          llm_api_key_set: false,
+          scheduler_interval_minutes: null,
+          scheduler_enabled: false,
+          scheduler_cron: null,
+          default_cities: [],
+          sources: ["otodom"],
+          source_max_pages: {},
+          source_crons: {},
         }),
       ),
     );

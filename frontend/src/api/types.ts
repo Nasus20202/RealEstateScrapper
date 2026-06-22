@@ -87,6 +87,23 @@ export interface StatsBucketOut {
   count: number;
 }
 
+export interface StatsProviderOut {
+  source_id: string;
+  display_name: string;
+  enabled: boolean;
+  count: number;
+  priced_count: number;
+  located_count: number;
+  avg_price: number | null;
+  avg_price_per_m2: number | null;
+  avg_area_m2: number | null;
+  avg_rooms: number | null;
+  min_price: number | null;
+  max_price: number | null;
+  last_run_at: string | null;
+  last_run_status: string | null;
+}
+
 export interface StatsOut {
   overview: StatsOverviewOut;
   by_district: StatsGroupOut[];
@@ -95,6 +112,7 @@ export interface StatsOut {
   by_market: StatsGroupOut[];
   by_rooms: StatsBucketOut[];
   price_buckets: StatsBucketOut[];
+  by_provider: StatsProviderOut[];
 }
 
 export interface ListingsQuery {
@@ -120,6 +138,17 @@ export interface MapBoundsQuery {
   south: number;
   east: number;
   west: number;
+}
+
+export interface StatsQuery {
+  city?: string;
+  district?: string[];
+  source_id?: string[];
+  min_price?: number;
+  max_price?: number;
+  min_rooms?: number;
+  max_rooms?: number;
+  market?: string;
 }
 
 export interface ScrapeRunOut {

@@ -15,7 +15,7 @@ Krótki przegląd:
 3. **Wzbogacanie LLM** — `EnrichmentService` (podsumowania, cechy), `DedupService` (grupy duplikatów), embeddingi pgvector.
 4. **Wyszukiwanie hybrydowe** — `SearchService`: filtry SQL → pgvector top-K → LLM rerank; degradacja przy braku LLM.
 5. **API** — FastAPI REST + SSE (`/events`), scheduler APScheduler.
-6. **Frontend** — React 18 + Vite 8 + TypeScript 6 SPA.
+6. **Frontend** — React 19 + Vite 8 + TypeScript 6 SPA.
 
 ---
 
@@ -41,7 +41,8 @@ Skrócona instrukcja dla środowiska deweloperskiego. Pełna dokumentacja: [`doc
 docker compose up -d db
 
 # 2. Migracje (EMBEDDING_DIM musi być ustawiony jako zmienna środowiskowa)
-EMBEDDING_DIM=1536 uv run alembic upgrade head
+cd backend
+EMBEDDING_DIM=2048 uv run alembic upgrade head
 
 # 3. Backend
 uv run uvicorn realestate.api.app:app --reload
@@ -64,6 +65,7 @@ Konfiguracja przez plik `.env` (wzór: `.env.example`) i zmienne środowiskowe. 
 
 ```bash
 # Backend
+cd backend
 uv run pytest
 uv run ruff check .
 

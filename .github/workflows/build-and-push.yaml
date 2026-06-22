@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      EMBEDDING_DIM: "1536"
+      EMBEDDING_DIM: "2048"
 
     steps:
       - name: Checkout repository
@@ -35,18 +35,23 @@ jobs:
 
       - name: Install backend dependencies
         run: uv sync --frozen --all-extras
+        working-directory: backend
 
       - name: Install Playwright browsers
         run: uv run playwright install --with-deps chromium
+        working-directory: backend
 
       - name: Check backend formatting
         run: uv run ruff format . --check
+        working-directory: backend
 
       - name: Lint backend
         run: uv run ruff check .
+        working-directory: backend
 
       - name: Test backend
         run: uv run pytest -n 4
+        working-directory: backend
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -58,21 +63,27 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
+        working-directory: frontend
 
       - name: Check frontend formatting
-        run: pnpm --dir frontend format:check
+        run: pnpm format:check
+        working-directory: frontend
 
       - name: Lint frontend
-        run: pnpm --dir frontend lint
+        run: pnpm lint
+        working-directory: frontend
 
       - name: Test frontend
-        run: pnpm --dir frontend exec vitest run
+        run: pnpm test
+        working-directory: frontend
 
       - name: Build frontend
-        run: pnpm --dir frontend build
+        run: pnpm build
+        working-directory: frontend
 
   docker:
     name: Build Docker images

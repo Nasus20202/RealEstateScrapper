@@ -78,39 +78,39 @@ Values are exactly `"primary"` or `"secondary"`; anything else → `None`.
 
 ## 3. Hossa (`source_id = "hossa"`)
 
-Parses hossa.gda.pl which is a **Vue SPA**. Static HTML contains only navigation links;
-investment/flat cards are rendered client-side and are NOT available in raw HTML.
+Parses rendered Hossa cards and then expands each investment through the public
+`/api/apartments/` endpoint. With `fetch_details=True`, output rows are **individual
+flats**, not investment placeholders.
 
 | Field | Populated? | Notes |
 |---|---|---|
 | `source_id` | Always | `"hossa"` |
-| `external_id` | Always | URL slug (e.g. `"nowe-mieszkania-gdansk"`) |
-| `url` | Always | Absolute category/landing page URL |
-| `title` | Always | Link text from anchor |
-| `price` | Never | `None` — developer site; prices not in static HTML |
-| `area_m2` | Never | `None` — not available at this level |
-| `rooms` | Never | `None` — not available at this level |
-| `floor` | Never | `None` — not available at this level |
-| `city` | Sometimes | Inferred from slug (e.g. `gdansk` → `"Gdańsk"`) |
-| `district` | Never | `None` |
+| `external_id` | Always | Detail rows use `apartment-{id}` from API |
+| `url` | Always | Flat URL with `#id={id}&inv={investment}` |
+| `title` | Always | Investment slug/name + flat number |
+| `price` | Usually | From API `price` |
+| `area_m2` | Usually | From API `area_usable` / `area` |
+| `rooms` | Usually | From API `rooms` |
+| `floor` | Usually | From API `floor` |
+| `city` | Usually | From search-card context or API fields |
+| `district` | Sometimes | From search-card place when available |
+| `street` | Usually | From API `building`, e.g. `Leśmiana 4`, `Przytulna 33` |
 | `market` | Always | Hardcoded `"primary"` — Hossa is a developer-only site |
 | `posted_at` | Never | `None` |
-| `images` | Never | Not scraped at search level |
-| `raw` | Never | Not stored |
+| `images` | Usually | From API media + search-card image context |
+| `raw` | Always for API detail rows | Original API item |
 
-### Critical: Hossa rows are OFFER-CATEGORY links, NOT individual flats
+### Hossa address rules
 
-`parse_search` returns **landing/investment-category pages** (e.g.
-`https://www.hossa.gda.pl/nowe-mieszkania-gdansk/`), NOT individual flat listings.
-The fixture typically yields 2–5 rows, each representing a city or investment category.
+The exact postal street must come from the flat API (`building`) when available.
+Search-card address is only context and must not override a more precise flat address.
+Examples:
 
-**Implications for Plan 3 normalizer:**
-- Hossa rows MUST be treated distinctly from flat-level listings (otodom, nieruchomosci-online).
-- They MUST NOT be cross-deduplicated against flat listings by price/area/rooms
-  (all of those are `None`).
-- The normalizer or search layer MUST either filter them out or route them through
-  a separate pipeline that fetches the investment landing page and extracts individual flats.
-- `external_id` is a slug, not a numeric offer ID — do not compare with otodom/n-o IDs.
+- `street = "Leśmiana 4"`, `city = "Gdańsk"`
+- `street = "Przytulna 33"`, `city = "Gdańsk"`
+
+Investment/marketing names may be kept in `attributes.investment_name` or
+`attributes.address` for display, but geocoding uses only country/city/street.
 
 ---
 
@@ -134,6 +134,28 @@ not by relying on the scraper URL.
 `external_id` is designed to be stable per source across re-scrapes:
 - otodom: numeric listing `id` from JSON
 - nieruchomosci-online: numeric ID from URL path
-- hossa: URL slug (category page slug)
+- hossa: API apartment ID prefixed with `apartment-`
 
 Use `(source_id, external_id)` as the deduplication key.
+
+### Developer scraper guardrails
+
+Developer scrapers must not emit investment cards as listings when detail expansion
+does not produce actual flats. If a detail page yields no flat with at least one
+unit-level signal (`price`, `area_m2`, `rooms`, `floor`, or a stable flat ID), return
+an empty list instead of an investment placeholder.
+
+Do not hardcode investment metadata such as streets, districts, or coordinates in
+scraper modules. These values must come from the site DOM/API for the current run.
+
+### Geocoding address query
+
+When a listing has an exact street/building, the geocoding query is:
+
+`Polska, {city}, {street}`
+
+District is intentionally omitted in that case because developer sites often put
+marketing names there (for example `Welocity Wiczlino`). If street is missing, the
+fallback is:
+
+`Polska, {city}, {district}`

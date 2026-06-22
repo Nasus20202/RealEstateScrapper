@@ -25,7 +25,7 @@ services:
     environment:
       # Inside the compose network the DB host is "db", not localhost.
       DATABASE_URL: postgresql+asyncpg://realestate:realestate@db:5432/realestate
-      EMBEDDING_DIM: "${EMBEDDING_DIM:-1536}"
+      EMBEDDING_DIM: "${EMBEDDING_DIM:-2048}"
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-*}"
       # LLM is optional — without a key/model the app degrades to rule-based ranking.
       # Provide these via a local .env file (auto-loaded by docker compose) or your shell.

@@ -5,6 +5,7 @@
 ### Uruchomienie
 
 ```bash
+cd backend
 uv run pytest
 ```
 
@@ -41,6 +42,7 @@ tests/
 Testy oznaczone `@pytest.mark.live` wymagają zewnętrznego dostępu sieciowego (np. prawdziwe scraping) i są domyślnie pominięte. Uruchom je jawnie:
 
 ```bash
+cd backend
 uv run pytest -m live
 ```
 
@@ -56,6 +58,7 @@ Przy pierwszym uruchomieniu Docker pobiera obraz — może to potrwać chwilę.
 ### Lint
 
 ```bash
+cd backend
 uv run ruff check .
 ```
 
@@ -63,7 +66,7 @@ Ruff musi być czysty przed każdym commitem. Konfiguracja: `pyproject.toml` (se
 
 ### Pyright / type-checking
 
-**Znane false-positives:** Pyright zgłasza błędy importów dla projektów z układem `src/` (src-layout). Te błędy są fałszywe alerty — nie blokują działania. **Bramka jakości** to ruff + pytest, nie Pyright.
+**Znane false-positives:** Pyright zgłasza błędy importów dla projektów z układem `backend/src/` (src-layout). Te błędy są fałszywe alerty — nie blokują działania. **Bramka jakości** to ruff + pytest, nie Pyright.
 
 ---
 

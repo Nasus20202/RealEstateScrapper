@@ -4,7 +4,7 @@
 # (set by docker-compose). EMBEDDING_DIM must match the value used at run time.
 set -euo pipefail
 
-echo "[entrypoint] EMBEDDING_DIM=${EMBEDDING_DIM:-1536} — applying migrations..."
+echo "[entrypoint] EMBEDDING_DIM=${EMBEDDING_DIM:-2048} — applying migrations..."
 uv run alembic upgrade head
 
 echo "[entrypoint] starting API on 0.0.0.0:8000 ..."
