@@ -138,10 +138,53 @@ class RobygScraper:
             city_slug = normalized.encode("ascii", "ignore").decode("ascii")
             city_slug = re.sub(r"\s+", "-", city_slug.strip())
         if city_slug in ("gdansk", "gdynia"):
-            return f"{_BASE_URL}/pl/inwestycje/{city_slug}"
-        return f"{_BASE_URL}/pl/inwestycje"
+            return f"{_BASE_URL}/{city_slug}"
+        return f"{_BASE_URL}"
+
+    def _parse_search_direct(self, html: str, city_slug: str) -> list[RawListing]:
+        """Extract investment links from the city page HTML."""
+        if not city_slug:
+            return []
+
+        pattern = re.escape(city_slug) + r"/inwestycje/([^/\"'?\s]+)"
+        listings: list[RawListing] = []
+        seen: set[str] = set()
+
+        for link in re.finditer(pattern, html):
+            slug = link.group(1)
+            if slug in seen or slug == "zrealizowane":
+                continue
+            seen.add(slug)
+            url = _absolute_url(f"/{city_slug}/inwestycje/{slug}")
+            city = _city_from_text(html)
+            listings.append(
+                RawListing(
+                    source_id=self.source_id,
+                    external_id=slug,
+                    url=url,
+                    title=slug,
+                    city=city or _CITY_MAP.get(city_slug, city_slug),
+                    market="primary",
+                    attributes={"investment": slug},
+                )
+            )
+        return listings
 
     def parse_search(self, html: str) -> list[RawListing]:
+        city_slug = ""
+        if self._last_city:
+            normalized = unicodedata.normalize(
+                "NFKD", self._last_city.strip().lower().replace("ł", "l")
+            )
+            city_slug = normalized.encode("ascii", "ignore").decode("ascii")
+            city_slug = re.sub(r"\s+", "-", city_slug.strip())
+
+        # Try direct regex extraction first
+        direct = self._parse_search_direct(html, city_slug)
+        if direct:
+            return direct
+
+        # Fallback: broad DOM selectors
         tree = HTMLParser(html)
         listings: list[RawListing] = []
         seen_ids: set[str] = set()
@@ -192,7 +235,7 @@ class RobygScraper:
                 RawListing(
                     source_id=self.source_id,
                     external_id=ext_id,
-                    url=url or f"{_BASE_URL}/pl/inwestycje",
+                    url=url or f"{_BASE_URL}/",
                     title=text,
                     price=price_val,
                     area_m2=area_val,
@@ -217,6 +260,10 @@ class RobygScraper:
         city = _city_from_text(page_text)
         apartments: list[RawListing] = []
 
+        keywords = r"(?:mieszkanie|apartament|flat|cena|oferta|pokoj|metra|powierzchnia)"
+        if not re.search(keywords, page_text[:5000], re.IGNORECASE):
+            return None
+
         for card in tree.css(
             "[class*=flat], [class*=apartment], [class*=offer], "
             "[class*=mieszkanie], [class*=property-card], [class*=listing-card], "
@@ -224,6 +271,11 @@ class RobygScraper:
         ):
             card_text = card.text(separator=" ", strip=True)
             if len(card_text) < 15:
+                continue
+
+            price = _money(card_text)
+            area_m2 = _area(card_text)
+            if price is None and area_m2 is None:
                 continue
 
             flat_id = card.attributes.get("data-id") or card.attributes.get("data-flat-id")
@@ -234,8 +286,6 @@ class RobygScraper:
             title_el = card.css_first("h2, h3, h4, [class*=title], [class*=name]")
             title = title_el.text(strip=True) if title_el else f"Mieszkanie {flat_id}"
 
-            price = _money(card_text)
-            area_m2 = _area(card_text)
             rooms = _rooms(card_text)
             floor_val = None
             floor_m = re.search(r"pi[eę]tro\s*(\d+)", card_text)
@@ -267,8 +317,107 @@ class RobygScraper:
 
         return apartments if apartments else None
 
+    def _parse_apartments_api(self, html: str, ext_id: str) -> list[RawListing] | None:
+        """Parse individual flats from the SSR-rendered page HTML."""
+        tree = HTMLParser(html)
+        items = tree.css(".item[data-id]")
+        if not items:
+            return None
+
+        city = _city_from_text(html)
+
+        listings: list[RawListing] = []
+        for item in items:
+            flat_id = item.attributes.get("data-id")
+            if not flat_id:
+                continue
+
+            status_code = item.attributes.get("data-status", "")
+            detail_url = item.attributes.get("data-url", "")
+
+            name_el = item.css_first(".td-number a")
+            unit_name = name_el.text(strip=True) if name_el else ""
+
+            item_text = item.text(separator=" ", strip=True)
+
+            floor_val = None
+            floor_m = re.search(r"Piętro:\s*(\d+)", item_text)
+            if floor_m:
+                floor_val = _int(floor_m.group(1))
+
+            rooms = None
+            rooms_m = re.search(r"Pokoje:\s*(\d+)", item_text)
+            if rooms_m:
+                rooms = _int(rooms_m.group(1))
+
+            area_m2 = None
+            area_el = item.css_first(".area-usable")
+            if area_el:
+                area_text = area_el.text(strip=True)
+                # Remove m²/m2 suffix before cleaning
+                area_text = re.sub(r"\s*m\s*2?\s*$", "", area_text, flags=re.IGNORECASE)
+                cleaned = area_text.replace(",", ".").replace("\xa0", "").replace(" ", "")
+                if cleaned:
+                    area_m2 = _float(cleaned)
+
+            price = None
+            price_el = item.css_first(".price-pln:not(.price-pln-m2)")
+            if price_el:
+                price_text = price_el.text(strip=True)
+            else:
+                price_text = ""
+            if not price_text:
+                price_m = re.search(
+                    r"(\d[\d\s\xa0]*(?:,\d+)?)\s*zł(?!/m)",
+                    item_text,
+                )
+                if price_m:
+                    price_text = price_m.group(0)
+            if price_text:
+                price = _money(price_text)
+                if price is not None and price < 1000:
+                    price = None
+
+            images: list[str] = []
+            img_el = item.css_first("img")
+            if img_el:
+                src = _image_url(img_el)
+                if src and not src.endswith(".svg"):
+                    images = [src]
+
+            title = f"{ext_id} {unit_name}" if unit_name else f"{ext_id} {flat_id}"
+            status = "available" if status_code in ("3", "4") else "unknown"
+
+            listings.append(
+                RawListing(
+                    source_id=self.source_id,
+                    external_id=f"{ext_id}-{flat_id}",
+                    url=_absolute_url(detail_url) if detail_url else "",
+                    title=title,
+                    price=price,
+                    area_m2=area_m2,
+                    rooms=rooms,
+                    floor=floor_val,
+                    city=city,
+                    market="primary",
+                    images=unique_listing_images(images),
+                    attributes={
+                        "investment": ext_id,
+                        "flat_id": flat_id,
+                        "status": status,
+                    },
+                )
+            )
+
+        return listings if listings else None
+
     def parse_detail(self, html: str, url: str) -> RawListing | list[RawListing]:
         ext_id = _investment_from_url(url) or _slug(url)
+
+        # Try API-based extraction first
+        apartments = self._parse_apartments_api(html, ext_id)
+        if apartments:
+            return apartments
 
         apartments = self._parse_individual_apartments(html, url, ext_id)
         if apartments:

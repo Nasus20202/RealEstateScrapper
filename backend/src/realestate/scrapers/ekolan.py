@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.helpers import fetch_text
 from realestate.scrapers.images import unique_listing_images
 
 _BASE_URL = "https://www.ekolan.pl"
@@ -256,6 +257,10 @@ class EkolanScraper:
         city = _city_from_text(page_text)
         apartments: list[RawListing] = []
 
+        # Only attempt flat parsing if page contains apartment-like content
+        if not re.search(r"(?:mieszkanie|apartament|flat|oferta\s+\d)", page_text[:5000]):
+            return None
+
         for card in tree.css(
             "[class*=flat], [class*=apartment], [class*=offer], "
             "[class*=mieszkanie], [class*=listing-card], [class*=card], "
@@ -270,11 +275,14 @@ class EkolanScraper:
                 id_match = re.search(r"(\d+)\s*(?:m²|m2|zł)", card_text[:50])
                 flat_id = id_match.group(1) if id_match else str(abs(hash(card_text)) % 100000)
 
+            price = _money(card_text)
+            area_m2 = _area(card_text)
+            if price is None and area_m2 is None:
+                continue
+
             title_el = card.css_first("h2, h3, h4, [class*=title], [class*=name]")
             title = title_el.text(strip=True) if title_el else f"Mieszkanie {flat_id}"
 
-            price = _money(card_text)
-            area_m2 = _area(card_text)
             rooms = _rooms(card_text)
             floor_val = None
             floor_m = re.search(r"pi[eę]tro\s*(\d+)", card_text)
@@ -306,8 +314,175 @@ class EkolanScraper:
 
         return apartments if apartments else None
 
+    def _parse_apartments_api(self, ext_id: str) -> list[RawListing] | None:
+        """Fetch flats via subdomain getApartments endpoint."""
+        # ext_id may be a bare slug (navigare) or a full hostname (navigare.ekolan.pl)
+        slug = ext_id.replace(".ekolan.pl", "")
+        subdomain_url = f"https://{slug}.ekolan.pl/getApartments.htm?submit=1"
+        try:
+            api_html = fetch_text(subdomain_url)
+        except Exception:
+            return None
+
+        if not api_html or len(api_html) < 200:
+            return None
+
+        # Use regex to extract apartment rows (selectolax has issues with this HTML)
+        # Table format: <tr[^>]*data-lokal='X'> (ALTRO style)
+        table_rows = re.findall(
+            r"<tr[^>]*clickable-row[^>]*>(.*?)</tr>",
+            api_html,
+            re.DOTALL,
+        )
+        if table_rows:
+            return self._parse_ekolan_table(table_rows, slug, api_html)
+
+        # Card format: split by <div class="b-flat-box" (NAVIGARE style)
+        card_parts = re.split(r'<div class="b-flat-box\s*"[^>]*>', api_html)
+        if len(card_parts) > 1:
+            return self._parse_ekolan_cards(card_parts[1:], slug, api_html)
+
+        return None
+
+    def _parse_ekolan_table(
+        self, rows: list[str], ext_id: str, api_html: str
+    ) -> list[RawListing] | None:
+        city = _city_from_text(api_html)
+        listings: list[RawListing] = []
+        for row_html in rows:
+            lokal_m = re.search(r"data-lokal='([^']+)'", row_html)
+            if not lokal_m:
+                continue
+            lokal = lokal_m.group(1)
+
+            # Extract all <td> texts in order
+            tds = re.findall(r"<td[^>]*>(.*?)</td>", row_html, re.DOTALL)
+            # Expected order: NR, Pokoje, metraż, piętro, cena_m2, cena
+            rooms = _int(re.sub(r"<[^>]+>", "", tds[1]).strip()) if len(tds) > 1 else None
+
+            area_raw = re.sub(r"<[^>]+>", " ", tds[2]).strip() if len(tds) > 2 else ""
+            area_raw = re.sub(r"&nbsp;", " ", area_raw)
+            area_m = re.search(r"(\d+(?:[,.]\d+)?)", area_raw)
+            area_m2 = _float(area_m.group(1)) if area_m else None
+
+            floor_val = _int(re.sub(r"<[^>]+>", "", tds[3]).strip()) if len(tds) > 3 else None
+
+            # Price is the last column with "zł" values
+            price = None
+            if len(tds) > 5:
+                price_raw = re.sub(r"<[^>]+>", " ", tds[5]).strip()
+                price_raw = re.sub(r"&nbsp;", " ", price_raw)
+                price_m = re.search(r"(\d[\d\s]*(?:[,.]\d+)?)\s*zł", price_raw)
+                if price_m:
+                    cleaned = price_m.group(1).replace(" ", "").replace(",", ".")
+                    try:
+                        val = Decimal(cleaned)
+                        if val >= 1000:
+                            price = val
+                    except InvalidOperation, ValueError:
+                        pass
+
+            listings.append(
+                RawListing(
+                    source_id=self.source_id,
+                    external_id=f"{ext_id}-{lokal}",
+                    url=f"https://{ext_id}.ekolan.pl/",
+                    title=f"{ext_id} {lokal}",
+                    price=price,
+                    area_m2=area_m2,
+                    rooms=rooms,
+                    floor=floor_val,
+                    city=city,
+                    market="primary",
+                    attributes={
+                        "investment": ext_id,
+                        "flat_id": lokal,
+                    },
+                )
+            )
+        return listings if listings else None
+
+    def _parse_ekolan_cards(
+        self, cards: list[str], ext_id: str, api_html: str
+    ) -> list[RawListing] | None:
+        city = _city_from_text(api_html)
+        listings: list[RawListing] = []
+        for card_html in cards:
+            eid_m = re.search(r"/apartamenty/apartament/\?eid=(\d+)", card_html)
+            if not eid_m:
+                continue
+            eid = eid_m.group(1)
+
+            nr_m = re.search(r"<h3>NR\s*(\d+)</h3>", card_html)
+            flat_nr = nr_m.group(1) if nr_m else ""
+
+            area_m = re.search(r"<span>metraż</span>\s*<p>(.*?)</p>", card_html, re.DOTALL)
+            area_m2 = None
+            if area_m:
+                area_raw = re.sub(r"<[^>]+>", " ", area_m.group(1))
+                area_raw = re.sub(r"&nbsp;", "", area_raw).strip()
+                a_m = re.search(r"(\d+(?:[,.]\d+)?)", area_raw)
+                area_m2 = _float(a_m.group(1)) if a_m else None
+
+            rooms_m = re.search(r"<span>pokoje</span>\s*<p>\s*(\d+)\s", card_html)
+            rooms = _int(rooms_m.group(1)) if rooms_m else None
+
+            floor_m = re.search(r"<span>piętro</span>\s*<p>(.*?)</p>", card_html, re.DOTALL)
+            floor_val = None
+            if floor_m:
+                floor_text = re.sub(r"<[^>]+>", "", floor_m.group(1)).strip().lower()
+                if floor_text == "parter":
+                    floor_val = 0
+                else:
+                    f_m = re.search(r"(\d+)", floor_text)
+                    if f_m:
+                        floor_val = _int(f_m.group(1))
+
+            price_m = re.search(r"<span>cena brutto</span>\s*<p>(.*?)</p>", card_html, re.DOTALL)
+            price = None
+            if price_m:
+                price_raw = re.sub(r"<[^>]+>", " ", price_m.group(1))
+                price_raw = re.sub(r"&nbsp;", " ", price_raw)
+                p_m = re.search(r"(\d[\d\s]*(?:[,.]\d+)?)\s*zł", price_raw)
+                if p_m:
+                    cleaned = p_m.group(1).replace(" ", "").replace(",", ".")
+                    try:
+                        val = Decimal(cleaned)
+                        if val >= 1000:
+                            price = val
+                    except InvalidOperation, ValueError:
+                        pass
+
+            imgs = re.findall(r'<img[^>]*src="([^"]+)"', card_html)
+            images = [url for url in imgs if not url.endswith(".svg")]
+
+            listings.append(
+                RawListing(
+                    source_id=self.source_id,
+                    external_id=f"{ext_id}-{eid}",
+                    url=f"https://{ext_id}.ekolan.pl/",
+                    title=f"{ext_id} {flat_nr}",
+                    price=price,
+                    area_m2=area_m2,
+                    rooms=rooms,
+                    floor=floor_val,
+                    city=city,
+                    market="primary",
+                    images=unique_listing_images(images),
+                    attributes={
+                        "investment": ext_id,
+                        "flat_id": eid,
+                    },
+                )
+            )
+        return listings if listings else None
+
     def parse_detail(self, html: str, url: str) -> RawListing | list[RawListing]:
         ext_id = _investment_from_url(url) or _slug(url)
+
+        apartments = self._parse_apartments_api(ext_id)
+        if apartments:
+            return apartments
 
         apartments = self._parse_individual_apartments(html, url, ext_id)
         if apartments:

@@ -298,14 +298,17 @@ class DomestaScraper:
                     images.extend(
                         str(plan.get(k)) for k in ("thumb_x2", "thumb", "url") if plan.get(k)
                     )
-            price = item.get("price") or item.get("promo_price")
+            price_val = item.get("price")
+            if price_val is None or price_val == 0:
+                price_val = item.get("promo_price")
+            price = Decimal(str(price_val)) if price_val else None
             listings.append(
                 RawListing(
                     source_id=self.source_id,
                     external_id=f"{investment_id}-{system_id}",
                     url=str(item.get("websiteUrl") or url),
                     title=f"{investment_name} {item.get('name') or system_id}",
-                    price=_money(str(price)) if price else None,
+                    price=price,
                     area_m2=_float(item.get("area")),
                     rooms=int(item["num_rooms"]) if item.get("num_rooms") is not None else None,
                     floor=int(item["floor"]) if item.get("floor") is not None else None,

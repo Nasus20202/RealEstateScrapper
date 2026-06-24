@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from decimal import Decimal, InvalidOperation
 
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.helpers import fetch_json
 from realestate.scrapers.images import unique_listing_images
 
 _BASE_URL = "https://atal.pl"
@@ -26,6 +28,15 @@ _CITY_MAP: dict[str, str] = {
     "gdynia": "Gdynia",
     "kowale": "Kowale",
     "reda": "Reda",
+}
+
+# WordPress category IDs for cities
+_CITY_CATEGORIES: dict[str, int] = {
+    "gdansk": 887,
+    "gdynia": 889,
+    "sopot": 67,  # Sopot is part of Trójmiasto category
+    "kowale": 7120,
+    "reda": 893,
 }
 
 
@@ -139,79 +150,53 @@ class AtalScraper:
         return f"{_BASE_URL}/"
 
     def parse_search(self, html: str) -> list[RawListing]:
-        tree = HTMLParser(html)
+        """Discover investments via WordPress REST API instead of DOM."""
+        city_key = ""
+        if self._last_city:
+            normalized = unicodedata.normalize("NFKD", self._last_city.strip().lower())
+            city_key = normalized.encode("ascii", "ignore").decode("ascii")
+            city_key = re.sub(r"\s+", "", city_key)
+
+        cat_id = _CITY_CATEGORIES.get(city_key)
+        if not cat_id:
+            return []
+
+        try:
+            data = fetch_json(
+                f"{_BASE_URL}/wp-json/wp/v2/investments"
+                f"?categories={cat_id}&per_page=100&_fields=id,slug,title,link"
+            )
+        except Exception:
+            return []
+
+        if not isinstance(data, list):
+            return []
+
         listings: list[RawListing] = []
-        seen_ids: set[str] = set()
+        for inv in data:
+            slug = inv.get("slug", "")
+            title = inv.get("title", {}).get("rendered", "") or slug
+            link = inv.get("link", "")
 
-        for card in tree.css(
-            ".investmentBox, [class*=investmentBox], "
-            "[class*=card], [class*=Card], [class*=invest], [class*=Invest], "
-            "[class*=project], [class*=Project], [class*=offer], [class*=Offer], "
-            "[class*=tile], [class*=Tile], [class*=listing], [class*=Listing]"
-        ):
-            link = card.css_first("a[href]")
-            href = link.attributes.get("href", "") if link else ""
-            name_el = card.css_first(
-                "h1, h2, h3, h4, [class*=name], [class*=Name], [class*=title], [class*=Title]"
-            )
-            text = name_el.text(strip=True) if name_el else ""
-
-            if not text:
+            if link and "atal.pl" not in link:
                 continue
 
-            url = _absolute_url(href.split("#")[0]) if href else ""
-            ext_id = _investment_from_url(url) or re.sub(r"[^a-z0-9]+", "-", text.lower()).strip(
-                "-"
-            )
+            ext_id = slug
+            inv_url = link or _absolute_url(f"/inwestycja/{slug}/")
 
-            if not ext_id or ext_id in seen_ids:
-                continue
-            seen_ids.add(ext_id)
-
-            card_text = card.text(separator=" ", strip=True)
-            city = _city_from_text(card_text)
-
-            if self._last_city:
-                requested = _city_from_text(self._last_city) or self._last_city
-                if city and requested.lower() not in city.lower():
-                    continue
-
-            street = None
-
-            price_val = _money(card_text)
-            if price_val is not None and price_val < 1000:
-                price_val = None
-
-            area_val = _area(card_text)
-            rooms_val = _rooms(card_text)
-
-            avail_match = re.search(r"Dost[pę]ne mieszkania:\s*(\d+)", card_text)
-            available = int(avail_match.group(1)) if avail_match else None
-
-            images: list[str] = []
-            for img in card.css("img"):
-                src = _image_url(img)
-                if src and not src.endswith(".svg") and src not in images:
-                    images.append(src)
-
-            attributes: dict = {"investment": ext_id}
-            if available is not None:
-                attributes["available_units"] = available
+            city = _city_from_text(title)
+            if not city and self._last_city:
+                city = self._last_city
 
             listings.append(
                 RawListing(
                     source_id=self.source_id,
                     external_id=ext_id,
-                    url=url or f"{_BASE_URL}/",
-                    title=text,
-                    price=price_val,
-                    area_m2=area_val,
-                    rooms=rooms_val,
+                    url=inv_url,
+                    title=title,
                     city=city,
-                    street=street,
                     market="primary",
-                    images=unique_listing_images(images),
-                    attributes=attributes,
+                    attributes={"investment": ext_id},
                 )
             )
 
@@ -230,6 +215,9 @@ class AtalScraper:
         """
         tree = HTMLParser(html)
         page_text = tree.body.text(strip=True) if tree.body else ""
+        keywords = r"(?:mieszkanie|apartament|flat|cena|oferta|pokoj|metra|powierzchnia)"
+        if not re.search(keywords, page_text[:5000], re.IGNORECASE):
+            return None
 
         apartments: list[RawListing] = []
         city = _city_from_text(page_text)
@@ -366,6 +354,8 @@ class AtalScraper:
 
         price = _money(card_text)
         area_m2 = _area(card_text)
+        if price is None and area_m2 is None:
+            return None
         rooms = _rooms(card_text)
         floor_val = None
         floor_match = re.search(r"pi[eę]tro\s*(\d+)", card_text)
@@ -402,11 +392,152 @@ class AtalScraper:
             },
         )
 
+    def _parse_apartments_api(self, ext_id: str) -> list[RawListing] | None:
+        try:
+            rest_data = fetch_json(f"{_BASE_URL}/wp-json/wp/v2/investments?slug={ext_id}")
+        except Exception:
+            return None
+        if not rest_data or not isinstance(rest_data, list) or not rest_data:
+            return None
+        inv_id = rest_data[0].get("id")
+        if not inv_id:
+            return None
+
+        inv_data = rest_data[0]
+        inv_name = inv_data.get("title", {}).get("rendered") or inv_data.get("slug") or ext_id
+
+        # Resolve city from WordPress categories
+        inv_cats = inv_data.get("categories", [])
+        cat_to_city = {v: k for k, v in _CITY_CATEGORIES.items()}
+        city = None
+        for cat_id in inv_cats:
+            cat_slug = cat_to_city.get(cat_id)
+            if cat_slug == "sopot":
+                city = "Sopot"
+                break
+            if cat_slug:
+                city = _CITY_MAP.get(cat_slug)
+                if city:
+                    break
+
+        # Fallback for Sopot/Trójmiasto: use last_city context
+        if not city and self._last_city and self._last_city in ("Sopot", "Gdynia"):
+            city = self._last_city
+        if not city:
+            city = _city_from_text(inv_name)
+
+        try:
+            ajax_body = fetch_json(
+                f"{_BASE_URL}/wp-admin/admin-ajax.php",
+                method="POST",
+                form_data={
+                    "action": "filter_apartments",
+                    "investmentID": str(inv_id),
+                    "searchType": "details",
+                    "viewType": "tiles",
+                    "hideclearfilters": "1",
+                },
+            )
+        except Exception:
+            return None
+
+        if not isinstance(ajax_body, dict) or ajax_body.get("status") != "success":
+            return None
+
+        tile_html = ajax_body.get("html", "")
+        if not tile_html:
+            return None
+
+        tree = HTMLParser(tile_html)
+        tiles = tree.css("[data-ap-id]")
+        if not tiles:
+            return None
+
+        if not city:
+            city = _city_from_text(tile_html)
+        if not city:
+            city = _city_from_text(inv_name) or _city_from_text(ext_id)
+
+        listings: list[RawListing] = []
+        for tile in tiles:
+            flat_id = tile.attributes.get("data-ap-id")
+            if not flat_id:
+                continue
+
+            area_str = tile.attributes.get("data-area", "")
+            area_m2 = float(area_str) if area_str else None
+            rooms_str = tile.attributes.get("data-rooms", "")
+            rooms = int(rooms_str) if rooms_str else None
+            floor_str = tile.attributes.get("data-floor", "")
+            floor_val = int(floor_str) if floor_str else None
+            apt_name = tile.attributes.get("data-name", "")
+            img_url = tile.attributes.get("data-image", "")
+            link_url = tile.attributes.get("data-link", "")
+
+            tile_text = tile.text(separator=" ", strip=True)
+            # Find all prices and pick the largest (skipping per-m² prices)
+            all_prices = re.findall(
+                r"(?<![-\w/])(\d[\d\s\xa0]*(?:,\d+)?)\s*(?:zł|PLN)\b(?!\s*/\s*m)",
+                tile_text,
+                re.IGNORECASE,
+            )
+            price = None
+            for raw in all_prices:
+                cleaned = raw.replace("\xa0", "").replace(" ", "")
+                cleaned = re.sub(r"[^\d,]", "", cleaned).replace(",", ".")
+                if not cleaned:
+                    continue
+                try:
+                    val = Decimal(cleaned)
+                except InvalidOperation, ValueError:
+                    continue
+                if val >= 1000 and (price is None or val > price):
+                    price = val
+
+            status = ""
+            status_el = tile.css_first(
+                ".apartmentTile__basicData__item__badge, [class*=badge], [class*=status]"
+            )
+            if status_el:
+                status = status_el.text(strip=True)
+
+            images: list[str] = []
+            if img_url:
+                images.append(_absolute_url(img_url))
+
+            listings.append(
+                RawListing(
+                    source_id=self.source_id,
+                    external_id=f"{ext_id}-{flat_id}",
+                    url=_absolute_url(link_url) if link_url else "",
+                    title=f"{inv_name} {apt_name}",
+                    price=price,
+                    area_m2=area_m2,
+                    rooms=rooms,
+                    floor=floor_val,
+                    city=city,
+                    market="primary",
+                    images=unique_listing_images(images),
+                    attributes={
+                        "investment": ext_id,
+                        "flat_id": flat_id,
+                        "status": _FLAT_STATUS_MAP.get(status.lower().strip(), status),
+                    },
+                )
+            )
+
+        return listings if listings else None
+
     def parse_detail(self, html: str, url: str) -> RawListing | list[RawListing]:
         ext_id = _investment_from_url(url) or _slug(url)
         tree = HTMLParser(html)
 
-        # Try to parse individual apartments first
+        # Try API-based detail extraction first
+        apartments = self._parse_apartments_api(ext_id)
+        if apartments:
+            return apartments
+
+        # Try to parse individual apartments from DOM
         apartments = self._parse_individual_apartments(html, url, ext_id)
         if apartments:
             return apartments

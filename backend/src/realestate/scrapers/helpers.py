@@ -190,18 +190,25 @@ def fetch_json(
     *,
     method: str = "GET",
     payload: dict | None = None,
+    form_data: dict[str, str] | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = 20.0,
 ):
     body = None
     request_headers = {
-        "Accept": "application/json",
         "User-Agent": "Mozilla/5.0",
         **(headers or {}),
     }
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
         request_headers["Content-Type"] = "application/json"
+        request_headers["Accept"] = "application/json"
+    elif form_data is not None:
+        body = urlencode(form_data).encode("utf-8")
+        request_headers["Content-Type"] = "application/x-www-form-urlencoded"
+        request_headers["Accept"] = "*/*"
+    else:
+        request_headers["Accept"] = "application/json"
     req = Request(url, data=body, headers=request_headers, method=method)
     with urlopen(req, timeout=timeout) as response:  # noqa: S310 - public scraper sources
         return json.loads(response.read().decode("utf-8"))

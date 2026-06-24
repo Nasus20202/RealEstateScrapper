@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.helpers import fetch_json
 from realestate.scrapers.images import unique_listing_images
 
 _BASE_URL = "https://murapol.pl"
@@ -135,77 +136,91 @@ class MurapolScraper:
             city_slug = normalized.encode("ascii", "ignore").decode("ascii")
             city_slug = re.sub(r"\s+", "-", city_slug.strip())
         if city_slug == "gdansk":
-            return f"{_BASE_URL}/mieszkania/gdansk"
-        return f"{_BASE_URL}/mieszkania"
+            return f"{_BASE_URL}/oferta/gdansk/mieszkania"
+        return f"{_BASE_URL}/oferta"
+
+    def _parse_search_direct(self, html: str, city_slug: str) -> list[RawListing]:
+        """Extract investment slugs directly from rendered HTML."""
+        tree = HTMLParser(html)
+        seen: dict[str, str] = {}
+
+        for link in tree.css("a[href]"):
+            href = link.attributes.get("href", "") or ""
+            if not href:
+                continue
+            path = href.split("?")[0].rstrip("/")
+            flat_match = re.search(r"/oferta/([^/]+)/(murapol-[^/]+)/[^/]+$", path)
+            if not flat_match:
+                continue
+            lc = flat_match.group(1)
+            inv = flat_match.group(2)
+            if city_slug and lc != city_slug:
+                continue
+            seen[inv] = lc
+        return [
+            RawListing(
+                source_id=self.source_id,
+                external_id=inv,
+                url=_absolute_url(f"/oferta/{lc}/{inv}"),
+                title=inv,
+                city=_CITY_MAP.get(lc),
+                market="primary",
+                attributes={"investment": inv},
+            )
+            for inv, lc in seen.items()
+        ]
 
     def parse_search(self, html: str) -> list[RawListing]:
-        tree = HTMLParser(html)
-        listings: list[RawListing] = []
-        seen_ids: set[str] = set()
-
-        for card in tree.css(
-            ".investments-item, [class*=investments-item], "
-            "[class*=card], [class*=Card], [class*=project], [class*=Project], "
-            "[class*=offer], [class*=Offer], [class*=tile], [class*=Tile], "
-            "[class*=listing], [class*=Listing]"
-        ):
-            link = card.css_first("a[href]")
-            href = link.attributes.get("href", "") if link else ""
-            name_el = card.css_first(
-                "h1, h2, h3, h4, [class*=name], [class*=Name], [class*=title], [class*=Title]"
+        city_slug = ""
+        if self._last_city:
+            normalized = unicodedata.normalize(
+                "NFKD", self._last_city.strip().lower().replace("ł", "l")
             )
-            text = name_el.text(strip=True) if name_el else ""
+            city_slug = normalized.encode("ascii", "ignore").decode("ascii")
+            city_slug = re.sub(r"\s+", "-", city_slug.strip())
 
-            if not text:
-                continue
+        # Try direct extraction from rendered HTML first
+        direct = self._parse_search_direct(html, city_slug)
+        if direct:
+            return direct
 
-            url = _absolute_url(href.split("#")[0]) if href else ""
-            ext_id = _investment_from_url(url) or re.sub(r"[^a-z0-9]+", "-", text.lower()).strip(
-                "-"
+        # Detect investment page (redirected from search) via API ID attribute
+        id_match = re.search(r'data-search-investment-id-value="(\d+)"', html)
+        if id_match:
+            inv_slug = None
+            can_re = (
+                r'<link\s+rel="canonical"\s+href="[^"]*'
+                r'/oferta/[^/]+/([^/?"]+)'
             )
+            can_match = re.search(can_re, html)
+            if can_match:
+                inv_slug = can_match.group(1)
+            if not inv_slug:
+                og_re = (
+                    r'<meta\s+property="og:url"\s+content="[^"]*'
+                    r'/oferta/[^/]+/([^/?"]+)'
+                )
+                og_match = re.search(og_re, html)
+                if og_match:
+                    inv_slug = og_match.group(1)
+            if not inv_slug:
+                inv_slug = f"murapol-investment-{id_match.group(1)}"
 
-            if not ext_id or ext_id in seen_ids:
-                continue
-            seen_ids.add(ext_id)
-
-            card_text = card.text(separator=" ", strip=True)
-            city = _city_from_text(card_text)
-
-            if self._last_city:
-                requested = _city_from_text(self._last_city) or self._last_city
-                if city and requested.lower() not in city.lower():
-                    continue
-
-            price_val = _money(card_text)
-            area_val = _area(card_text)
-            rooms_val = _rooms(card_text)
-
-            if price_val is not None and price_val < 1000:
-                price_val = None
-
-            images: list[str] = []
-            for img in card.css("img"):
-                src = _image_url(img)
-                if src and not src.endswith(".svg") and src not in images:
-                    images.append(src)
-
-            listings.append(
+            city = _city_from_text(html) or _CITY_MAP.get(city_slug)
+            url_part = f"/oferta/{city_slug}/{inv_slug}" if city_slug else f"/oferta/{inv_slug}"
+            return [
                 RawListing(
                     source_id=self.source_id,
-                    external_id=ext_id,
-                    url=url or f"{_BASE_URL}/mieszkania",
-                    title=text,
-                    price=price_val,
-                    area_m2=area_val,
-                    rooms=rooms_val,
+                    external_id=inv_slug,
+                    url=_absolute_url(url_part),
+                    title=inv_slug,
                     city=city,
                     market="primary",
-                    images=unique_listing_images(images),
-                    attributes={"investment": ext_id},
+                    attributes={"investment": inv_slug},
                 )
-            )
+            ]
 
-        return listings
+        return []
 
     def _parse_individual_apartments(
         self,
@@ -219,6 +234,10 @@ class MurapolScraper:
         city = _city_from_text(page_text)
         apartments: list[RawListing] = []
 
+        keywords = r"(?:mieszkanie|apartament|flat|cena|oferta|pokoj|metra|powierzchnia)"
+        if not re.search(keywords, page_text[:5000], re.IGNORECASE):
+            return None
+
         for card in tree.css(
             "[class*=flat], [class*=apartment], [class*=offer], "
             "[class*=mieszkanie], [class*=property-card], [class*=listing-card], "
@@ -226,6 +245,11 @@ class MurapolScraper:
         ):
             card_text = card.text(separator=" ", strip=True)
             if len(card_text) < 15:
+                continue
+
+            price = _money(card_text)
+            area_m2 = _area(card_text)
+            if price is None and area_m2 is None:
                 continue
 
             flat_id = card.attributes.get("data-id") or card.attributes.get("data-flat-id")
@@ -236,8 +260,6 @@ class MurapolScraper:
             title_el = card.css_first("h2, h3, h4, [class*=title], [class*=name]")
             title = title_el.text(strip=True) if title_el else f"Mieszkanie {flat_id}"
 
-            price = _money(card_text)
-            area_m2 = _area(card_text)
             rooms = _rooms(card_text)
 
             floor_val = None
@@ -270,8 +292,77 @@ class MurapolScraper:
 
         return apartments if apartments else None
 
+    def _parse_apartments_api(self, html: str, ext_id: str) -> list[RawListing] | None:
+        id_match = re.search(r'data-search-investment-id-value="(\d+)"', html)
+        if not id_match:
+            return None
+        inv_id = id_match.group(1)
+        try:
+            data = fetch_json(
+                f"{_BASE_URL}/api/investment/apartments/{inv_id}?page=1&locale=pl&type=tiles&status=2"
+            )
+        except Exception:
+            return None
+        items = data.get("apartments", []) if isinstance(data, dict) else []
+        if not items:
+            return None
+
+        city = items[0].get("cityName")
+        if city:
+            city_map_vals = {v.lower() for v in _CITY_MAP.values()}
+            if city.lower() not in city_map_vals:
+                city = _city_from_text(html) or _city_from_text(html)
+        inv_name = items[0].get("investmentName", ext_id)
+
+        listings: list[RawListing] = []
+        for apt in items:
+            flat_id = str(apt.get("apartmentId", ""))
+            sku = apt.get("sku", "")
+            price_m2_str = (apt.get("currentPriceM2") or "0").replace(" ", "").replace(",", ".")
+            area_str = (apt.get("area") or "0").replace(",", ".")
+            price_m2 = Decimal(price_m2_str) if price_m2_str and price_m2_str != "0" else None
+            area_m2 = float(area_str) if area_str and area_str != "0" else None
+            price = price_m2 * Decimal(str(area_m2)) if price_m2 and area_m2 else None
+
+            floor_match = re.search(r"(\d+)", apt.get("floor", ""))
+            floor_val = int(floor_match.group(1)) if floor_match else None
+            rooms_val = apt.get("rooms")
+
+            images: list[str] = []
+            cover = apt.get("coverPhotoUrl")
+            if cover:
+                images.append(_absolute_url(cover))
+
+            listings.append(
+                RawListing(
+                    source_id=self.source_id,
+                    external_id=f"{ext_id}-{flat_id}",
+                    url=_absolute_url(apt.get("apartmentUrl", "")),
+                    title=f"{inv_name} {sku}",
+                    price=price,
+                    area_m2=area_m2,
+                    rooms=rooms_val,
+                    floor=floor_val,
+                    city=city or _city_from_text(html),
+                    street=apt.get("street"),
+                    market="primary",
+                    images=unique_listing_images(images),
+                    attributes={
+                        "investment": inv_name,
+                        "flat_id": flat_id,
+                        "sku": sku,
+                        "status": "available" if apt.get("status") == 2 else "unknown",
+                    },
+                )
+            )
+        return listings
+
     def parse_detail(self, html: str, url: str) -> RawListing | list[RawListing]:
         ext_id = _investment_from_url(url) or _slug(url)
+
+        apartments = self._parse_apartments_api(html, ext_id)
+        if apartments:
+            return apartments
 
         apartments = self._parse_individual_apartments(html, url, ext_id)
         if apartments:

@@ -259,8 +259,16 @@ class PBGorskiScraper:
     ) -> list[RawListing] | None:
         """Parse individual apartment cards from a PB Górski investment detail page."""
         tree = HTMLParser(html)
-        city = _city_from_url(url) or _city_from_text(tree.html or "")
+        page_text = tree.body.text(strip=True) if tree.body else ""
+        city = _city_from_url(url) or _city_from_text(page_text)
         apartments: list[RawListing] = []
+
+        # Skip per-m² pricing pages (investment descriptions, not individual flats)
+        if re.search(r"zł/m[²2]|cena.*od.*zł/m", page_text[:5000], re.IGNORECASE):
+            return None
+        keywords = r"(?:mieszkanie|apartament|flat|oferta|pokoje|metra)"
+        if not re.search(keywords, page_text[:5000], re.IGNORECASE):
+            return None
 
         for card in tree.css(
             "[class*=-flat], [class*=-apartment], [class*=offer-card], "
@@ -271,13 +279,14 @@ class PBGorskiScraper:
             if len(card_text) < 10:
                 continue
 
+            price = _money(card_text)
+            area_m2 = _area(card_text)
+            if price is None and area_m2 is None:
+                continue
+
             flat_id = card.attributes.get("data-id") or card.attributes.get("data-flat-id")
             title_el = card.css_first("h2, h3, h4, [class*=title], [class*=name]")
             title = title_el.text(strip=True) if title_el else ""
-
-            # Try to find apartments in rows/table-like structures
-            price = _money(card_text)
-            area_m2 = _area(card_text)
 
             label_rows = card.css("tr, .row, [class*=row]")
             if not label_rows:
@@ -342,6 +351,8 @@ class PBGorskiScraper:
 
                 price = _money(row_text)
                 area_m2 = _area(row_text)
+                if price is None and area_m2 is None:
+                    continue
                 rooms = _rooms(row_text)
                 flat_id = _slug(url) + "-" + str(abs(hash(row_text)) % 10000)
 

@@ -68,15 +68,15 @@ class AdresowoScraper:
         """
         city_slug = slugify_city(criteria.city)
         self._last_city_slug = city_slug
-        base = f"{_BASE_URL}/mieszkania/{city_slug}"
+        base = f"{_BASE_URL}/mieszkania/{city_slug}/"
         if page > 1:
-            base += f"/_l{page}"
+            base += f"_l{page}"
         return base
 
     def _build_tricity_urls(self, page: int = 1) -> list[str]:
         """Build search URLs for all Tricity cities."""
         return [
-            f"{_BASE_URL}/mieszkania/{city}" + (f"/_l{page}" if page > 1 else "")
+            f"{_BASE_URL}/mieszkania/{city}/" + (f"_l{page}" if page > 1 else "")
             for city in _TRICITY_CITIES
         ]
 
@@ -121,7 +121,7 @@ class AdresowoScraper:
                     continue
                 text_after = parent_p.text()
                 if "zł" in text_after and price is None:
-                    price = parse_money(span.text())
+                    price = parse_money(span.text() + " zł")
                 elif "m²" in text_after and area_m2 is None:
                     area_m2 = parse_area(span.text())
                 elif "pok" in text_after and rooms is None:

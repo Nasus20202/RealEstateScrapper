@@ -24,10 +24,15 @@ logger = logging.getLogger(__name__)
 _DETAIL_SOURCES = {
     "otodom",
     "nieruchomosci-online",
+    "adresowo",
     "hossa",
     "develia",
     "domesta",
     "pb-gorski",
+    "murapol",
+    "atal",
+    "robyg",
+    "ekolan",
 }
 
 
