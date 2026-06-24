@@ -1,5 +1,5 @@
 # Frontend SPA — build with pnpm, serve static files with nginx.
-FROM node:24.17.0-alpine AS build
+FROM node:24.18.0-alpine AS build
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
