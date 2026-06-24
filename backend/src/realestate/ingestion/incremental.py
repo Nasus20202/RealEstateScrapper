@@ -97,7 +97,8 @@ class IncrementalEngine:
                 stats.updated += 1
 
         if mark_missing_gone:
-            stats.gone = await repo.mark_gone(source_id, seen_ids, now=now)
+            cities = {lst.city for lst in listings if lst.city}
+            stats.gone = await repo.mark_gone(source_id, seen_ids, now=now, cities=cities or None)
 
         await self.session.flush()
         return stats

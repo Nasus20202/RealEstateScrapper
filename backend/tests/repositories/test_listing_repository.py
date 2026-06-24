@@ -61,6 +61,53 @@ async def test_list_active_and_count(engine):
         assert {r.external_id for r in rows} == {"a1", "a2"}
 
 
+async def test_mark_gone_with_cities_filter(engine):
+    """mark_gone with cities filter only marks listings in those cities."""
+    factory = await _setup(engine)
+    now = datetime.now(UTC)
+    async with factory() as s:
+        repo = ListingRepository(s)
+        await repo.add(_listing(external_id="gda-1", city="Gdańsk"))
+        await repo.add(_listing(external_id="gdy-1", city="Gdynia"))
+        await repo.add(_listing(external_id="noc-1", city=None))
+        await s.commit()
+    # Mark gone with cities={"Gdańsk"}
+    async with factory() as s:
+        repo = ListingRepository(s)
+        gone = await repo.mark_gone("otodom", {"other"}, now=now, cities={"Gdańsk"})
+        await s.commit()
+        assert gone == 1
+    # Verify only Gdańsk listing was marked gone
+    async with factory() as s:
+        repo = ListingRepository(s)
+        gda = await repo.get_by_external("otodom", "gda-1")
+        assert gda.status == ListingStatus.GONE
+        gdy = await repo.get_by_external("otodom", "gdy-1")
+        assert gdy.status == ListingStatus.ACTIVE  # different city — untouched
+        noc = await repo.get_by_external("otodom", "noc-1")
+        assert noc.status == ListingStatus.ACTIVE  # no city — not in filter
+
+
+async def test_mark_gone_without_cities_matches_all(engine):
+    """mark_gone without cities filter marks all active listings (original behaviour)."""
+    factory = await _setup(engine)
+    now = datetime.now(UTC)
+    async with factory() as s:
+        repo = ListingRepository(s)
+        await repo.add(_listing(external_id="gda-1", city="Gdańsk"))
+        await repo.add(_listing(external_id="gdy-1", city="Gdynia"))
+        await s.commit()
+    async with factory() as s:
+        repo = ListingRepository(s)
+        gone = await repo.mark_gone("otodom", {"gda-1"}, now=now)
+        await s.commit()
+        assert gone == 1  # only gdy-1 is missing from keep_ids
+    async with factory() as s:
+        repo = ListingRepository(s)
+        gdy = await repo.get_by_external("otodom", "gdy-1")
+        assert gdy.status == ListingStatus.GONE
+
+
 async def test_list_active_ordering(engine):
     factory = await _setup(engine)
     now = datetime.now(UTC)

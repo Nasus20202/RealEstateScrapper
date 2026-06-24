@@ -485,7 +485,7 @@ async def listing_map_hexes(
             SELECT ST_Expand(ST_Extent(ST_Transform(geom, 3857))::geometry, :size_m) AS geom
             FROM filtered
         ), hexes AS (
-            SELECT h.geom
+            SELECT ST_SetSRID(h.geom, 3857) AS geom
             FROM bounds b
             CROSS JOIN LATERAL ST_HexagonGrid(:size_m, b.geom) AS h
             WHERE b.geom IS NOT NULL

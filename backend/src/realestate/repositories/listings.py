@@ -47,7 +47,14 @@ class ListingRepository:
         rows = (await self.session.execute(stmt)).scalars().all()
         return set(rows)
 
-    async def mark_gone(self, source_id: str, keep_ids: set[str], *, now: datetime) -> int:
+    async def mark_gone(
+        self,
+        source_id: str,
+        keep_ids: set[str],
+        *,
+        now: datetime,
+        cities: set[str] | None = None,
+    ) -> int:
         stmt = (
             update(Listing)
             .where(
@@ -59,5 +66,7 @@ class ListingRepository:
         )
         if keep_ids:
             stmt = stmt.where(Listing.external_id.notin_(keep_ids))
+        if cities:
+            stmt = stmt.where(Listing.city.in_(cities))
         result = await self.session.execute(stmt)
         return result.rowcount

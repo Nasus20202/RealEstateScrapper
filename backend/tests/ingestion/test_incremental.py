@@ -217,6 +217,42 @@ async def test_mark_missing_gone_false_does_not_mark_gone(engine):
         assert listing_b.status == ListingStatus.ACTIVE
 
 
+async def test_mark_gone_respects_city_scope(engine):
+    """mark_missing_gone=True must NOT mark listings from cities not covered by the sync."""
+    factory = await _setup(engine)
+    t1 = datetime.now(UTC)
+    t2 = t1 + timedelta(hours=1)
+
+    # Insert listings from two different cities under the same source
+    async with factory() as session:
+        eng = IncrementalEngine(session)
+        listings = [
+            to_listing(_raw(external_id="gda-1", city="Gdańsk"), now=t1),
+            to_listing(_raw(external_id="gdy-1", city="Gdynia"), now=t1),
+        ]
+        await eng.sync_source("otodom", listings, now=t1)
+        await session.commit()
+
+    # Re-sync only Gdańsk listing — Gdynia listing must stay ACTIVE
+    async with factory() as session:
+        eng = IncrementalEngine(session)
+        stats = await eng.sync_source(
+            "otodom",
+            [to_listing(_raw(external_id="gda-1", city="Gdańsk"), now=t2)],
+            now=t2,
+            mark_missing_gone=True,
+        )
+        await session.commit()
+
+    assert stats.gone == 0  # Gdynia is a different city — not marked gone
+
+    async with factory() as session:
+        repo = ListingRepository(session)
+        gdy = await repo.get_by_external("otodom", "gdy-1")
+        assert gdy is not None
+        assert gdy.status == ListingStatus.ACTIVE
+
+
 async def test_gone_listing_reactivated_on_unchanged_hash_resync(engine):
     """GONE listing that reappears byte-identical must be reactivated (status=ACTIVE).
 
