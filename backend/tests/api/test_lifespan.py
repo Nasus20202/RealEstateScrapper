@@ -11,7 +11,7 @@ async def test_lifespan_sets_state_without_scheduler_by_default(pg_url, monkeypa
         assert app.state.session_factory is not None
         assert app.state.event_bus is not None
         assert app.state.scheduler is not None
-        assert app.state.scheduler.jobs() == []  # domyślnie bez aktywnego joba
+        assert app.state.scheduler.jobs() == []  # no active job by default
 
 
 async def test_lifespan_starts_scheduler_when_enabled(pg_url, monkeypatch):
@@ -25,7 +25,7 @@ async def test_lifespan_starts_scheduler_when_enabled(pg_url, monkeypatch):
         jobs = app.state.scheduler.jobs()
         assert len(jobs) == 1
         assert jobs[0].id == "scrape"
-    # po wyjściu z lifespanu scheduler jest zatrzymany
+    # scheduler is stopped after lifespan exit
     assert app.state.scheduler._scheduler.running is False
 
 

@@ -58,7 +58,7 @@ def _app(engine):
     app.dependency_overrides[get_fetcher_dep] = lambda: _OneSourceFetcher()
     app.dependency_overrides[get_geocoder_dep] = lambda: None
     app.dependency_overrides[get_event_bus_dep] = lambda: EventBus()
-    app.dependency_overrides[get_llm_client_dep] = lambda: None  # degradacja regułowa
+    app.dependency_overrides[get_llm_client_dep] = lambda: None  # rule-based degradation
     return app
 
 
@@ -76,13 +76,13 @@ async def test_full_flow_scrape_list_detail_favorite(engine):
         assert scraped.json()["runs"][0]["status"] == "success"
         assert scraped.json()["runs"][0]["new_count"] >= 20
 
-        # 2) lista (ranking regułowy, bez LLM)
+        # 2) list (rule-based ranking, no LLM)
         listed = await client.get("/listings", params={"limit": 100})
         body = listed.json()
         assert body["total"] >= 20
         first_id = body["items"][0]["id"]
 
-        # 3) szczegóły
+        # 3) details
         detail = await client.get(f"/listings/{first_id}")
         assert detail.status_code == 200
         assert detail.json()["id"] == first_id

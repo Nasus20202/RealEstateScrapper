@@ -9,7 +9,7 @@ from tests.fixtures.loader import load_fixture
 
 
 class _OneSourceFetcher:
-    """Zwraca fixture otodom dla 1. strony, pustą stronę dla kolejnych."""
+    """Returns otodom fixture for page 1, empty page for subsequent pages."""
 
     def __init__(self):
         self.first = True
@@ -29,8 +29,8 @@ async def _schema(engine):
 
 @pytest.fixture(autouse=True)
 def _only_otodom():
-    # ogranicz rejestr do otodom dla determinizmu; snapshot/restore (ten katalog
-    # nie ma globalnego fixture izolującego rejestr — przywróć go sam).
+    # restrict registry to otodom for determinism; snapshot/restore (this directory
+    # has no global fixture isolating the registry — restore it yourself).
     import realestate.scrapers.base as base
     import realestate.scrapers.otodom  # noqa: F401  (rejestruje)
 

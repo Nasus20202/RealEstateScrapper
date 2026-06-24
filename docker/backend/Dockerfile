@@ -1,5 +1,7 @@
-# Backend API (FastAPI + Playwright/chromium) — Python 3.14 via uv.
-FROM ghcr.io/astral-sh/uv:0.11.24-python3.14-trixie-slim
+# Backend API (FastAPI + Playwright/chromium)
+FROM python:3.14.6-slim
+
+COPY --from=ghcr.io/astral-sh/uv:0.11.24 /uv /usr/local/bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

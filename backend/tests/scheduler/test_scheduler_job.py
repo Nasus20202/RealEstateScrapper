@@ -68,7 +68,7 @@ async def test_job_runs_ingest_for_saved_search_with_city(engine):
     processed = await run_scheduled_scrape(factory, _OneSourceFetcher(), bus, max_pages=2)
     assert processed == 1  # tylko wyszukiwanie z miastem
 
-    # zweryfikuj, że powstały oferty
+    # verify that listings were created
     from realestate.repositories.listings import ListingRepository
 
     async with AsyncSession(engine, expire_on_commit=False) as s:

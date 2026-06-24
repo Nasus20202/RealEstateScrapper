@@ -10,7 +10,7 @@ async def test_subscribe_receives_published_event():
         bus.publish({"type": "scrape", "source_id": "otodom"})
         event = await asyncio.wait_for(queue.get(), timeout=1)
         assert event == {"type": "scrape", "source_id": "otodom"}
-    assert bus.subscriber_count == 0  # wyrejestrowano po wyjściu
+    assert bus.subscriber_count == 0  # unregistered after exit
 
 
 async def test_multiple_subscribers_all_receive():
@@ -23,7 +23,7 @@ async def test_multiple_subscribers_all_receive():
 
 async def test_publish_with_no_subscribers_is_noop():
     bus = EventBus()
-    bus.publish({"n": 1})  # nie rzuca
+    bus.publish({"n": 1})  # does not raise
     assert bus.subscriber_count == 0
 
 
@@ -31,6 +31,6 @@ async def test_full_queue_drops_without_error():
     bus = EventBus(max_queue=1)
     async with bus.subscribe() as queue:
         bus.publish({"n": 1})
-        bus.publish({"n": 2})  # kolejka pełna -> drop, brak wyjątku
+        bus.publish({"n": 2})  # queue full -> drop, no exception
         assert (await asyncio.wait_for(queue.get(), 1)) == {"n": 1}
         assert queue.empty()

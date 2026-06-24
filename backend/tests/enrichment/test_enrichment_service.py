@@ -11,7 +11,7 @@ from realestate.models.enums import ListingStatus
 
 
 class _SpyClient:
-    """Liczy wywołania; zwraca stały JSON i deterministyczny embedding."""
+    """Counts calls; returns fixed JSON and deterministic embedding."""
 
     def __init__(self):
         self.complete_calls = 0
@@ -94,7 +94,7 @@ async def test_enrich_is_cached_on_second_call(engine):
         await svc.enrich_listing(listing, now=datetime.now(UTC))
         did2 = await svc.enrich_listing(listing, now=datetime.now(UTC))
         assert did2 is False
-        assert client.complete_calls == 1  # bez ponownego wywołania
+        assert client.complete_calls == 1  # without re-invocation
         count = (await s.execute(select(func.count()).select_from(LLMAnalysis))).scalar_one()
         assert count == 1
 

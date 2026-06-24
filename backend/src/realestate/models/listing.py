@@ -22,8 +22,8 @@ from realestate.config import get_embedding_dim
 from realestate.models.base import Base
 from realestate.models.enums import ListingStatus, MarketType, enum_values
 
-# Wymiar embeddingu czytany bezpośrednio z env, aby import modelu NIE wymagał
-# pełnej konfiguracji (Settings wymaga DATABASE_URL). Jedno źródło wartości: EMBEDDING_DIM.
+# Embedding dimension read directly from env so model import does NOT require
+# full configuration (Settings requires DATABASE_URL). Single source of truth: EMBEDDING_DIM.
 _EMBEDDING_DIM = get_embedding_dim()
 
 

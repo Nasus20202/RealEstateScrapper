@@ -61,7 +61,7 @@ async def test_saved_searches_crud(engine):
         assert any(x["id"] == sid for x in listed.json())
         deleted = await client.delete(f"/searches/{sid}")
         assert deleted.status_code == 204
-        # ponowne usunięcie nieistniejącego → 404
+        # re-deleting non-existent → 404
         assert (await client.delete(f"/searches/{sid}")).status_code == 404
 
 

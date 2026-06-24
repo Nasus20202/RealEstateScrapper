@@ -65,14 +65,14 @@ async def test_hard_filters_and_rule_ranking(engine):
         filters = ListingFilters(max_price=500000, min_rooms=2, districts=["Wrzeszcz", "Oliwa"])
         items, total = await svc.search(filters, limit=10, offset=0)
         ids = [r.listing.external_id for r in items]
-        # cheap (400k, 2pok, Wrzeszcz) pasuje; expensive odpada (cena); toobig odpada (5pok>... nie,
-        # min_rooms=2 ok, ale cena 300k ok, district Wrzeszcz ok) -> faktycznie pasuje!
+        # cheap (400k, 2r, Wrzeszcz) matches; expensive dropped (price); toobig dropped (5r>... no,
+        # min_rooms=2 ok, price 300k ok, district Wrzeszcz ok) -> actually matches!
         assert "cheap" in ids
         assert "toobig" in ids
         assert "expensive" not in ids  # cena > max
         assert "gone" not in ids  # nieaktywne
         assert total == 2
-        # ranking regułowy: price_per_m2 rosnąco -> toobig (2500) przed cheap (8000)
+        # rule-based ranking: price_per_m2 ascending -> toobig (2500) before cheap (8000)
         assert ids[0] == "toobig"
 
 

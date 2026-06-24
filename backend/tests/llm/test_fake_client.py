@@ -15,7 +15,7 @@ async def test_fake_complete_is_deterministic():
     r2 = await client.complete(msgs)
     assert isinstance(r1, LLMResult)
     assert r1.content == r2.content
-    assert r1.content  # niepuste
+    assert r1.content  # non-empty
 
 
 async def test_fake_complete_with_fixed_completion():
@@ -31,5 +31,5 @@ async def test_fake_embed_returns_correct_dim_and_deterministic():
     dim = get_embedding_dim()
     assert len(out1) == 2
     assert all(len(v) == dim for v in out1)
-    assert out1 == out2  # determinizm
-    assert out1[0] != out1[1]  # różne teksty → różne wektory
+    assert out1 == out2  # deterministic
+    assert out1[0] != out1[1]  # different texts → different vectors

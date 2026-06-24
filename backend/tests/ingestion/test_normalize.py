@@ -47,7 +47,7 @@ def test_price_per_m2_none_when_no_price():
 
 def test_raw_hash_stable_and_content_sensitive():
     h1 = compute_raw_hash(_raw())
-    h2 = compute_raw_hash(_raw(images=["a.jpg", "b.jpg"]))  # inna kolejność obrazów
+    h2 = compute_raw_hash(_raw(images=["a.jpg", "b.jpg"]))  # different image order
     h3 = compute_raw_hash(_raw(price=Decimal("700000")))
-    assert h1 == h2  # kolejność obrazów nieistotna (sortowane)
+    assert h1 == h2  # image order irrelevant (sorted)
     assert h1 != h3  # zmiana ceny zmienia hash

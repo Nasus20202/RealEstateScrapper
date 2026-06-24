@@ -66,4 +66,4 @@ async def test_on_run_exception_does_not_break_ingest(engine):
     runs = await svc.ingest(
         SearchCriteria(city="gdansk"), source_ids=["otodom"], max_pages=2, on_run=boom
     )
-    assert len(runs) == 1  # ingestia ukończona mimo wyjątku w hooku
+    assert len(runs) == 1  # ingestion completed despite exception in hook

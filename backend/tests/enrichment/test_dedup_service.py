@@ -18,7 +18,7 @@ class _GroupingClient:
 
         return LLMResult(content=json.dumps({"groups": self._groups}))
 
-    async def embed(self, texts):  # pragma: no cover - nieużywane
+    async def embed(self, texts):  # pragma: no cover - unused
         return [[0.0] for _ in texts]
 
 
@@ -47,7 +47,7 @@ async def test_find_and_persist_groups(engine):
         l1 = await _listing(s, "a")
         l2 = await _listing(s, "b")
         l3 = await _listing(s, "c")
-        client = _GroupingClient([[l1.id, l2.id]])  # l3 sam, nie grupowany
+        client = _GroupingClient([[l1.id, l2.id]])  # l3 alone, not grouped
         svc = DedupService(s, client)
         created = await svc.run([l1, l2, l3], now=datetime.now(UTC))
         assert created == 1
@@ -62,10 +62,10 @@ async def test_filters_singletons_and_unknown_ids(engine):
     async with AsyncSession(engine, expire_on_commit=False) as s:
         l1 = await _listing(s, "a")
         l2 = await _listing(s, "b")
-        client = _GroupingClient([[l1.id], [l2.id, 99999]])  # singleton + obce id
+        client = _GroupingClient([[l1.id], [l2.id, 99999]])  # singleton + foreign id
         svc = DedupService(s, client)
         groups = await svc.find_duplicate_groups([l1, l2])
-        assert groups == []  # [l1] singleton odpada; [l2,99999] -> [l2] singleton odpada
+        assert groups == []  # [l1] singleton dropped; [l2,99999] -> [l2] singleton dropped
 
 
 async def test_null_groups_returns_empty(engine):

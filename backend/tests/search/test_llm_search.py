@@ -53,7 +53,7 @@ async def test_match_and_rank_orders_and_filters():
     )
     cands = [_listing(1), _listing(2)]
     out = await match_and_rank(client, cands, "blisko morza")
-    assert [m.listing_id for m in out] == [2, 1]  # malejąco po score, 999 odfiltrowany
+    assert [m.listing_id for m in out] == [2, 1]  # descending by score, 999 filtered out
     assert all(isinstance(m, RankedMatch) for m in out)
     assert out[0].score == 95
 

@@ -13,7 +13,7 @@ class _FakeFetcher:
 
     async def fetch(self, url: str) -> str:
         self.calls.append(url)
-        # zwróć fixture dla strony 1, pustą listę-stronę dla kolejnych
+        # return fixture for page 1, empty page-list for subsequent pages
         empty_page = (
             '<html><script id="__NEXT_DATA__" type="application/json">'
             '{"props":{"pageProps":{"data":{"searchAds":{"items":[]}}}}}'
@@ -66,16 +66,16 @@ async def test_run_search_collects_and_dedups():
     listings = await run_search(scraper, fetcher, SearchCriteria(city="gdansk"), max_pages=3)
     assert len(listings) >= 20
     ids = [(x.source_id, x.external_id) for x in listings]
-    assert len(ids) == len(set(ids))  # bez duplikatów
+    assert len(ids) == len(set(ids))  # no duplicates
 
 
 @pytest.mark.asyncio
 async def test_run_search_stops_on_empty_page():
     scraper = OtodomScraper()
-    fetcher = _FakeFetcher({})  # każda strona pusta
+    fetcher = _FakeFetcher({})  # every page empty
     listings = await run_search(scraper, fetcher, SearchCriteria(city="gdansk"), max_pages=5)
     assert listings == []
-    # przerwał po pierwszej pustej stronie
+    # stopped after first empty page
     assert len(fetcher.calls) == 1
 
 

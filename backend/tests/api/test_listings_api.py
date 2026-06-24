@@ -63,7 +63,7 @@ def _app(engine):
             yield s
 
     app.dependency_overrides[get_session] = _override_session
-    app.dependency_overrides[get_llm_client_dep] = lambda: None  # degradacja
+    app.dependency_overrides[get_llm_client_dep] = lambda: None  # degradation
     return app
 
 
