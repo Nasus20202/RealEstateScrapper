@@ -1,5 +1,5 @@
 // frontend/src/features/listings/ListingsMap.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import "leaflet.heat";
 import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
@@ -235,20 +235,36 @@ export function ListingsMap({
   onViewport?: (viewport: MapViewport) => void;
 }) {
   const [zoom, setZoom] = useState(11);
-  const located = listings.filter(
-    (l): l is ListingOut & { lat: number; lon: number } => l.lat != null && l.lon != null,
+  const located = useMemo(
+    () =>
+      listings.filter(
+        (l): l is ListingOut & { lat: number; lon: number } => l.lat != null && l.lon != null,
+      ),
+    [listings],
   );
-  const center = averageCenter(located.map((l) => [l.lat, l.lon]));
-  const clusters = clusterListings(located, zoom);
+  const center = useMemo(() => {
+    if (located.length > 0) return averageCenter(located.map((l) => [l.lat, l.lon]));
+    if (hexes.length > 0) return averageCenter(hexes.map(hexCenter));
+    return TRICITY_CENTER;
+  }, [hexes, located]);
+  const clusters = useMemo(() => clusterListings(located, zoom), [located, zoom]);
   const isHeat = metric === "heat_price" || metric === "heat_count";
-  const heatPoints: HeatPoint[] = hexes.length
-    ? hexes.map((hex) => {
-        const [lat, lon] = hexCenter(hex);
-        return [lat, lon, heatIntensity(hex, metric)];
-      })
-    : located.map((listing) => [listing.lat, listing.lon, listingHeatIntensity(listing, metric)]);
+  const heatPoints: HeatPoint[] = useMemo(
+    () =>
+      hexes.length
+        ? hexes.map((hex) => {
+            const [lat, lon] = hexCenter(hex);
+            return [lat, lon, heatIntensity(hex, metric)];
+          })
+        : located.map((listing) => [
+            listing.lat,
+            listing.lon,
+            listingHeatIntensity(listing, metric),
+          ]),
+    [hexes, located, metric],
+  );
 
-  if (located.length === 0) {
+  if (located.length === 0 && hexes.length === 0) {
     return (
       <div className="map-empty">
         Brak ofert ze współrzędnymi do pokazania na mapie. Uruchom scraping z włączonym

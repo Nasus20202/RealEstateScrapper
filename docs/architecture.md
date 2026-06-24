@@ -127,4 +127,5 @@ Location: `backend/src/realestate/api/`.
 - Typed fetch client; plain CSS; Vitest 4 + Testing Library + MSW + jsdom 29.
 - Listing list has three views: default grid, compact tile, and full-width list with description and extra details.
 - Map loads points and hexes only for the visible viewport (`north/south/east/west`), instead of fetching a fixed limit of listings from the entire area.
-- Environment variable: `VITE_API_BASE` (default `http://localhost:8000`).
+- API base defaults to `/api`; nginx and the Vite dev server proxy `/api/...` to the FastAPI backend.
+- Environment variable: `VITE_API_BASE` can override the API base for custom deployments.

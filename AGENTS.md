@@ -22,7 +22,7 @@ Instructions for agents/developers working in this repository.
 - Migrations: `uv run alembic upgrade head` — Alembic does not load `.env` automatically, so `EMBEDDING_DIM` must be set as an environment variable before running this command; the value must match the one used when running the application, otherwise the `listings.embedding` column dimension will be incorrect.
 - App: `uv run uvicorn realestate.api.app:app --reload`
 
-Specifications: `docs/superpowers/specs/`. Plans: `docs/superpowers/plans/`.
+Documentation: `docs/`
 
 ## Frontend
 
@@ -32,7 +32,7 @@ Frontend is a standalone project in the `frontend/` directory (React 19 + Vite 8
 - Dev server: `pnpm --dir frontend dev`
 - Production build: `pnpm --dir frontend build` (= `tsc -b && vite build`)
 - Tests: `pnpm --dir frontend exec vitest run` (Vitest 4 + Testing Library + MSW + jsdom 29)
-- Environment variable: `VITE_API_BASE` — backend address (default `http://localhost:8000`)
+- API base defaults to `/api`; nginx and Vite dev server proxy it to the backend. `VITE_API_BASE` can override this for custom deployments.
 
 ## Documentation
 

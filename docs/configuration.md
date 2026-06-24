@@ -87,6 +87,7 @@ When `SCHEDULER_ENABLED=true`, APScheduler starts in the FastAPI lifespan.
 
 | Variable              | Default | Description                                                                                                                     |
 | --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `API_ROOT_PATH`       | `""`    | Public API path prefix when served behind a stripping proxy. Docker Compose sets this to `/api` so `/api/docs` and `/api/openapi.json` work through nginx. |
 | `CORS_ALLOW_ORIGINS`  | `*`     | Allowed CORS origins for the API (comma-separated list or `*`). Needed when the frontend is served from a different origin than the API (e.g. `web` on `:8080` calling API on `:8000`). |
 
 ---

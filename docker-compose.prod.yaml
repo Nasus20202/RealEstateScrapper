@@ -20,6 +20,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://realestate:realestate@db:5432/realestate
       EMBEDDING_DIM: "${EMBEDDING_DIM:-2048}"
+      API_ROOT_PATH: /api
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-*}"
       LLM_BASE_URL: "${LLM_BASE_URL:-https://openrouter.ai/api/v1}"
       LLM_API_KEY: "${LLM_API_KEY:-}"
@@ -27,8 +28,9 @@ services:
       LLM_EMBEDDING_MODEL: "${LLM_EMBEDDING_MODEL:-}"
       SCHEDULER_ENABLED: "${SCHEDULER_ENABLED:-false}"
       SCHEDULER_DEFAULT_INTERVAL_MINUTES: "${SCHEDULER_DEFAULT_INTERVAL_MINUTES:-360}"
-    ports:
-      - "8000:8000"
+    env_file:
+      - path: backend/.env
+        required: false
     depends_on:
       db:
         condition: service_healthy

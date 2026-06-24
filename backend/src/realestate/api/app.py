@@ -10,7 +10,7 @@ from realestate.api.routes_events import router as events_router
 from realestate.api.routes_listings import router as listings_router
 from realestate.api.routes_scrape import router as scrape_router
 from realestate.api.routes_user import router as user_router
-from realestate.config import get_cors_origins, get_settings
+from realestate.config import get_api_root_path, get_cors_origins, get_settings
 from realestate.db.engine import create_engine, create_session_factory
 from realestate.db.health import check_database
 from realestate.events.bus import EventBus
@@ -79,7 +79,11 @@ def create_app() -> FastAPI:
                 await asyncio.sleep(0)  # let AsyncIOScheduler process shutdown callback
             await engine.dispose()
 
-    app = FastAPI(title="Agregator nieruchomości", lifespan=lifespan)
+    app = FastAPI(
+        title="Agregator nieruchomości",
+        lifespan=lifespan,
+        root_path=get_api_root_path(),
+    )
 
     app.add_middleware(
         CORSMiddleware,

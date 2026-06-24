@@ -20,11 +20,11 @@ Services:
 
 | Service | URL                   | Description                                                   |
 | ------- | --------------------- | ------------------------------------------------------------- |
-| `web`   | http://localhost:8080 | Frontend SPA (nginx)                                          |
-| `api`   | http://localhost:8000 | REST API + SSE; migrations run automatically at startup       |
+| `web`   | http://localhost:8080 | Frontend SPA (nginx) + `/api` reverse proxy                   |
+| `api`   | http://localhost:8000 | Direct REST API + SSE; migrations run automatically at startup|
 | `db`    | localhost:5432        | PostgreSQL 18.4 + pgvector + PostGIS (volume `pgdata`)        |
 
-Verify: `curl http://localhost:8000/health` → `{"status":"ok","database":true}`, and in the browser `http://localhost:8080`.
+Verify: `curl http://localhost:8080/api/health` → `{"status":"ok","database":true}`, and in the browser `http://localhost:8080`. OpenAPI docs are available through nginx at `http://localhost:8080/api/docs`. The backend remains directly reachable at `http://localhost:8000` in the default Compose setup.
 
 **LLM (optional).** Without a key the app runs in degradation mode (rule-based ranking). To enable LLM, create a `.env` file in the project root (Docker Compose loads it automatically for variable interpolation):
 
@@ -124,7 +124,9 @@ pnpm --dir frontend dev
 
 Frontend available at: `http://localhost:5173`
 
-The `VITE_API_BASE` environment variable specifies the backend URL (default `http://localhost:8000`). Example:
+The frontend defaults to the same-origin `/api` path. In Docker, nginx forwards `/api/...` to the backend container and strips the `/api` prefix. In local Vite development, `vite.config.ts` proxies `/api` to `http://localhost:8000`.
+
+Use `VITE_API_BASE` only for custom overrides. Example:
 
 ```bash
 VITE_API_BASE=http://localhost:9000 pnpm --dir frontend dev

@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 
-const BASE = "http://localhost:8000";
+const BASE = "/api";
 
 export const handlers = [
   http.get(`${BASE}/health`, () => HttpResponse.json({ status: "ok", database: "ok" })),

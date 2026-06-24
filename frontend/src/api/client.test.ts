@@ -8,7 +8,7 @@ describe("api client", () => {
   it("builds correct query string with repeated district", async () => {
     let captured = "";
     server.use(
-      http.get("http://localhost:8000/listings", ({ request }) => {
+      http.get("/api/listings", ({ request }) => {
         captured = new URL(request.url).search;
         return HttpResponse.json({ items: [], total: 0 });
       }),
@@ -34,7 +34,7 @@ describe("api client", () => {
 
   it("getListings parses response", async () => {
     server.use(
-      http.get("http://localhost:8000/listings", () =>
+      http.get("/api/listings", () =>
         HttpResponse.json({
           items: [{ id: 1, title: "Ładne 2pok" }],
           total: 1,
@@ -48,7 +48,7 @@ describe("api client", () => {
 
   it("getListing throws typed ApiError on 404", async () => {
     server.use(
-      http.get("http://localhost:8000/listings/999", () =>
+      http.get("/api/listings/999", () =>
         HttpResponse.json({ detail: "listing not found" }, { status: 404 }),
       ),
     );
@@ -59,7 +59,7 @@ describe("api client", () => {
   it("postScrape sends JSON body and parses runs", async () => {
     let body: unknown = null;
     server.use(
-      http.post("http://localhost:8000/scrape", async ({ request }) => {
+      http.post("/api/scrape", async ({ request }) => {
         body = await request.json();
         return HttpResponse.json({ runs: [{ id: 7, source_id: "otodom" }] });
       }),
@@ -72,7 +72,7 @@ describe("api client", () => {
   it("addFavorite POSTs listing_id", async () => {
     let body: unknown = null;
     server.use(
-      http.post("http://localhost:8000/favorites", async ({ request }) => {
+      http.post("/api/favorites", async ({ request }) => {
         body = await request.json();
         return HttpResponse.json(
           { id: 1, listing_id: 42, created_at: "2026-06-21T00:00:00Z" },

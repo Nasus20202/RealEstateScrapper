@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { getMapHexes, getMapPoints, getSettings } from "../../api/client";
 import type { ListingOut, ListingsQuery, MapBoundsQuery, MapHexOut } from "../../api/types";
 import { ListingsMap, type MapMetric, type MapViewport } from "./ListingsMap";
 
-const MAP_LIMIT = 600;
+const DEBOUNCE_MS = 300;
+
+const MAP_LIMIT = 1_000;
 
 function queryFromParams(params: URLSearchParams): ListingsQuery {
   return {
@@ -92,28 +94,48 @@ export function ListingsMapPage() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [viewport, setViewport] = useState<MapViewport | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isHeat = metric === "heat_price" || metric === "heat_count";
 
   const load = useCallback(
     (nextViewport: MapViewport | null) => {
+      if (abortRef.current) abortRef.current.abort();
+
       startTransition(async () => {
         try {
           const baseQuery = queryFromParams(searchParams);
           const bounds = nextViewport ? boundsFromViewport(nextViewport) : {};
           const query = { ...baseQuery, ...bounds };
-          const [res, mapHexes] = await Promise.all([getMapPoints(query), getMapHexes(query)]);
-          setItems(res.items);
-          setHexes(mapHexes);
-          setTotal(res.total);
+          if (isHeat) {
+            const mapHexes = await getMapHexes(query);
+            setHexes(mapHexes);
+            setItems([]);
+            setTotal(0);
+          } else {
+            const res = await getMapPoints(query);
+            setItems(res.items);
+            setHexes([]);
+            setTotal(res.total);
+          }
         } catch (err) {
           setError(err instanceof Error ? err.message : "Błąd pobierania mapy");
         }
       });
     },
-    [searchParams, startTransition],
+    [searchParams, startTransition, isHeat],
   );
 
   useEffect(() => {
-    load(viewport);
+    if (viewport == null) {
+      load(null);
+      return;
+    }
+    debounceRef.current = setTimeout(() => load(viewport), DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [load, viewport]);
 
   useEffect(() => {

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { SettingsPage } from "./SettingsPage";
 import { server } from "../../test/server";
 
-const BASE = "http://localhost:8000";
+const BASE = "/api";
 
 function settings(overrides: Record<string, unknown> = {}) {
   return {

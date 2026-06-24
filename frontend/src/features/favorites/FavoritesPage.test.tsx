@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { FavoritesPage } from "./FavoritesPage";
 import { server } from "../../test/server";
 
-const BASE = "http://localhost:8000";
+const BASE = "/api";
 
 function listing(id: number, title: string) {
   return {

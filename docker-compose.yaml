@@ -26,6 +26,7 @@ services:
       # Inside the compose network the DB host is "db", not localhost.
       DATABASE_URL: postgresql+asyncpg://realestate:realestate@db:5432/realestate
       EMBEDDING_DIM: "${EMBEDDING_DIM:-2048}"
+      API_ROOT_PATH: /api
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-*}"
       # LLM is optional — without a key/model the app degrades to rule-based ranking.
       # Provide these via a local .env file (auto-loaded by docker compose) or your shell.
@@ -35,8 +36,9 @@ services:
       LLM_EMBEDDING_MODEL: "${LLM_EMBEDDING_MODEL:-}"
       SCHEDULER_ENABLED: "${SCHEDULER_ENABLED:-false}"
       SCHEDULER_DEFAULT_INTERVAL_MINUTES: "${SCHEDULER_DEFAULT_INTERVAL_MINUTES:-360}"
-    ports:
-      - "8000:8000"
+    env_file:
+      - path: backend/.env
+        required: false
     depends_on:
       db:
         condition: service_healthy
@@ -45,9 +47,6 @@ services:
     build:
       context: .
       dockerfile: docker/frontend/Dockerfile
-      args:
-        # Baked into the JS bundle; the browser reaches the API on the host port.
-        VITE_API_BASE: "${VITE_API_BASE:-http://localhost:8000}"
     ports:
       - "8080:80"
     depends_on:

@@ -43,6 +43,14 @@ def get_cors_origins() -> list[str]:
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
+def get_api_root_path() -> str:
+    """Public path prefix used when the API is served behind a stripping proxy."""
+    raw = os.getenv("API_ROOT_PATH", "").strip()
+    if raw and not raw.startswith("/"):
+        return f"/{raw}"
+    return raw.rstrip("/")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

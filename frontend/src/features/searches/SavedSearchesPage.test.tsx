@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { SavedSearchesPage } from "./SavedSearchesPage";
 import { server } from "../../test/server";
 
-const BASE = "http://localhost:8000";
+const BASE = "/api";
 
 function LocationProbe() {
   const location = useLocation();

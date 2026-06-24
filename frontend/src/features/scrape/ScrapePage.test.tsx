@@ -8,7 +8,7 @@ import type { ScrapeEvent, ScrapeLogEvent } from "../../api/types";
 import { ScrapePage } from "./ScrapePage";
 import { server } from "../../test/server";
 
-const BASE = "http://localhost:8000";
+const BASE = "/api";
 
 // Mock isolated SSE module — test injects fake.
 let lastHandler: ((event: ScrapeEvent | ScrapeLogEvent) => void) | null = null;

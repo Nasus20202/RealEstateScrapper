@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { server } from "../../test/server";
 import { StatsPage } from "./StatsPage";
 
-const BASE = "http://localhost:8000";
+const BASE = "/api";
 
 describe("StatsPage", () => {
   it("renders summary and aggregations", async () => {

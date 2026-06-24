@@ -27,7 +27,7 @@ Requires only Docker. Sets up the database (PostgreSQL 18.4 + pgvector + PostGIS
 
 ```bash
 docker compose up -d --build
-# Frontend: http://localhost:8080   API: http://localhost:8000   (health: /health)
+# Frontend: http://localhost:8080   API proxy: http://localhost:8080/api   (health: /api/health)
 ```
 
 LLM is optional (without a key, rule-based ranking is used). To enable, add `LLM_API_KEY`/`LLM_MODEL`/`LLM_EMBEDDING_MODEL` to your `.env` file (Compose loads it automatically). Details: [`docs/running.md`](docs/running.md).

@@ -19,7 +19,7 @@ vi.mock("react-leaflet", () => ({
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-const BASE = "http://localhost:8000";
+const BASE = "/api";
 
 function detail(overrides: Record<string, unknown> = {}) {
   return {
