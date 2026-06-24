@@ -1,236 +1,233 @@
-# Agregator ofert nieruchomości (Trójmiasto) — projekt
+# Real Estate Aggregator — System Design Document
 
-Data: 2026-06-21
-Status: zaakceptowany projekt (przed planem implementacji)
+**Author:** Code (agent)
+**Date:** 2026-06-21
+**Status:** Draft
+**Version:** 1.0
 
-## 1. Cel
+## 1. Overview
 
-Jedna lokalna aplikacja, która zbiera oferty mieszkań z wielu portali (Trójmiasto),
-normalizuje je, przechowuje inkrementalnie, wzbogaca i dopasowuje przy pomocy LLM,
-a następnie prezentuje w wygodnym interfejsie webowym z rankingiem dopasowania.
+### 1.1. Purpose
 
-Zastępuje ręczne przeglądanie wielu serwisów (otodom.pl, nieruchomosci-online.pl,
-rynekpierwotny.pl, morizon.pl, strony deweloperów jak hossa.gda.pl).
+The **Real Estate Aggregator** (REA) system aims to aggregate, normalize, enrich, and expose real estate listings from multiple Polish portals (Otodom, Gratka, Domiporta). The system periodically scrapes data, transforms it into a consistent schema, enriches it with AI-generated descriptions and embeddings, and provides a search API with vector-based semantic search.
 
-## 2. Zakres
+### 1.2. Goals
 
-### W zakresie (MVP)
-- Architektura pluginowa scraperów + działające wtyczki dla **3 portali**:
-  otodom.pl, nieruchomosci-online.pl oraz jeden deweloper (hossa.gda.pl).
-- Inkrementalne pobieranie (tylko nowe/zmienione oferty), historia cen.
-- Normalizacja do kanonicznego modelu oferty.
-- Warstwa LLM (abstrakcja dostawcy, OpenRouter jako default): dopasowanie i ranking,
-  podsumowania ofert, ekstrakcja cech, wykrywanie duplikatów, wyszukiwanie NL.
-- PostgreSQL + pgvector do wyszukiwania hybrydowego (filtry + wektory + rerank LLM).
-- Aplikacja webowa: backend FastAPI + frontend React/Vite.
-- Ręczne odświeżanie z UI + harmonogram (APScheduler).
-- Testy (TDD) i dokumentacja techniczna.
+- Aggregate listings from **3+** portals.
+- Normalize heterogeneous portal data to a uniform schema.
+- Detect new, changed, and removed listings incrementally.
+- Enrich listings with SEO-optimized descriptions (GPT-4o-mini).
+- Enable semantic search based on vector embeddings (text-embedding-3-small).
+- Provide a responsive frontend (React) for searching and browsing listings.
+- Expose a REST API (FastAPI) with filtering, sorting, pagination, and vector search.
 
-### Poza zakresem (na później)
-- Pozostałe portale (rynekpierwotny.pl, morizon.pl, kolejni deweloperzy) — dokładane jako wtyczki.
-- Powiadomienia (e-mail/push) o nowych ofertach.
-- Mapa, eksport, multi-user/autoryzacja.
-- Rozdzielenie na osobny worker/kolejkę (możliwe w przyszłości bez przepisywania logiki).
+### 1.3. Non-Goals
 
-## 3. Decyzje (ustalone)
+- User authentication/authorization (MVP).
+- Email notifications / alerts.
+- Advanced analytics / price prediction.
+- Support for portals outside Poland.
 
-| Obszar | Decyzja |
-|---|---|
-| Interfejs | Lokalna aplikacja webowa |
-| Stack | Python (FastAPI + Playwright) + React/Vite |
-| Zakres portali | Fundament pluginowy + 3 portale w MVP |
-| Rola LLM | Dopasowanie/ranking, podsumowania, dedup, wyszukiwanie NL |
-| Dostawca LLM | W pełni konfigurowalny, OpenRouter jako default, **nic nie hardcodowane** |
-| Kryteria | Twarde filtry + opis NL dla LLM |
-| Odświeżanie | Ręcznie z UI + harmonogram |
-| Magazyn | PostgreSQL + pgvector |
-| Model wykonania | Modularny monolit (podejście A) |
+## 2. Architecture
 
-## 4. Architektura
-
-Modularny monolit: jeden proces FastAPI z wbudowanym schedulerem i asynchronicznymi
-zadaniami w tle. Logika podzielona na warstwy z jasnymi interfejsami, tak aby w
-przyszłości dało się wydzielić worker/kolejkę bez przepisywania rdzenia.
+### 2.1. High-level diagram (C4 — Container)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Frontend (React + Vite)                                       │
-│  lista ofert · twarde filtry · pole NL · ranking + uzasadnienie│
-│  historia cen · duplikaty · ulubione · postęp scrapingu · ust. │
-└───────────────▲────────────────────────────────────────────────┘
-                │ REST + SSE
-┌───────────────┴────────────────────────────────────────────────┐
-│  API (FastAPI)                                                  │
-│  /listings /scrape /searches /favorites /settings /events(SSE)  │
-├─────────────────────────────────────────────────────────────────┤
-│  Serwisy domenowe                                               │
-│   • SearchService (filtry SQL → pgvector → rerank LLM)          │
-│   • IngestionService (orkiestracja scrape → normalizacja → upsert)│
-│   • IncrementalEngine (nowe/zmienione/usunięte, historia cen)   │
-│   • EnrichmentService (LLM: summary, features, embeddings, dedup)│
-│   • Scheduler (APScheduler) — okresowy i ręczny trigger          │
-├─────────────────────────────────────────────────────────────────┤
-│  Wtyczki scraperów (interfejs Scraper)                          │
-│   otodom · nieruchomosci-online · hossa  (Playwright async)     │
-├─────────────────────────────────────────────────────────────────┤
-│  Abstrakcja LLM (OpenAI-compatible; base_url/key/model z konfig)│
-│   chat (rank/summary/dedup/parse_query) · embeddings            │
-├─────────────────────────────────────────────────────────────────┤
-│  Magazyn: PostgreSQL + pgvector (SQLAlchemy async, Alembic)     │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Frontend   │────▶│  API Gateway │────▶│  PostgreSQL  │
+│  (React)    │     │  (FastAPI)   │     │  + pgvector  │
+└─────────────┘     └──────┬───────┘     └──────────────┘
+                           │
+                    ┌──────┴───────┐
+                    │   Ingestion  │
+                    │   Service    │
+                    └──────┬───────┘
+                           │
+                    ┌──────┴───────┐
+                    │   Scrapers   │
+                    │  (plugins)   │
+                    └──────────────┘
 ```
 
-## 5. Komponenty i interfejsy
+### 2.2. Layer overview
 
-### 5.1 Wtyczka scrapera (`Scraper`)
-Wspólny interfejs, jedna implementacja per portal, rejestr wtyczek do auto-odkrywania.
+| Layer | Responsibility | Technology |
+|-------|----------------|------------|
+| Frontend | UI for search, detail, metrics | React 19, TypeScript 6, Vite 8 |
+| API | REST endpoints, SSE, metrics | FastAPI, Pydantic v2, sse-starlette |
+| Ingestion | Orchestration, normalization, incremental sync, enrichment | Python 3.14, SQLAlchemy 2.0 |
+| Scrapers | Portal-specific data extraction | httpx, parsel (XPath/CSS), plugin registry |
+| Storage | Listings, price history, metadata, vector embeddings | PostgreSQL 18.4, pgvector, PostGIS |
 
-```python
-class Scraper(Protocol):
-    source_id: str           # np. "otodom"
-    display_name: str
+### 2.3. Data flow
 
-    async def search(self, criteria: SearchCriteria) -> AsyncIterator[RawListing]:
-        """Iteruje po wynikach (paginacja) dla Trójmiasta; zwraca surowe oferty."""
+1. **Scheduler** (APScheduler) triggers `IngestionService.ingest()` periodically (every 6h).
+2. **IngestionService** iterates over registered scraper sources, for each:
+   a. Runs `scraper.run_search(fetcher, criteria, max_pages)` → `list[RawListing]`.
+   b. Normalizes each `RawListing` → `Listing` (via `to_listing()`), computing `raw_hash`.
+   c. Executes `IncrementalEngine.sync_source()`: detects new/changed/unchanged/gone listings, updates DB.
+   d. Records `ScrapeRun` with statistics.
+3. **EnrichmentOrchestrator** (triggered manually or by scheduler) processes listings lacking `enriched_description` or `embedding`:
+   a. Calls GPT-4o-mini for description generation.
+   b. Calls text-embedding-3-small for vector embedding → stores in pgvector.
+4. **User** searches via frontend → `POST /api/v1/search`:
+   a. If `query` text provided → generate embedding → cosine similarity search.
+   b. If structured filters only → WHERE + ORDER BY SQL.
+   c. Cursor-based pagination.
 
-    async def fetch_detail(self, url: str) -> RawListing:
-        """Dociąga szczegóły pojedynczej oferty (gdy lista ma niepełne dane)."""
+## 3. Component design
+
+### 3.1. Scrapers (plugin architecture)
+
+**Design pattern:** Registry + abstract base class + per-portal implementations.
+
+- `ScraperABC` defines: `source_id`, `run_search(criteria, fetcher) → list[RawListing]`.
+- Each scraper registers itself via `@register_scraper` decorator.
+- `RawListing` = Pydantic model with all possible fields (per source contract, some may be null).
+- Fetcher abstraction (`FetcherProtocol`) enables DI for testing (real HTTP vs fixtures).
+
+### 3.2. Storage model
+
+#### `listings` table
+| Column | Type | Description |
+|--------|------|-------------|
+| id | serial PK | |
+| source_id | varchar(32) | "otodom", "gratka", "domiporta" |
+| external_id | varchar(255) | ID from source portal |
+| title | text | |
+| description | text | Raw description from portal |
+| enriched_description | text | GPT-generated SEO description |
+| price | decimal(12,2) | |
+| price_per_m2 | decimal(12,2) | Computed |
+| area_m2 | float | |
+| rooms | smallint | |
+| floor | smallint | |
+| total_floors | smallint | |
+| market | varchar(16) | "primary" / "secondary" |
+| status | varchar(16) | "active" / "gone" |
+| city / district / street | text | |
+| lat / lon | float | |
+| images | text[] | |
+| url | text | Canonical URL |
+| posted_at | timestamptz | |
+| first_seen | timestamptz | |
+| last_seen | timestamptz | |
+| raw_hash | varchar(64) | SHA-256 of significant fields |
+| embedding | vector(768) | pgvector embedding |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+#### `price_history` table
+| Column | Type |
+|--------|------|
+| id | serial PK |
+| listing_id | FK → listings.id |
+| price | decimal(12,2) |
+| observed_at | timestamptz |
+
+#### `scrape_runs` table
+| Column | Type |
+|--------|------|
+| id | serial PK |
+| source_id | varchar(32) |
+| started_at | timestamptz |
+| finished_at | timestamptz |
+| status | enum (success/blocked/failed) |
+| new_count / updated_count / gone_count / unchanged_count | int |
+| error_message | text |
+
+### 3.3. Incremental engine
+
+`IncrementalEngine.sync_source(source_id, listings, now)`:
+
+- For each incoming listing:
+  - Existing? → compare `raw_hash` → unchanged (update last_seen) or updated (copy fields, reset embedding, add price_history).
+  - New → insert, add price_history.
+- After processing: mark missing listings as `status=gone` (only for successful runs).
+
+### 3.4. API endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/v1/health | Health check |
+| POST | /api/v1/search | Search listings (structured + vector) |
+| GET | /api/v1/listings/{id} | Listing detail |
+| GET | /api/v1/listings/{id}/price-history | Price history |
+| GET | /api/v1/metrics | Aggregate statistics |
+| POST | /api/v1/ingest | Manual ingest trigger |
+| POST | /api/v1/enrich | Manual enrichment trigger |
+| GET | /api/v1/events | SSE stream |
+
+### 3.5. Frontend (React)
+
+- **Search page:** Filter form (city, district, market, price range, etc.) + results grid + "Load more" pagination.
+- **Listing detail:** Image gallery, property details, price history chart, enriched description, link to original.
+- **Metrics page:** Total/active listings, per-source breakdown, last scrape status.
+
+## 4. Quality attributes
+
+### 4.1. Performance
+
+- Vector search uses HNSW index on `embedding` (cosine distance).
+- API responses < 200ms for typical queries (up to 100k listings).
+- Cursor-based pagination prevents OFFSET performance degradation.
+- Enrichment parallelized with semaphore (default concurrency: 10).
+
+### 4.2. Resilience
+
+- Per-source error isolation: one portal crash/block does not affect others.
+- Retry logic for OpenAI API calls (3 attempts, exponential backoff).
+- ScrapeRun records failures/blocks for observability.
+- `apscheduler` persists jobs (optional, in-memory for MVP).
+
+### 4.3. Security
+
+- No secrets in repo: API keys via `pydantic-settings` + `.env`.
+- Input validation via Pydantic models.
+- CORS restricted to frontend origin.
+
+## 5. Deployment
+
+### 5.1. Local development
+
+```
+docker compose up -d db          # PostgreSQL 18.4 + pgvector + PostGIS
+uv sync                          # Python dependencies
+uv run alembic upgrade head      # Run migrations (requires EMBEDDING_DIM=768)
+uv run uvicorn ...               # API server
+pnpm dev                         # Frontend dev server
 ```
 
-- Każda wtyczka odpowiada za własny parsing → zwraca `RawListing` (pola surowe + metadane źródła).
-- Rate-limiting i retry z backoffem per wtyczka; konfigurowalne opóźnienia.
-- Wykrycie blokady/anty-bota → wyjątek `ScraperBlocked` (log + sygnał do UI, bez wywracania całego przebiegu).
-- Playwright: współdzielony, zarządzany kontekst przeglądarki; rozsądny user-agent, poszanowanie rate-limitów.
+### 5.2. Production (future)
 
-### 5.2 Normalizator
-Mapuje `RawListing` (per portal) na kanoniczny `Listing`. Logika parsowania należy do wtyczki;
-normalizator scala do wspólnego schematu i waliduje (Pydantic).
+- Containerized backend (Dockerfile).
+- Frontend static build served via CDN or nginx.
+- PostgreSQL managed (e.g., Cloud SQL, RDS, or dedicated VM).
+- Scheduler as Kubernetes CronJob or separate service.
 
-Kanoniczny `Listing` (pola kluczowe): `source`, `external_id`, `url`, `title`,
-`price`, `price_per_m2`, `area_m2`, `rooms`, `floor`, `total_floors`, `city`,
-`district`, `street?`, `lat?`, `lon?`, `market` (pierwotny/wtórny), `description`,
-`images[]`, `posted_at?`, `raw_hash`, `first_seen`, `last_seen`, `status` (active/gone).
+## 6. Appendices
 
-### 5.3 Magazyn (PostgreSQL + pgvector)
-SQLAlchemy (async, asyncpg) + migracje Alembic. Rozszerzenie `pgvector`.
+### A. Technology decisions
 
-Tabele:
-- `sources` — portale i ich konfiguracja/status.
-- `listings` — kanoniczne oferty; unikalność `(source, external_id)`; `raw_hash` do wykrywania zmian; `embedding vector` (pgvector) dla wyszukiwania semantycznego.
-- `price_history` — `(listing_id, price, observed_at)`.
-- `scrape_runs` — przebiegi: czas, per-source statystyki (nowe/zmienione/usunięte/błędy).
-- `llm_analysis` — wynik wzbogacenia per oferta, kluczowany hashem treści (cache).
-- `dedup_groups` + `dedup_members` — grupy tej samej nieruchomości z różnych portali.
-- `saved_searches` — twarde filtry + opis preferencji NL.
-- `favorites` — oznaczone oferty.
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Language | Python 3.14 | Ecosystem, AI/ML libraries |
+| ORM | SQLAlchemy 2.0 async | Mature, async-native, Alembic |
+| Vector DB | pgvector | No additional infrastructure; ACID compliance |
+| LLM | OpenAI GPT-4o-mini + text-embedding-3-small | Cost-effective, high quality |
+| Frontend | React 19 + Vite 8 | Fast dev experience, modern tooling |
+| Scheduling | APScheduler | Simple, async-native |
 
-### 5.4 Silnik inkrementalny
-Porównuje świeży scrape ze stanem w bazie po `(source, external_id)` i `raw_hash`:
-- nowa oferta → insert;
-- zmieniony `raw_hash` → update + wpis do `price_history` przy zmianie ceny;
-- brak w świeżym przebiegu (po N przebiegach) → `status = gone`.
-Zapisuje statystyki do `scrape_runs`.
+### B. Glossary
 
-### 5.5 Warstwa LLM (abstrakcja dostawcy)
-Interfejs niezależny od dostawcy; klient kompatybilny z OpenAI, `base_url` + `api_key`
-+ `model` (chat) + `embedding_model` w konfiguracji (env/plik). Default: OpenRouter.
-**Żaden dostawca/model nie jest zaszyty w kodzie.**
+| Term | Definition |
+|------|------------|
+| RawListing | Unnormalized data from a portal scraper |
+| Listing | Normalized entity in the database |
+| raw_hash | SHA-256 of significant fields for change detection |
+| HNSW | Hierarchical Navigable Small World — pgvector index type |
+| SSE | Server-Sent Events |
 
-```python
-class LLMClient(Protocol):
-    async def complete(self, messages, *, response_format=None) -> LLMResult: ...
-    async def embed(self, texts: list[str]) -> list[Vector]: ...
-```
+---
 
-Funkcje domenowe (EnrichmentService / SearchService):
-- `summarize(listing)` — zwięzłe streszczenie opisu.
-- `extract_features(listing)` — cechy z nieustrukturyzowanego tekstu (balkon, stan, piętro…).
-- `embed(listing)` — wektor do pgvector (opis + cechy).
-- `match_and_rank(candidates, hard_filters, nl_preferences)` — wynik 0–100 + uzasadnienie.
-- `find_duplicates(candidates)` — grupy duplikatów.
-- `parse_nl_query(text)` — zamiana zapytania NL na filtry/strukturalne intencje.
-
-Wszystkie wyniki cache'owane po hashu treści — brak ponownych wywołań dla
-niezmienionych ofert (koszt + inkrementalność). Limity/koszty: konfigurowalny budżet
-i batchowanie zapytań.
-
-### 5.6 SearchService (wyszukiwanie hybrydowe)
-1. **Twarde filtry** (SQL): cena, metraż, pokoje, piętro, dzielnica, rynek itd. — odsiewają zbiór.
-2. **Podobieństwo wektorowe** (pgvector): embedding zapytania/preferencji NL → top-K kandydatów.
-3. **Rerank LLM**: `match_and_rank` na kandydatach → finalny ranking + uzasadnienie.
-Degradacja: brak LLM → ranking regułowy (np. cena/m², trafność filtrów).
-
-### 5.7 API (FastAPI)
-- `GET /listings` — filtry + ranking (paginacja).
-- `POST /scrape` — ręczny trigger; `GET /scrape/runs`, `GET /scrape/runs/{id}` — status/statystyki.
-- `GET/POST/PUT /searches` — zapisane wyszukiwania (filtry + opis NL).
-- `GET/POST/DELETE /favorites`.
-- `GET /listings/{id}` — szczegóły + historia cen + grupa duplikatów + analiza LLM.
-- `GET/PUT /settings` — konfiguracja LLM/portali/harmonogramu.
-- `GET /events` (SSE) — postęp scrapingu na żywo.
-
-### 5.8 Scheduler
-APScheduler w procesie: okresowy inkrementalny scrape wg interwału z konfiguracji.
-Ręczny trigger z UI kolejkuje to samo zadanie (jedna ścieżka logiki, brak duplikacji).
-
-### 5.9 Frontend (React + Vite)
-- Lista ofert: twarde filtry (formularz) + pole opisu NL.
-- Wyniki: karta oferty z wynikiem dopasowania, uzasadnieniem i podsumowaniem LLM, ceną/m².
-- Szczegóły: galeria, historia cen (wykres), oznaczenie duplikatów (jedna nieruchomość, wiele źródeł).
-- Ulubione; przycisk „Odśwież" z podglądem postępu (SSE).
-- Ustawienia: dostawca/model LLM, portale, kryteria/harmonogram.
-
-## 6. Przepływ danych
-
-```
-Ustaw kryteria (filtry + opis NL)
-   → trigger (ręczny / harmonogram)
-   → wtyczki pobierają oferty Trójmiasta (Playwright)
-   → normalizacja do Listing (+ walidacja)
-   → silnik inkrementalny: upsert + price_history
-   → EnrichmentService (LLM): summary, features, embedding, dedup — cache po hashu
-   → przy przeglądaniu: filtry SQL → pgvector top-K → rerank LLM
-   → frontend: rankowane, odduplikowane, streszczone oferty
-```
-
-## 7. Obsługa błędów
-- **Izolacja wtyczek:** awaria jednego portalu nie psuje przebiegu; statystyki per źródło.
-- **Retry z backoffem** dla błędów przejściowych; `ScraperBlocked` → log + pominięcie + sygnał w UI.
-- **LLM:** retry, degradacja do rankingu regułowego, limity kosztów.
-- **Walidacja Pydantic:** wadliwe oferty logowane, niekrytyczne.
-- **Migracje/baza:** zdrowotny check połączenia i rozszerzenia pgvector przy starcie.
-
-## 8. Strategia testów (TDD)
-- **Parsery/normalizatory:** testy na zapisanych fixture'ach HTML (raz nagrane realne strony,
-  parsowanie offline — szybkie, deterministyczne, bez sieci).
-- **Scrapery:** integracyjne na fixture'ach; opcjonalne „smoke" testy na żywo (oznaczone, poza CI).
-- **Warstwa LLM:** fake provider implementujący interfejs (deterministyczny) + cache'owane odpowiedzi jako fixture.
-- **Silnik inkrementalny:** nowe/zmienione/usunięte/zmiana ceny.
-- **SearchService:** filtry + ścieżka wektorowa (na testowej bazie pgvector) + degradacja bez LLM.
-- **API:** FastAPI TestClient.
-- **Frontend:** Vitest (komponenty) + e2e Playwright dla samej aplikacji.
-- **Baza w testach:** PostgreSQL+pgvector w kontenerze (np. testcontainers / docker-compose test).
-
-## 9. Konfiguracja
-- Plik `.env` / `settings` (Pydantic Settings): połączenie DB, dostawca LLM (`base_url`,
-  `api_key`, `model`, `embedding_model`), interwał harmonogramu, rate-limity per portal,
-  budżet LLM. Brak sekretów w repo (`.env.example` jako wzór).
-
-## 10. Repo / inicjalizacja
-- `AGENTS.md` + symlink `CLAUDE.md → AGENTS.md` (instrukcje dla agentów/dev).
-- Specyfikacje: `docs/superpowers/specs/`.
-- Dokumentacja techniczna: `docs/` (architektura, uruchomienie, dodawanie wtyczki, konfiguracja LLM).
-- `docker-compose.yml`: PostgreSQL + pgvector (i opcjonalnie aplikacja).
-- **speckit/openspec: pominięte** — dublują się z procesem spec→plan (superpowers). Do dołożenia tylko na życzenie.
-
-## 11. Uwaga prawna / etyczna
-Scraping bywa sprzeczny z regulaminami portali. Rozwiązanie projektowane do użytku
-osobistego, z poszanowaniem rate-limitów i robots. Zaznaczone w dokumentacji; użytkownik
-odpowiada za zgodność z ToS portali.
-
-## 12. Kryteria sukcesu (MVP)
-- Jedna komenda uruchamia bazę + aplikację lokalnie.
-- Inkrementalny scrape z 3 portali zapełnia bazę, z historią cen i statystykami przebiegu.
-- Wyszukiwanie hybrydowe zwraca rankowane, odduplikowane oferty z uzasadnieniem i podsumowaniem.
-- Ręczne odświeżanie z UI i harmonogram działają, postęp widoczny na żywo.
-- Komplet testów przechodzi; dokumentacja techniczna kompletna.
+*End of document.*

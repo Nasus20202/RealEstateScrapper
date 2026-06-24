@@ -28,16 +28,16 @@ function settings(overrides: Record<string, unknown> = {}) {
 }
 
 describe("SettingsPage", () => {
-  it("pokazuje status klucza jako boolean, nigdy surowego klucza", async () => {
+  it("shows key status as boolean, never raw key", async () => {
     server.use(http.get(`${BASE}/settings`, () => HttpResponse.json(settings())));
     render(<SettingsPage />);
     expect(await screen.findByText("Klucz API: ustawiony")).toBeInTheDocument();
     expect(screen.getByText(/anthropic\/claude/)).toBeInTheDocument();
-    // nie ma pola hasła/klucza
+    // no password/key field present
     expect(document.querySelector('input[type="password"]')).toBeNull();
   });
 
-  it("PUT zapisuje interwał i włączone źródła", async () => {
+  it("PUT saves interval and enabled sources", async () => {
     let body: unknown = null;
     server.use(
       http.get(`${BASE}/settings`, () =>
@@ -53,7 +53,7 @@ describe("SettingsPage", () => {
 
     await userEvent.clear(screen.getByLabelText("Interwał (min)"));
     await userEvent.type(screen.getByLabelText("Interwał (min)"), "120");
-    await userEvent.click(screen.getByLabelText("olx")); // wyłącz olx
+    await userEvent.click(screen.getByLabelText("olx")); // disable olx
     await userEvent.click(screen.getByRole("button", { name: "Zapisz" }));
 
     await waitFor(() =>

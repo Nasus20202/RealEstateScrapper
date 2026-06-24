@@ -83,13 +83,13 @@ function renderHeatMap(listings: ListingOut[]) {
 }
 
 describe("ListingsMap", () => {
-  it("pokazuje stan pusty, gdy żadna oferta nie ma współrzędnych", () => {
+  it("shows empty state when no listings have coordinates", () => {
     renderMap([listing({ id: 1 }), listing({ id: 2 })]);
     expect(screen.getByText(/Brak ofert ze współrzędnymi/)).toBeInTheDocument();
     expect(screen.queryByTestId("map")).not.toBeInTheDocument();
   });
 
-  it("renderuje marker tylko dla ofert ze współrzędnymi", () => {
+  it("renders marker only for listings with coordinates", () => {
     renderMap([
       listing({ id: 1, lat: 54.35, lon: 18.65, title: "Z mapą" }),
       listing({ id: 2, lat: 54.5, lon: 18.5, title: "Też z mapą" }),
@@ -101,7 +101,7 @@ describe("ListingsMap", () => {
     expect(screen.queryByText("Bez mapy")).not.toBeInTheDocument();
   });
 
-  it("pokazuje ceny stale przy markerach i szczegóły w popupie", () => {
+  it("shows prices on markers and details in popup", () => {
     renderMap([listing({ id: 1, lat: 54.35, lon: 18.65, price: 400000 })]);
     expect(screen.getByTestId("tooltip")).toHaveTextContent("400K");
     expect(screen.getByText(/8000 zł\/m²|8 000 zł\/m²/)).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe("ListingsMap", () => {
     expect(screen.getByRole("link", { name: "Szczegóły" })).toHaveAttribute("href", "/listings/1");
   });
 
-  it("grupuje bliskie oferty w jeden marker", () => {
+  it("groups nearby listings into one marker", () => {
     renderMap([
       listing({ id: 1, lat: 54.3501, lon: 18.6501, title: "Pierwsza" }),
       listing({ id: 2, lat: 54.3502, lon: 18.6502, title: "Druga" }),
@@ -120,7 +120,7 @@ describe("ListingsMap", () => {
     expect(screen.getByRole("link", { name: /Druga/ })).toHaveAttribute("href", "/listings/2");
   });
 
-  it("renderuje heatmapę z punktów ofert, gdy API heksów zwróci pusto", async () => {
+  it("renders heatmap from listing points when hex API returns empty", async () => {
     const L = await import("leaflet");
     renderHeatMap([listing({ id: 1, lat: 54.35, lon: 18.65 })]);
     expect(L.default.heatLayer).toHaveBeenCalledWith(

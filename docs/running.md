@@ -1,82 +1,82 @@
-# Uruchomienie środowiska deweloperskiego
+# Running the Development Environment
 
-## Wymagania
+## Requirements
 
-- **Python 3.14** + **uv** — menedżer pakietów i środowisk wirtualnych.
-- **Node.js 22+** i **pnpm** (do frontendu; Vite 8 wymaga nowego Node; w Dockerze używany jest Corepack + pnpm 10.23.0).
-- **Docker** — do uruchomienia bazy danych PostgreSQL (i testów integracyjnych via testcontainers).
+- **Python 3.14** + **uv** — package and virtual environment manager.
+- **Node.js 22+** and **pnpm** (for the frontend; Vite 8 requires modern Node; Docker uses Corepack + pnpm 10.23.0).
+- **Docker** — to run the PostgreSQL database (and integration tests via testcontainers).
 
 ---
 
-## 0. Najszybszy start: cały stack przez Docker Compose
+## 0. Quickest Start: Full Stack via Docker Compose
 
-Jednym poleceniem stawiasz bazę (PostgreSQL 18.4 + pgvector + PostGIS), backend (FastAPI + Playwright) i frontend (nginx). Wymaga tylko Dockera (nie potrzebujesz lokalnie Pythona/Node):
+With a single command you get the database (PostgreSQL 18.4 + pgvector + PostGIS), backend (FastAPI + Playwright) and frontend (nginx). Requires only Docker (no local Python/Node needed):
 
 ```bash
 docker compose up -d --build
 ```
 
-Serwisy:
+Services:
 
-| Serwis | URL                   | Opis                                                            |
-| ------ | --------------------- | --------------------------------------------------------------- |
-| `web`  | http://localhost:8080 | Frontend SPA (nginx)                                            |
-| `api`  | http://localhost:8000 | REST API + SSE; migracje uruchamiane automatycznie przy starcie |
-| `db`   | localhost:5432        | PostgreSQL 18.4 + pgvector + PostGIS (wolumen `pgdata`)         |
+| Service | URL                   | Description                                                   |
+| ------- | --------------------- | ------------------------------------------------------------- |
+| `web`   | http://localhost:8080 | Frontend SPA (nginx)                                          |
+| `api`   | http://localhost:8000 | REST API + SSE; migrations run automatically at startup       |
+| `db`    | localhost:5432        | PostgreSQL 18.4 + pgvector + PostGIS (volume `pgdata`)        |
 
-Sprawdzenie: `curl http://localhost:8000/health` → `{"status":"ok","database":true}`, a w przeglądarce `http://localhost:8080`.
+Verify: `curl http://localhost:8000/health` → `{"status":"ok","database":true}`, and in the browser `http://localhost:8080`.
 
-**LLM (opcjonalnie).** Bez klucza aplikacja działa w trybie degradacji (ranking regułowy). Aby włączyć LLM, utwórz plik `.env` w katalogu projektu (Docker Compose ładuje go automatycznie do interpolacji zmiennych):
+**LLM (optional).** Without a key the app runs in degradation mode (rule-based ranking). To enable LLM, create a `.env` file in the project root (Docker Compose loads it automatically for variable interpolation):
 
 ```bash
 LLM_API_KEY=sk-or-...
 LLM_MODEL=openai/gpt-4o-mini
 LLM_EMBEDDING_MODEL=openai/text-embedding-3-small
-# opcjonalnie: SCHEDULER_ENABLED=true, SCHEDULER_DEFAULT_INTERVAL_MINUTES=360
-# opcjonalnie: CORS_ALLOW_ORIGINS=http://localhost:8080  (domyślnie "*")
+# optional: SCHEDULER_ENABLED=true, SCHEDULER_DEFAULT_INTERVAL_MINUTES=360
+# optional: CORS_ALLOW_ORIGINS=http://localhost:8080  (default "*")
 ```
 
-> **Uwaga o embeddingu:** `EMBEDDING_DIM` (domyślnie 2048) musi pasować do modelu embeddingów. Jeśli go zmienisz po pierwszym uruchomieniu, usuń wolumen i zbuduj schemat na nowo: `docker compose down -v && docker compose up -d --build`.
+> **Note on embeddings:** `EMBEDDING_DIM` (default 2048) must match the embedding model. If you change it after the first run, remove the volume and rebuild the schema: `docker compose down -v && docker compose up -d --build`.
 
-Zatrzymanie: `docker compose down` (zachowuje dane) lub `docker compose down -v` (usuwa wolumen z danymi).
+Shutdown: `docker compose down` (preserves data) or `docker compose down -v` (removes data volume).
 
-Pozostałe sekcje opisują uruchomienie **lokalne bez Dockera** (wygodne do dewelopmentu z hot-reload).
+The remaining sections describe **local setup without Docker** (convenient for development with hot-reload).
 
 ---
 
-## 1. Baza danych
+## 1. Database
 
-Projekt buduje własny obraz `docker/db/Dockerfile` na bazie `postgres:18.4-trixie` i instaluje pakiety `postgresql-18-postgis-3` oraz `postgresql-18-pgvector`.
+The project builds its own image from `docker/db/Dockerfile` based on `postgres:18.4-trixie` and installs `postgresql-18-postgis-3` and `postgresql-18-pgvector`.
 
 ```bash
 docker compose up -d db
 ```
 
-Domyślne połączenie: `postgresql+asyncpg://realestate:realestate@localhost:5432/realestate`.
+Default connection: `postgresql+asyncpg://realestate:realestate@localhost:5432/realestate`.
 
 ---
 
-## 2. Zmienne środowiskowe
+## 2. Environment Variables
 
-Skopiuj plik przykładowy i uzupełnij wartości:
+Copy the sample file and fill in the values:
 
 ```bash
 cp .env.example .env
-# edytuj .env — przynajmniej DATABASE_URL musi być ustawiony
+# edit .env — at least DATABASE_URL must be set
 ```
 
-Minimalne `.env` do uruchomienia bez LLM:
+Minimal `.env` to run without LLM:
 
 ```
 DATABASE_URL=postgresql+asyncpg://realestate:realestate@localhost:5432/realestate
 EMBEDDING_DIM=2048
 ```
 
-Szczegóły wszystkich zmiennych: [`docs/configuration.md`](configuration.md).
+Details of all variables: [`docs/configuration.md`](configuration.md).
 
 ---
 
-## 3. Instalacja zależności
+## 3. Install Dependencies
 
 ```bash
 cd backend
@@ -85,46 +85,46 @@ uv sync --extra dev
 
 ---
 
-## 4. Migracje bazy danych
+## 4. Database Migrations
 
-**Ważne:** Alembic **nie ładuje `.env` automatycznie**. Przed uruchomieniem migracji `EMBEDDING_DIM` musi być ustawiony jako zmienna środowiskowa i musi mieć tę samą wartość, co przy uruchomieniu aplikacji. Niezgodność wymiaru powoduje błąd przy zapisie embeddingów. Migracja PostGIS dodaje `listings.geom`, indeks GiST i trigger synchronizujący `geom` z `lat/lon`.
+**Important:** Alembic **does not load `.env` automatically**. Before running migrations, `EMBEDDING_DIM` must be set as an environment variable with the same value used when running the application. Dimension mismatch causes an error when saving embeddings. The PostGIS migration adds `listings.geom`, a GiST index, and a trigger syncing `geom` from `lat/lon`.
 
 ```bash
 cd backend
 EMBEDDING_DIM=2048 uv run alembic upgrade head
 ```
 
-Aktualny migration head: `0009`.
+Current migration head: `0009`.
 
 ---
 
-## 5. Uruchomienie API (backend)
+## 5. Running the API (backend)
 
 ```bash
 cd backend
 uv run uvicorn realestate.api.app:app --reload
 ```
 
-API dostępne pod: `http://localhost:8000`
+API available at: `http://localhost:8000`
 
-Dokumentacja OpenAPI: `http://localhost:8000/docs`
+OpenAPI docs: `http://localhost:8000/docs`
 
 ---
 
-## 6. Uruchomienie frontendu
+## 6. Running the Frontend
 
-Frontend jest workspace pnpm w katalogu `frontend/`.
+The frontend is a pnpm workspace in the `frontend/` directory.
 
-Stack frontendu: React 18, Vite 8, `@vitejs/plugin-react` 6, TypeScript 6, ESLint 10, Vitest 4 i jsdom 29.
+Frontend stack: React 18, Vite 8, `@vitejs/plugin-react` 6, TypeScript 6, ESLint 10, Vitest 4 and jsdom 29.
 
 ```bash
 pnpm install
 pnpm --dir frontend dev
 ```
 
-Frontend dostępny pod: `http://localhost:5173`
+Frontend available at: `http://localhost:5173`
 
-Zmienna środowiskowa `VITE_API_BASE` określa adres backendu (domyślnie `http://localhost:8000`). Przykład zmiany:
+The `VITE_API_BASE` environment variable specifies the backend URL (default `http://localhost:8000`). Example:
 
 ```bash
 VITE_API_BASE=http://localhost:9000 pnpm --dir frontend dev
@@ -132,9 +132,9 @@ VITE_API_BASE=http://localhost:9000 pnpm --dir frontend dev
 
 ---
 
-## 7. Uruchomienie scrapera
+## 7. Running the Scraper
 
-Po uruchomieniu backendu wyślij żądanie POST:
+After starting the backend, send a POST request:
 
 ```bash
 curl -X POST http://localhost:8000/scrape \
@@ -142,13 +142,13 @@ curl -X POST http://localhost:8000/scrape \
   -d '{"city": "Gdańsk"}'
 ```
 
-Postęp scrapowania w czasie rzeczywistym przez SSE:
+Real-time scraping progress via SSE:
 
 ```bash
 curl http://localhost:8000/events
 ```
 
-Status scrapowania:
+Scraping status:
 
 ```bash
 curl http://localhost:8000/scrape/runs
@@ -156,23 +156,23 @@ curl http://localhost:8000/scrape/runs
 
 ---
 
-## 8. Scheduler (opcjonalny)
+## 8. Scheduler (optional)
 
-Aby automatycznie uruchamiać scraping cyklicznie, ustaw w `.env`:
+To automatically run scraping periodically, set in `.env`:
 
 ```
 SCHEDULER_ENABLED=true
 SCHEDULER_DEFAULT_INTERVAL_MINUTES=360
 ```
 
-Scheduler startuje w lifespan FastAPI i zatrzymuje się przy zamknięciu aplikacji.
+The scheduler starts in the FastAPI lifespan and stops when the application shuts down.
 
 ---
 
-## 9. Szybki start (all-in-one)
+## 9. Quick Start (all-in-one)
 
 ```bash
-# Terminal 1 — baza danych
+# Terminal 1 — database
 docker compose up -d db
 
 # Terminal 2 — backend

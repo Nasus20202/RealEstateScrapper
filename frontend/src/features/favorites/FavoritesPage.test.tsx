@@ -42,7 +42,7 @@ function listing(id: number, title: string) {
 }
 
 describe("FavoritesPage", () => {
-  it("rozwiązuje ulubione do ofert i usuwa", async () => {
+  it("resolves favorites to listings and removes", async () => {
     let deleted = false;
     server.use(
       http.get(`${BASE}/favorites`, () =>

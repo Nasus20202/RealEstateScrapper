@@ -1,19 +1,19 @@
-# Konfiguracja
+# Configuration
 
-Konfiguracja aplikacji odbywa się przez zmienne środowiskowe lub plik `.env` w katalogu głównym projektu (wzór: `.env.example`). Klasa `Settings` w `backend/src/realestate/config.py` używa `pydantic-settings` do walidacji i ładowania ustawień.
+Application configuration uses environment variables or a `.env` file in the project root directory (template: `.env.example`). The `Settings` class in `backend/src/realestate/config.py` uses `pydantic-settings` for validation and loading.
 
-**Sekrety (np. `LLM_API_KEY`) nigdy nie powinny trafiać do repozytorium.** Używaj wyłącznie `.env` (lokalnie) lub zmiennych środowiskowych (CI/produkcja). `GET /settings` **nigdy** nie zwraca wartości `LLM_API_KEY` — zwraca tylko pole `llm_api_key_set` (boolean).
+**Secrets (e.g. `LLM_API_KEY`) must never be committed to the repository.** Use only `.env` (locally) or environment variables (CI/production). `GET /settings` **never** returns the `LLM_API_KEY` value — it only returns the `llm_api_key_set` (boolean) field.
 
 ---
 
-## Baza danych
+## Database
 
-| Zmienna         | Wymagana | Domyślna | Opis                                                                                                                                                     |
-| --------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`  | **tak**  | —        | URL połączenia asyncpg, np. `postgresql+asyncpg://user:pass@localhost:5432/dbname`                                                                       |
-| `EMBEDDING_DIM` | nie      | `2048`   | Wymiar wektora pgvector. **Musi być identyczny przy migracji i przy uruchomieniu aplikacji.** Jedyne źródło prawdy: `get_embedding_dim()` w `config.py`. |
+| Variable         | Required | Default | Description                                                                                                                                                |
+| --------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`  | **yes**  | —       | asyncpg connection URL, e.g. `postgresql+asyncpg://user:pass@localhost:5432/dbname`                                                                         |
+| `EMBEDDING_DIM` | no       | `2048`  | pgvector vector dimension. **Must be identical for migrations and application runtime.** Single source of truth: `get_embedding_dim()` in `config.py`.       |
 
-> **Uwaga:** Alembic nie ładuje `.env`. Przed `alembic upgrade head` ustaw `EMBEDDING_DIM` jako prawdziwą zmienną środowiskową:
+> **Note:** Alembic does not load `.env`. Before `alembic upgrade head`, set `EMBEDDING_DIM` as a real environment variable:
 >
 > ```bash
 > EMBEDDING_DIM=2048 uv run alembic upgrade head
@@ -23,99 +23,92 @@ Konfiguracja aplikacji odbywa się przez zmienne środowiskowe lub plik `.env` w
 
 ## Scraper
 
-| Zmienna                     | Domyślna           | Opis                                                                 |
-| --------------------------- | ------------------ | -------------------------------------------------------------------- |
-| `SCRAPER_USER_AGENT`        | `Mozilla/5.0 …`    | User-Agent dla Playwright                                            |
-| `SCRAPER_MIN_DELAY_SECONDS` | `1.5`              | Minimalne opóźnienie między żądaniami (sekundy)                      |
-| `SCRAPER_NAV_TIMEOUT_MS`    | `30000`            | Timeout nawigacji Playwright (ms)                                    |
-| `SCRAPER_WAIT_UNTIL`        | `domcontentloaded` | Warunek gotowości strony (`load`, `domcontentloaded`, `networkidle`) |
+| Variable                    | Default              | Description                                   |
+| --------------------------- | -------------------- | --------------------------------------------- |
+| `SCRAPER_USER_AGENT`        | `Mozilla/5.0 …`      | User-Agent for Playwright                     |
+| `SCRAPER_MIN_DELAY_SECONDS` | `1.5`                | Minimum delay between requests (seconds)      |
+| `SCRAPER_NAV_TIMEOUT_MS`    | `30000`              | Playwright navigation timeout (ms)            |
+| `SCRAPER_WAIT_UNTIL`        | `domcontentloaded`   | Page readiness condition (`load`, `domcontentloaded`, `networkidle`) |
 
 ---
 
-## Geokodowanie (mapa)
+## Geocoding (map)
 
-Dane ze scraperów nie zawierają współrzędnych, więc adres oferty (ulica/dzielnica/
-miasto) jest geokodowany **przy ingestii** i zapisywany do kolumn `listings.lat`/
-`listings.lon`. Dzięki temu oferty pojawiają się jako pinezki na mapie we frontendzie.
-Domyślny dostawca to [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org)
-(darmowy, bez klucza API). Geokodowanie jest **best-effort** — błąd lub brak wyniku
-nie przerywa scrapowania (oferta po prostu nie ma pinezki).
+Scraper data does not include coordinates, so the listing address (street/district/city) is geocoded **during ingestion** and stored in the `listings.lat`/`listings.lon` columns. This ensures listings appear as pins on the map in the frontend. The default provider is [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org) (free, no API key required). Geocoding is **best-effort** — an error or missing result does not stop scraping (the listing simply has no pin).
 
-| Zmienna                       | Domyślna                                | Opis                                                                                           |
-| ----------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `GEOCODING_ENABLED`           | `true`                                  | Włącz geokodowanie adresów przy ingestii (`true`/`false`). Wyłączenie pomija pinezki na mapie. |
-| `GEOCODING_BASE_URL`          | `https://nominatim.openstreetmap.org`   | URL bazowy usługi geokodującej (API zgodne z Nominatim).                                       |
-| `GEOCODING_USER_AGENT`        | `RealEstateAggregator/1.0 (local tool)` | User-Agent wymagany przez politykę Nominatim.                                                  |
-| `GEOCODING_MIN_DELAY_SECONDS` | `1.0`                                   | Minimalne opóźnienie między żądaniami (throttling — Nominatim wymaga ≤ 1 req/s).               |
-| `GEOCODING_TIMEOUT_SECONDS`   | `10.0`                                  | Timeout pojedynczego żądania geokodowania (sekundy).                                           |
+| Variable                      | Default                                | Description                                                                             |
+| ----------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
+| `GEOCODING_ENABLED`           | `true`                                 | Enable address geocoding during ingestion (`true`/`false`). Disabling skips map pins.   |
+| `GEOCODING_BASE_URL`          | `https://nominatim.openstreetmap.org`  | Base URL of the geocoding service (Nominatim-compatible API).                           |
+| `GEOCODING_USER_AGENT`        | `RealEstateAggregator/1.0 (local tool)`| User-Agent required by Nominatim policy.                                                |
+| `GEOCODING_MIN_DELAY_SECONDS` | `1.0`                                  | Minimum delay between requests (throttling — Nominatim requires ≤ 1 req/s).             |
+| `GEOCODING_TIMEOUT_SECONDS`   | `10.0`                                 | Single geocoding request timeout (seconds).                                             |
 
-> **Uwaga:** wyniki są cache'owane w pamięci procesu wg adresu, więc ponowne
-> scrapowanie tych samych ofert nie odpytuje usługi ponownie. Przy dużych wolumenach
-> rozważ własną instancję Nominatim (`GEOCODING_BASE_URL`).
+> **Note:** results are cached in-memory by address, so re-scraping the same listings does not query the service again. For large volumes, consider running your own Nominatim instance (`GEOCODING_BASE_URL`).
 
 ---
 
 ## LLM
 
-Aplikacja korzysta z OpenAI-compatible API. Domyślny dostawca: [OpenRouter](https://openrouter.ai). LLM jest **wyłączony** (tryb degradacji) jeśli nie są ustawione **wszystkie trzy**: `LLM_API_KEY`, `LLM_MODEL`, `LLM_EMBEDDING_MODEL`.
+The application uses an OpenAI-compatible API. Default provider: [OpenRouter](https://openrouter.ai). LLM is **disabled** (degradation mode) if not **all three** are set: `LLM_API_KEY`, `LLM_MODEL`, `LLM_EMBEDDING_MODEL`.
 
-| Zmienna               | Domyślna                       | Opis                                                                  |
-| --------------------- | ------------------------------ | --------------------------------------------------------------------- |
-| `LLM_BASE_URL`        | `https://openrouter.ai/api/v1` | URL bazowy API (OpenAI-compatible)                                    |
-| `LLM_API_KEY`         | `None`                         | Klucz API (sekret — tylko `.env`, nigdy nie zwracany przez API)       |
-| `LLM_MODEL`           | `None`                         | Model do generowania tekstu (np. `openai/gpt-4o-mini`)                |
-| `LLM_EMBEDDING_MODEL` | `None`                         | Model do obliczania embeddingów (np. `openai/text-embedding-3-small`) |
-| `LLM_TIMEOUT_SECONDS` | `30.0`                         | Timeout żądania do LLM (sekundy)                                      |
-| `LLM_MAX_RETRIES`     | `2`                            | Liczba prób przy błędzie LLM                                          |
+| Variable              | Default                       | Description                                                                    |
+| --------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
+| `LLM_BASE_URL`        | `https://openrouter.ai/api/v1`| Base API URL (OpenAI-compatible)                                               |
+| `LLM_API_KEY`         | `None`                        | API key (secret — `.env` only, never returned by API)                          |
+| `LLM_MODEL`           | `None`                        | Text generation model (e.g. `openai/gpt-4o-mini`)                              |
+| `LLM_EMBEDDING_MODEL` | `None`                        | Embedding model (e.g. `openai/text-embedding-3-small`)                         |
+| `LLM_TIMEOUT_SECONDS` | `30.0`                        | Request timeout to LLM (seconds)                                               |
+| `LLM_MAX_RETRIES`     | `2`                           | Retry count on LLM error                                                       |
 
-Gdy LLM jest wyłączony, system działa z degradacją:
+When LLM is disabled, the system operates with degradation:
 
-- Brak podsumowań i cech (`LLMAnalysis`).
-- Brak embeddingów → brak wyszukiwania semantycznego pgvector.
-- Brak rerankowania wyników.
-- Wyszukiwanie nadal działa przez filtry SQL.
+- No summaries or features (`LLMAnalysis`).
+- No embeddings → no pgvector semantic search.
+- No result reranking.
+- Search still works via SQL filters.
 
 ---
 
-## Scheduler (harmonogram)
+## Scheduler
 
-Ustawienia scheduler (APScheduler):
+Scheduler (APScheduler) settings:
 
-| Zmienna                              | Domyślna | Opis                                                      |
-| ------------------------------------ | -------- | --------------------------------------------------------- |
-| `SCHEDULER_ENABLED`                  | `false`  | Włącz automatyczne cykliczne scrapowanie (`true`/`false`) |
-| `SCHEDULER_DEFAULT_INTERVAL_MINUTES` | `360`    | Interwał między scrape'ami (minuty)                       |
+| Variable                             | Default | Description                                                |
+| ------------------------------------ | ------- | ---------------------------------------------------------- |
+| `SCHEDULER_ENABLED`                  | `false` | Enable automatic periodic scraping (`true`/`false`)        |
+| `SCHEDULER_DEFAULT_INTERVAL_MINUTES` | `360`   | Interval between scrapes (minutes)                         |
 
-Gdy `SCHEDULER_ENABLED=true`, APScheduler startuje w lifespan FastAPI.
+When `SCHEDULER_ENABLED=true`, APScheduler starts in the FastAPI lifespan.
 
 ---
 
 ## API / CORS
 
-| Zmienna              | Domyślna | Opis                                                                                                                                                                      |
-| -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CORS_ALLOW_ORIGINS` | `*`      | Dozwolone originy CORS dla API (lista po przecinku albo `*`). Potrzebne, gdy frontend serwowany jest z innego originu niż API (np. `web` na `:8080` woła API na `:8000`). |
+| Variable              | Default | Description                                                                                                                     |
+| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `CORS_ALLOW_ORIGINS`  | `*`     | Allowed CORS origins for the API (comma-separated list or `*`). Needed when the frontend is served from a different origin than the API (e.g. `web` on `:8080` calling API on `:8000`). |
 
 ---
 
-## Przykładowy plik `.env`
+## Example `.env` File
 
 ```dotenv
-# Wymagane
+# Required
 DATABASE_URL=postgresql+asyncpg://realestate:realestate@localhost:5432/realestate
 
-# Zalecane (musi zgadzać się z migracją)
+# Recommended (must match migration)
 EMBEDDING_DIM=2048
 
-# LLM — opcjonalne, ale wymagane do wzbogacania i wyszukiwania semantycznego
+# LLM — optional, but required for enrichment and semantic search
 LLM_API_KEY=sk-or-...
 LLM_MODEL=openai/gpt-4o-mini
 LLM_EMBEDDING_MODEL=openai/text-embedding-3-small
 
-# Scheduler — domyślnie wyłączony
+# Scheduler — disabled by default
 # SCHEDULER_ENABLED=true
 # SCHEDULER_DEFAULT_INTERVAL_MINUTES=360
 
-# Geokodowanie — domyślnie włączone (Nominatim/OSM). Wyłącz, by pominąć pinezki.
+# Geocoding — enabled by default (Nominatim/OSM). Disable to skip pins.
 # GEOCODING_ENABLED=false
 ```

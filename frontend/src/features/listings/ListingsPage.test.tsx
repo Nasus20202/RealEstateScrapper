@@ -68,7 +68,7 @@ describe("ListingsPage", () => {
     );
   }
 
-  it("renderuje wyniki ze score i reason oraz cenę/m²", async () => {
+  it("renders results with score, reason, and price/m²", async () => {
     setupSettings();
     server.use(
       http.get(`${BASE}/listings`, () => HttpResponse.json({ items: [listing()], total: 1 })),
@@ -82,7 +82,7 @@ describe("ListingsPage", () => {
     expect(screen.getAllByText("otodom").length).toBeGreaterThan(0);
   });
 
-  it("wysyła filtry i NL query jako parametry zapytania", async () => {
+  it("sends filters and NL query as query params", async () => {
     setupSettings();
     let captured = "";
     server.use(
@@ -115,7 +115,7 @@ describe("ListingsPage", () => {
     });
   });
 
-  it("paginacja zwiększa offset", async () => {
+  it("pagination increases offset", async () => {
     setupSettings();
     const offsets: string[] = [];
     server.use(
@@ -133,7 +133,7 @@ describe("ListingsPage", () => {
     await waitFor(() => expect(offsets).toContain("50"));
   });
 
-  it("link prowadzi do szczegółów oferty", async () => {
+  it("link goes to listing details", async () => {
     setupSettings();
     server.use(
       http.get(`${BASE}/listings`, () =>
@@ -146,7 +146,7 @@ describe("ListingsPage", () => {
     within(document.body); // sanity
   });
 
-  it("przełącza widoki: domyślny, kompaktowy i lista", async () => {
+  it("switches views: default, compact, and list", async () => {
     setupSettings();
     server.use(
       http.get(`${BASE}/listings`, () => HttpResponse.json({ items: [listing()], total: 1 })),

@@ -10,7 +10,7 @@ import { server } from "../../test/server";
 
 const BASE = "http://localhost:8000";
 
-// Podmiana izolowanego modułu SSE — test wstrzykuje fake.
+// Mock isolated SSE module — test injects fake.
 let lastHandler: ((event: ScrapeEvent | ScrapeLogEvent) => void) | null = null;
 const unsubscribe = vi.fn();
 vi.mock("../../api/events", () => ({
@@ -64,7 +64,7 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe("ScrapePage", () => {
-  it("renderuje listę ostatnich przebiegów", async () => {
+  it("renders list of recent runs", async () => {
     setupMocks();
     server.use(http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([run()])));
     render(<ScrapePage />);
@@ -73,7 +73,7 @@ describe("ScrapePage", () => {
     expect(await screen.findByText("+3")).toBeInTheDocument();
   });
 
-  it("formularz wysyła POST /scrape z poprawnym body", async () => {
+  it("form sends POST /scrape with correct body", async () => {
     setupMocks();
     let body: unknown = null;
     server.use(
@@ -101,7 +101,7 @@ describe("ScrapePage", () => {
     );
   });
 
-  it("puste miasto uruchamia backendowe miasta domyślne", async () => {
+  it("empty city triggers backend default cities", async () => {
     setupMocks();
     let body: unknown = null;
     server.use(
@@ -125,7 +125,7 @@ describe("ScrapePage", () => {
     expect(body).not.toHaveProperty("city");
   });
 
-  it("panel postępu pokazuje zdarzenia SSE wstrzyknięte przez fake", async () => {
+  it("progress panel shows SSE events injected via fake", async () => {
     setupMocks();
     server.use(http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([])));
     render(<ScrapePage />);

@@ -40,7 +40,7 @@ describe("ListingCard", () => {
     vi.restoreAllMocks();
   });
 
-  it("middle-click otwiera szczegóły w nowej karcie i blokuje autoscroll", () => {
+  it("middle-click opens details in new tab and prevents autoscroll", () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     render(
       <MemoryRouter>

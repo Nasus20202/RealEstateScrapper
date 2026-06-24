@@ -1,59 +1,59 @@
-# Strategia testów
+# Testing Strategy
 
 ## Backend
 
-### Uruchomienie
+### Running
 
 ```bash
 cd backend
 uv run pytest
 ```
 
-### Konfiguracja
+### Configuration
 
-- Framework: **pytest** z pluginem **pytest-asyncio** (tryb `auto` — wszystkie testy async uruchamiane automatycznie).
-- Testy integracyjne i E2E używają **testcontainers** do uruchomienia PostgreSQL 18 + pgvector w izolowanym kontenerze Docker. **Wymagany Docker.** PostGIS jest testowany przez migrację warunkowo: w obrazie testowym bez PostGIS część przestrzenna jest no-op, a runtime compose używa własnego obrazu z PostGIS.
-- Konfiguracja pytest: `pyproject.toml` (sekcja `[tool.pytest.ini_options]`).
+- Framework: **pytest** with **pytest-asyncio** plugin (`auto` mode — all async tests run automatically).
+- Integration and E2E tests use **testcontainers** to run PostgreSQL 18 + pgvector in an isolated Docker container. **Docker required.** PostGIS is tested via conditional migration: in the test image without PostGIS, the spatial part is no-op, and the runtime compose uses its own image with PostGIS.
+- pytest config: `pyproject.toml` (section `[tool.pytest.ini_options]`).
 
-### Struktura testów
+### Test Structure
 
 ```
 tests/
-├── conftest.py              # Fixtures globalne (baza, silnik, sesja)
-├── test_config.py           # Testy konfiguracji (Settings)
-├── test_smoke.py            # Smoke testy (import, zdrowie)
-├── test_docs_present.py     # Obecność plików dokumentacji
-├── api/                     # Testy HTTP endpointów (FastAPI TestClient)
-├── db/                      # Testy modeli i migracji
-├── e2e/                     # Testy end-to-end przez HTTP na realnej pg18
-├── enrichment/              # Testy EnrichmentService, DedupService
-├── events/                  # Testy EventBus / SSE
-├── fixtures/data/           # Spakowane (gzip) HTML fixtures dla scraperów
-├── ingestion/               # Testy IncrementalEngine
-├── llm/                     # Testy LLMClient, FakeLLM
-├── repositories/            # Testy warstwy dostępu do danych
-├── scheduler/               # Testy harmonogramu
-├── scrapers/                # Testy offline wtyczek scraperów
-└── search/                  # Testy SearchService (hybrydowe wyszukiwanie)
+├── conftest.py              # Global fixtures (database, engine, session)
+├── test_config.py           # Configuration tests (Settings)
+├── test_smoke.py            # Smoke tests (imports, health)
+├── test_docs_present.py     # Documentation file presence
+├── api/                     # HTTP endpoint tests (FastAPI TestClient)
+├── db/                      # Model and migration tests
+├── e2e/                     # End-to-end tests via HTTP on real pg18
+├── enrichment/              # EnrichmentService, DedupService tests
+├── events/                  # EventBus / SSE tests
+├── fixtures/data/           # Gzipped HTML fixtures for scrapers
+├── ingestion/               # IncrementalEngine tests
+├── llm/                     # LLMClient, FakeLLM tests
+├── repositories/            # Data access layer tests
+├── scheduler/               # Scheduler tests
+├── scrapers/                # Offline scraper plugin tests
+└── search/                  # SearchService tests (hybrid search)
 ```
 
-### Markery
+### Markers
 
-Testy oznaczone `@pytest.mark.live` wymagają zewnętrznego dostępu sieciowego (np. prawdziwe scraping) i są domyślnie pominięte. Uruchom je jawnie:
+Tests marked `@pytest.mark.live` require external network access (e.g. real scraping) and are skipped by default. Run them explicitly:
 
 ```bash
 cd backend
 uv run pytest -m live
 ```
 
-### Testcontainers i Docker
+### Testcontainers and Docker
 
-Testy integracyjne uruchamiają kontener `pgvector/pgvector:pg18` przez testcontainers. Kontener startuje raz per sesja pytest (fixture o zasięgu `session`). Runtime Docker Compose używa osobnego obrazu `docker/db/Dockerfile` na bazie `postgres:18.4-trixie` z PostGIS i pgvector. Wymagane:
+Integration tests start a `pgvector/pgvector:pg18` container via testcontainers. The container starts once per pytest session (session-scoped fixture). The runtime Docker Compose uses a separate `docker/db/Dockerfile` based on `postgres:18.4-trixie` with PostGIS and pgvector. Requirements:
 
-1. Działający Docker daemon.
-2. Dostęp do Docker Hub (lub lokalny obraz `pgvector/pgvector:pg18`).
+1. Running Docker daemon.
+2. Access to Docker Hub (or a local `pgvector/pgvector:pg18` image).
 
-Przy pierwszym uruchomieniu Docker pobiera obraz — może to potrwać chwilę.
+On first run, Docker pulls the image — this may take a while.
 
 ### Lint
 
@@ -62,29 +62,29 @@ cd backend
 uv run ruff check .
 ```
 
-Ruff musi być czysty przed każdym commitem. Konfiguracja: `pyproject.toml` (sekcja `[tool.ruff]`).
+Ruff must be clean before every commit. Configuration: `pyproject.toml` (section `[tool.ruff]`).
 
 ### Pyright / type-checking
 
-**Znane false-positives:** Pyright zgłasza błędy importów dla projektów z układem `backend/src/` (src-layout). Te błędy są fałszywe alerty — nie blokują działania. **Bramka jakości** to ruff + pytest, nie Pyright.
+**Known false positives:** Pyright reports import errors for projects with the `backend/src/` layout (src-layout). These errors are false alerts — they do not block functionality. **Quality gate** is ruff + pytest, not Pyright.
 
 ---
 
 ## Frontend
 
-### Uruchomienie testów
+### Running Tests
 
 ```bash
 pnpm --dir frontend exec vitest run
 ```
 
-Flaga `--run` uruchamia vitest w trybie jednorazowym (nie watch).
+The `--run` flag runs vitest in single-run mode (not watch).
 
-### Konfiguracja
+### Configuration
 
-- Framework: **Vitest 4** + **@testing-library/react** + **MSW** (Mock Service Worker do mockowania API).
-- Środowisko: jsdom 29.
-- TypeScript: `tsc -b` nie blokuje testów, ale `pnpm --dir frontend build` (= `tsc -b && vite build`) musi przechodzić.
+- Framework: **Vitest 4** + **@testing-library/react** + **MSW** (Mock Service Worker for API mocking).
+- Environment: jsdom 29.
+- TypeScript: `tsc -b` does not block tests, but `pnpm --dir frontend build` (= `tsc -b && vite build`) must pass.
 
 ### Build
 
@@ -92,19 +92,19 @@ Flaga `--run` uruchamia vitest w trybie jednorazowym (nie watch).
 pnpm --dir frontend build
 ```
 
-Build weryfikuje poprawność TypeScript i generuje artefakty produkcyjne w `frontend/dist/`.
+Build validates TypeScript correctness and generates production artifacts in `frontend/dist/`.
 
-### Struktura testów
+### Test Structure
 
-Testy są umieszczone obok komponentów w `frontend/src/` lub w `frontend/src/__tests__/`. MSW `handlers` mockują endpointy backendowe — testy frontendu nie wymagają uruchomionego backendu.
+Tests are placed next to components in `frontend/src/` or in `frontend/src/__tests__/`. MSW `handlers` mock backend endpoints — frontend tests do not require a running backend.
 
 ---
 
-## Podsumowanie bramek jakości
+## Quality Gate Summary
 
-| Komenda | Cel | Wymagany Docker |
+| Command | Purpose | Docker Required |
 |---|---|---|
-| `uv run pytest` | Backend: wszystkie testy integracyjne i jednostkowe | tak (testcontainers) |
-| `uv run ruff check .` | Lint Python | nie |
-| `pnpm --dir frontend exec vitest run` | Frontend: Vitest | nie |
-| `pnpm --dir frontend build` | Weryfikacja TypeScript + build | nie |
+| `uv run pytest` | Backend: all integration and unit tests | yes (testcontainers) |
+| `uv run ruff check .` | Python lint | no |
+| `pnpm --dir frontend exec vitest run` | Frontend: Vitest | no |
+| `pnpm --dir frontend build` | TypeScript validation + build | no |

@@ -69,7 +69,7 @@ function renderAt(id: number) {
 }
 
 describe("ListingDetailPage", () => {
-  it("renderuje pola, galerię, historię cen, podsumowanie i duplikaty", async () => {
+  it("renders fields, gallery, price history, summary, and duplicates", async () => {
     server.use(
       http.get(`${BASE}/listings/7`, () => HttpResponse.json(detail())),
       http.get(`${BASE}/favorites`, () => HttpResponse.json([])),
@@ -92,7 +92,7 @@ describe("ListingDetailPage", () => {
     );
   });
 
-  it("otwiera galerię w powiększeniu i pozwala przejść do następnego zdjęcia", async () => {
+  it("opens gallery in lightbox and navigates to next photo", async () => {
     server.use(
       http.get(`${BASE}/listings/7`, () => HttpResponse.json(detail())),
       http.get(`${BASE}/favorites`, () => HttpResponse.json([])),
@@ -111,7 +111,7 @@ describe("ListingDetailPage", () => {
     );
   });
 
-  it("przełącznik ulubionych dodaje ofertę", async () => {
+  it("favorite toggle adds listing", async () => {
     let posted: unknown = null;
     server.use(
       http.get(`${BASE}/listings/7`, () => HttpResponse.json(detail())),
@@ -131,7 +131,7 @@ describe("ListingDetailPage", () => {
     expect(await screen.findByRole("button", { name: /Usuń z ulubionych/ })).toBeInTheDocument();
   });
 
-  it("pokazuje komunikat przy 404", async () => {
+  it("shows message on 404", async () => {
     server.use(
       http.get(`${BASE}/listings/123`, () =>
         HttpResponse.json({ detail: "listing not found" }, { status: 404 }),

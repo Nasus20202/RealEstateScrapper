@@ -5,7 +5,7 @@ import { addFavorite, ApiError, getListing, getListings, postScrape } from "./cl
 import { server } from "../test/server";
 
 describe("api client", () => {
-  it("buduje poprawny query string z powtarzalnym district", async () => {
+  it("builds correct query string with repeated district", async () => {
     let captured = "";
     server.use(
       http.get("http://localhost:8000/listings", ({ request }) => {
@@ -32,7 +32,7 @@ describe("api client", () => {
     expect(params.get("offset")).toBe("0");
   });
 
-  it("getListings parsuje odpowiedź", async () => {
+  it("getListings parses response", async () => {
     server.use(
       http.get("http://localhost:8000/listings", () =>
         HttpResponse.json({
@@ -46,7 +46,7 @@ describe("api client", () => {
     expect(res.items[0].title).toBe("Ładne 2pok");
   });
 
-  it("getListing rzuca typowany ApiError przy 404", async () => {
+  it("getListing throws typed ApiError on 404", async () => {
     server.use(
       http.get("http://localhost:8000/listings/999", () =>
         HttpResponse.json({ detail: "listing not found" }, { status: 404 }),
@@ -56,7 +56,7 @@ describe("api client", () => {
     await expect(getListing(999)).rejects.toMatchObject({ status: 404 });
   });
 
-  it("postScrape wysyła JSON body i parsuje runs", async () => {
+  it("postScrape sends JSON body and parses runs", async () => {
     let body: unknown = null;
     server.use(
       http.post("http://localhost:8000/scrape", async ({ request }) => {
@@ -69,7 +69,7 @@ describe("api client", () => {
     expect(res.runs[0].id).toBe(7);
   });
 
-  it("addFavorite POSTuje listing_id", async () => {
+  it("addFavorite POSTs listing_id", async () => {
     let body: unknown = null;
     server.use(
       http.post("http://localhost:8000/favorites", async ({ request }) => {

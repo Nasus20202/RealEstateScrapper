@@ -1,67 +1,67 @@
-# Agregator ofert nieruchomości (Trójmiasto)
+# Real Estate Listing Aggregator (Tricity)
 
-Lokalna aplikacja agregująca oferty mieszkań z wielu portali nieruchomości w Trójmieście (Gdańsk, Gdynia, Sopot). Pipeline: scraping Playwright → normalizacja z deduplikacją (`raw_hash`) → PostgreSQL 18.4 + pgvector + PostGIS → wzbogacanie LLM (podsumowania, cechy, embeddingi, dedup) → wyszukiwanie hybrydowe (filtry SQL → pgvector top-K → rerank LLM) i agregacje mapowe PostGIS → FastAPI REST + SSE → React/Vite/TS SPA.
+Aggregates apartment listings from real estate portals in the Tricity area (Gdańsk, Gdynia, Sopot). Scrapes listings, enriches them with LLM-generated summaries and features, and provides a hybrid search API with a React frontend.
 
 ---
 
-## Architektura
+## Architecture
 
-Szczegółowy opis warstw: [`docs/architecture.md`](docs/architecture.md).
+Detailed layer description: [`docs/architecture.md`](docs/architecture.md).
 
-Krótki przegląd:
+Quick overview:
 
-1. **Scrapery** — wtyczki Playwright (`otodom`, `nieruchomosci-online`, `hossa`), protokół `Scraper`, rejestr `register()`.
-2. **Normalizacja** — unikalne `raw_hash`, zapis do PostgreSQL przez `IncrementalEngine`.
-3. **Wzbogacanie LLM** — `EnrichmentService` (podsumowania, cechy), `DedupService` (grupy duplikatów), embeddingi pgvector.
-4. **Wyszukiwanie hybrydowe** — `SearchService`: filtry SQL → pgvector top-K → LLM rerank; degradacja przy braku LLM.
-5. **API** — FastAPI REST + SSE (`/events`), scheduler APScheduler.
+1. **Scrapers** — Playwright plugins (`otodom`, `nieruchomosci-online`, `hossa`), `Scraper` protocol, `register()` registry.
+2. **Normalization** — unique `raw_hash`, write to PostgreSQL via `IncrementalEngine`.
+3. **LLM Enrichment** — `EnrichmentService` (summaries, features), `DedupService` (duplicate groups), pgvector embeddings.
+4. **Hybrid Search** — `SearchService`: SQL filters → pgvector top-K → LLM rerank; degradation when LLM unavailable.
+5. **API** — FastAPI REST + SSE (`/events`), APScheduler scheduler.
 6. **Frontend** — React 19 + Vite 8 + TypeScript 6 SPA.
 
 ---
 
-## Uruchomienie
+## Running
 
-### Najszybciej: cały stack przez Docker Compose
+### Fastest: full stack via Docker Compose
 
-Wymaga tylko Dockera. Stawia bazę (PostgreSQL 18.4 + pgvector + PostGIS), backend (FastAPI + Playwright, migracje uruchamiane automatycznie) i frontend (nginx):
+Requires only Docker. Sets up the database (PostgreSQL 18.4 + pgvector + PostGIS), backend (FastAPI + Playwright, migrations run automatically) and frontend (nginx):
 
 ```bash
 docker compose up -d --build
 # Frontend: http://localhost:8080   API: http://localhost:8000   (health: /health)
 ```
 
-LLM jest opcjonalny (bez klucza działa ranking regułowy). Aby włączyć, dodaj `LLM_API_KEY`/`LLM_MODEL`/`LLM_EMBEDDING_MODEL` do pliku `.env` (Compose ładuje go automatycznie). Szczegóły: [`docs/running.md`](docs/running.md).
+LLM is optional (without a key, rule-based ranking is used). To enable, add `LLM_API_KEY`/`LLM_MODEL`/`LLM_EMBEDDING_MODEL` to your `.env` file (Compose loads it automatically). Details: [`docs/running.md`](docs/running.md).
 
-### Lokalnie (dev, z hot-reload)
+### Local development (with hot-reload)
 
-Skrócona instrukcja dla środowiska deweloperskiego. Pełna dokumentacja: [`docs/running.md`](docs/running.md).
+Short guide for the dev environment. Full documentation: [`docs/running.md`](docs/running.md).
 
 ```bash
-# 1. Baza danych
+# 1. Database
 docker compose up -d db
 
-# 2. Migracje (EMBEDDING_DIM musi być ustawiony jako zmienna środowiskowa)
+# 2. Migrations (EMBEDDING_DIM must be set as an environment variable)
 cd backend
 EMBEDDING_DIM=2048 uv run alembic upgrade head
 
 # 3. Backend
 uv run uvicorn realestate.api.app:app --reload
 
-# 4. Frontend (w osobnym terminalu)
+# 4. Frontend (in a separate terminal)
 pnpm install && pnpm --dir frontend dev
 ```
 
 ---
 
-## Konfiguracja
+## Configuration
 
-Szczegółowy opis zmiennych: [`docs/configuration.md`](docs/configuration.md).
+Detailed variable description: [`docs/configuration.md`](docs/configuration.md).
 
-Konfiguracja przez plik `.env` (wzór: `.env.example`) i zmienne środowiskowe. Klucz LLM (`LLM_API_KEY`) jest wymagany do wzbogacania — bez niego system działa w trybie degradacji (bez embeddingów i rerankowania). `GET /settings` **nigdy** nie zwraca `LLM_API_KEY`, tylko pole `llm_api_key_set` (boolean).
+Configuration via `.env` file (template: `.env.example`) and environment variables. An LLM key (`LLM_API_KEY`) is required for enrichment — without it the system runs in degraded mode (no embeddings or reranking). `GET /settings` **never** returns `LLM_API_KEY`, only the `llm_api_key_set` field (boolean).
 
 ---
 
-## Testy
+## Tests
 
 ```bash
 # Backend
@@ -69,20 +69,20 @@ cd backend
 uv run pytest
 uv run ruff check .
 
-# Frontend (z katalogu frontend/)
+# Frontend (from frontend/ directory)
 pnpm --dir frontend exec vitest run
 pnpm --dir frontend build
 ```
 
-Testy backendowe wymagają Dockera (testcontainers uruchamia pg18+pgvector; PostGIS jest no-op w tym obrazie testowym). Szczegóły: [`docs/testing.md`](docs/testing.md).
+Backend tests require Docker (testcontainers starts pg18+pgvector; PostGIS is no-op in this test image). Details: [`docs/testing.md`](docs/testing.md).
 
 ---
 
-## Dokumentacja
+## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — architektura warstw, przepływ danych
-- [`docs/running.md`](docs/running.md) — pełna instrukcja uruchomienia (wymagania, baza, migracje, API, frontend)
-- [`docs/configuration.md`](docs/configuration.md) — wszystkie zmienne konfiguracyjne
-- [`docs/adding-a-scraper.md`](docs/adding-a-scraper.md) — jak dodać nową wtyczkę scrapera
-- [`docs/testing.md`](docs/testing.md) — strategia testów, markery, lint
-- [`docs/scrapers-field-contract.md`](docs/scrapers-field-contract.md) — kontrakt pól `RawListing` per źródło
+- [`docs/architecture.md`](docs/architecture.md) — layered architecture, data flow
+- [`docs/running.md`](docs/running.md) — full setup instructions (requirements, database, migrations, API, frontend)
+- [`docs/configuration.md`](docs/configuration.md) — all configuration variables
+- [`docs/adding-a-scraper.md`](docs/adding-a-scraper.md) — how to add a new scraper plugin
+- [`docs/testing.md`](docs/testing.md) — test strategy, markers, lint
+- [`docs/scrapers-field-contract.md`](docs/scrapers-field-contract.md) — `RawListing` field contract per source

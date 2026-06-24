@@ -1,41 +1,41 @@
-# Architektura systemu
+# System Architecture
 
-## Warstwy
+## Layers
 
-System zbudowany jest z kilku wyraźnie oddzielonych warstw:
+The system is built from several clearly separated layers:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Scrapery (Playwright)                                          │
+│  Scrapers (Playwright)                                          │
 │  otodom · nieruchomosci-online · hossa                          │
-│  Protokół: Scraper · Rejestr: register()                        │
+│  Protocol: Scraper · Registry: register()                        │
 └────────────────────────────┬────────────────────────────────────┘
                              │ RawListing
 ┌────────────────────────────▼────────────────────────────────────┐
-│  Normalizacja / IncrementalEngine                               │
-│  raw_hash → pominięcie duplikatów → INSERT/UPDATE               │
+│  Normalization / IncrementalEngine                               │
+│  raw_hash → skip duplicates → INSERT/UPDATE                      │
 └────────────────────────────┬────────────────────────────────────┘
                              │ Listing (PostgreSQL)
 ┌────────────────────────────▼────────────────────────────────────┐
-│  Magazyn — PostgreSQL 18.4 + pgvector + PostGIS                 │
+│  Storage — PostgreSQL 18.4 + pgvector + PostGIS                  │
 │  Source, Listing, PriceHistory, ScrapeRun                       │
 │  LLMAnalysis, DedupGroup, DedupMember                          │
 │  SavedSearch, Favorite, AppSetting                              │
 └────────────────────────────┬────────────────────────────────────┘
                              │
 ┌────────────────────────────▼────────────────────────────────────┐
-│  Wzbogacanie LLM                                                │
+│  LLM Enrichment                                                │
 │  LLMClient (OpenAI-compat / FakeLLM)                            │
-│  EnrichmentService — podsumowania, cechy, embeddingi            │
-│  DedupService — grupy semantycznych duplikatów                  │
+│  EnrichmentService — summaries, features, embeddings            │
+│  DedupService — semantic duplicate groups                       │
 └────────────────────────────┬────────────────────────────────────┘
                              │ pgvector embeddings
 ┌────────────────────────────▼────────────────────────────────────┐
-│  Wyszukiwanie hybrydowe — SearchService                         │
-│  1. Filtry SQL (city, district, price, area, rooms, market)     │
-│  2. pgvector top-K (cosine similarity, zapytanie NL)            │
-│  3. LLM rerank (opcjonalny)                                     │
-│  Degradacja: bez LLM → filtry SQL + pgvector bez rerankowania  │
+│  Hybrid Search — SearchService                                   │
+│  1. SQL filters (city, district, price, area, rooms, market)    │
+│  2. pgvector top-K (cosine similarity, NL query)                │
+│  3. LLM rerank (optional)                                       │
+│  Degradation: no LLM → SQL filters + pgvector without rerank    │
 └────────────────────────────┬────────────────────────────────────┘
                              │ JSON
 ┌────────────────────────────▼────────────────────────────────────┐
@@ -46,85 +46,85 @@ System zbudowany jest z kilku wyraźnie oddzielonych warstw:
                              │ HTTP / SSE
 ┌────────────────────────────▼────────────────────────────────────┐
 │  Frontend — React 18 + Vite + TypeScript                        │
-│  react-router v6 · typowany klient fetch · plain CSS            │
+│  react-router v6 · typed fetch client · plain CSS                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Szczegóły kluczowych komponentów
+## Key Component Details
 
-### Scrapery
+### Scrapers
 
-- Lokalizacja: `backend/src/realestate/scrapers/`
-- Protokół `Scraper` (structural subtyping / `typing.Protocol`): `source_id`, `display_name`, `build_search_url(criteria, page)`, `parse_search(html)`, `parse_detail(html, url)`.
-- Wynik `parse_search` to lista obiektów `RawListing` (pydantic DTO).
-- Rejestracja przez wywołanie `register(scraper)` na poziomie modułu.
-- Istniejące wtyczki: `otodom` (parsuje `__NEXT_DATA__` JSON), `nieruchomosci-online` (DOM via selectolax), `hossa` (Vue SPA — wyniki to linki do kategorii inwestycji, nie pojedyncze oferty).
-- Kontrakt pól per źródło: [`docs/scrapers-field-contract.md`](scrapers-field-contract.md).
+- Location: `backend/src/realestate/scrapers/`
+- Protocol `Scraper` (structural subtyping / `typing.Protocol`): `source_id`, `display_name`, `build_search_url(criteria, page)`, `parse_search(html)`, `parse_detail(html, url)`.
+- `parse_search` returns a list of `RawListing` objects (pydantic DTO).
+- Registration by calling `register(scraper)` at the module level.
+- Existing plugins: `otodom` (parses `__NEXT_DATA__` JSON), `nieruchomosci-online` (DOM via selectolax), `hossa` (Vue SPA — results link to investment categories, not individual listings).
+- Field contract per source: [`docs/scrapers-field-contract.md`](scrapers-field-contract.md).
 
-### Normalizacja i IncrementalEngine
+### Normalization and IncrementalEngine
 
-- Każda oferta otrzymuje `raw_hash` (hash kluczowych pól) → idempotentny zapis.
-- `IncrementalEngine` synchronizuje wyniki scrape'u z bazą: nowe rekordy INSERT, zmiany ceny → PriceHistory, niezmienione → skip.
-- Lokalizacja: `backend/src/realestate/ingestion/`.
+- Each listing gets a `raw_hash` (hash of key fields) → idempotent storage.
+- `IncrementalEngine` syncs scrape results with the database: new records INSERT, price changes → PriceHistory, unchanged → skip.
+- Location: `backend/src/realestate/ingestion/`.
 
-### Magazyn — PostgreSQL 18.4 + pgvector + PostGIS
+### Storage — PostgreSQL 18.4 + pgvector + PostGIS
 
-- Schemat zarządzany przez Alembic (`migrations/`); aktualny head: `0009`.
-- Kolumna `listings.embedding` — wektor pgvector. Wymiar kontrolowany przez jedyne źródło prawdy: `get_embedding_dim()` w `backend/src/realestate/config.py` (domyślnie 2048). Wymiar **musi** być taki sam przy migracji i przy uruchomieniu aplikacji.
-- Kolumna `listings.geom` — punkt PostGIS (`geometry(Point, 4326)`) synchronizowany triggerem z `lat/lon`; indeks GiST zasila agregacje mapowe.
-- Endpoint `/listings/map/hexes` używa PostGIS (`ST_HexagonGrid`, `ST_Transform`, `ST_Intersects`, `ST_AsGeoJSON`) do budowania heksagonalnej heatmapy średnich cen i liczby ofert.
-- Modele SQLAlchemy 2.0 async: `Source`, `Listing`, `PriceHistory`, `ScrapeRun`, `LLMAnalysis`, `DedupGroup`, `DedupMember`, `SavedSearch`, `Favorite`, `AppSetting`.
-- Lokalizacja modeli: pakiet `backend/src/realestate/models/` (pliki `base.py`, `listing.py`, `source.py`, `scrape_run.py`, `llm_analysis.py`, `dedup.py`, `user_data.py`); `Base` eksportowane z `realestate.models`.
+- Schema managed by Alembic (`migrations/`); current head: `0009`.
+- Column `listings.embedding` — pgvector vector. Dimension controlled by the single source of truth: `get_embedding_dim()` in `backend/src/realestate/config.py` (default 2048). The dimension **must** match between migration and application runtime.
+- Column `listings.geom` — PostGIS point (`geometry(Point, 4326)`) synced by trigger from `lat/lon`; GiST index powers map aggregations.
+- Endpoint `/listings/map/hexes` uses PostGIS (`ST_HexagonGrid`, `ST_Transform`, `ST_Intersects`, `ST_AsGeoJSON`) to build a hexagonal heatmap of average prices and listing counts.
+- SQLAlchemy 2.0 async models: `Source`, `Listing`, `PriceHistory`, `ScrapeRun`, `LLMAnalysis`, `DedupGroup`, `DedupMember`, `SavedSearch`, `Favorite`, `AppSetting`.
+- Model location: package `backend/src/realestate/models/` (files `base.py`, `listing.py`, `source.py`, `scrape_run.py`, `llm_analysis.py`, `dedup.py`, `user_data.py`); `Base` exported from `realestate.models`.
 
-### Wzbogacanie LLM
+### LLM Enrichment
 
-- `LLMClient` — klient OpenAI-compatible (domyślnie OpenRouter). Może być zastąpiony `FakeLLM` w testach.
-- `EnrichmentService` — generuje podsumowania (`LLMAnalysis.summary`), cechy (`LLMAnalysis.features`), oblicza embeddingi i zapisuje je jako pgvector.
-- `DedupService` — grupuje semantyczne duplikaty w tabeli `DedupGroup`/`DedupMember`.
-- LLM jest wyłączony (degradacja) jeśli nie są ustawione: `LLM_API_KEY` + `LLM_MODEL` + `LLM_EMBEDDING_MODEL`.
-- Lokalizacja: `backend/src/realestate/enrichment/`, `backend/src/realestate/llm/`.
+- `LLMClient` — OpenAI-compatible client (defaults to OpenRouter). Can be replaced by `FakeLLM` in tests.
+- `EnrichmentService` — generates summaries (`LLMAnalysis.summary`), features (`LLMAnalysis.features`), computes embeddings and saves them as pgvector.
+- `DedupService` — groups semantic duplicates into `DedupGroup`/`DedupMember` tables.
+- LLM is disabled (degradation) when none of `LLM_API_KEY` + `LLM_MODEL` + `LLM_EMBEDDING_MODEL` are set.
+- Location: `backend/src/realestate/enrichment/`, `backend/src/realestate/llm/`.
 
-### Wyszukiwanie hybrydowe — SearchService
+### Hybrid Search — SearchService
 
-Wyszukiwanie przebiega w trzech etapach:
+Search proceeds in three stages:
 
-1. **Filtry SQL** — zawężenie po mieście, dzielnicy, cenie, powierzchni, pokojach, typie rynku.
-2. **pgvector top-K** — gdy podano zapytanie `q` (naturalny język), oblicza embedding zapytania i sortuje po podobieństwie cosinusowym.
-3. **LLM rerank** — (opcjonalny) ponowne rangowanie top-K wyników przez LLM.
+1. **SQL filters** — filter by city, district, price, area, rooms, market type.
+2. **pgvector top-K** — when a `q` query (natural language) is provided, compute the query embedding and sort by cosine similarity.
+3. **LLM rerank** — (optional) re-rank top-K results via LLM.
 
-Degradacja: gdy LLM niedostępny, system pomija krok 3. Gdy brak embeddingów, pomija krok 2 i zwraca wyniki czysto przez SQL.
+Degradation: when LLM is unavailable, skip step 3. When embeddings are missing, skip step 2 and return purely SQL-based results.
 
-Lokalizacja: `backend/src/realestate/search/`.
+Location: `backend/src/realestate/search/`.
 
-### API FastAPI
+### FastAPI API
 
-Endpointy:
+Endpoints:
 
 - `GET /health` — health check
-- `GET /listings` — lista z filtrami (city, district, min/max price/area/rooms, market, q, limit, offset) → `{items, total}`
-- `GET /listings/{id}` — szczegóły + price_history + summary/features + duplicate_listing_ids
-- `GET /stats` — statystyki ofert: overview, agregacje per dzielnica/źródło/miasto/rynek, pokoje i koszyki cenowe
-- `GET /listings/map/points`, `GET /listings/map/hexes` — punkty i heksy mapy filtrowane po aktualnym viewport/bbox
-- `POST /scrape`, `GET /scrape/runs`, `GET /scrape/runs/{id}` — zarządzanie scrape'ami
-- `GET /events` — SSE: postęp scrape'u w czasie rzeczywistym
-- `GET /searches`, `POST /searches`, `DELETE /searches/{id}` — zapisane wyszukiwania
-- `GET /favorites`, `POST /favorites`, `DELETE /favorites/{listing_id}` — ulubione
-- `GET /settings`, `PUT /settings` — konfiguracja aplikacji (klucz API nie jest nigdy zwracany)
+- `GET /listings` — list with filters (city, district, min/max price/area/rooms, market, q, limit, offset) → `{items, total}`
+- `GET /listings/{id}` — details + price_history + summary/features + duplicate_listing_ids
+- `GET /stats` — listing statistics: overview, aggregations per district/source/city/market, rooms and price buckets
+- `GET /listings/map/points`, `GET /listings/map/hexes` — map points and hexes filtered by current viewport/bbox
+- `POST /scrape`, `GET /scrape/runs`, `GET /scrape/runs/{id}` — scrape management
+- `GET /events` — SSE: real-time scrape progress
+- `GET /searches`, `POST /searches`, `DELETE /searches/{id}` — saved searches
+- `GET /favorites`, `POST /favorites`, `DELETE /favorites/{listing_id}` — favorites
+- `GET /settings`, `PUT /settings` — application config (API key is never returned)
 
-Lokalizacja: `backend/src/realestate/api/`.
+Location: `backend/src/realestate/api/`.
 
 ### Scheduler
 
-- APScheduler uruchamiany w lifespan FastAPI gdy `SCHEDULER_ENABLED=true`.
-- Interwał domyślny: `SCHEDULER_DEFAULT_INTERVAL_MINUTES` (domyślnie 360).
+- APScheduler started in FastAPI lifespan when `SCHEDULER_ENABLED=true`.
+- Default interval: `SCHEDULER_DEFAULT_INTERVAL_MINUTES` (default 360).
 
 ### Frontend
 
-- Lokalizacja: `frontend/` (samodzielny projekt pnpm).
+- Location: `frontend/` (standalone pnpm project).
 - React 18 + Vite 8 + TypeScript 6 + react-router v6.
-- Typowany klient fetch; plain CSS; Vitest 4 + Testing Library + MSW + jsdom 29.
-- Lista ofert ma trzy widoki: domyślny grid, kompaktowy kafelek oraz pełnoszeroką listę z opisem i dodatkowymi szczegółami.
-- Mapa ładuje punkty i heksy tylko dla widocznego viewportu (`north/south/east/west`), zamiast pobierać stały limit ofert z całego obszaru.
-- Zmienna środowiskowa: `VITE_API_BASE` (domyślnie `http://localhost:8000`).
+- Typed fetch client; plain CSS; Vitest 4 + Testing Library + MSW + jsdom 29.
+- Listing list has three views: default grid, compact tile, and full-width list with description and extra details.
+- Map loads points and hexes only for the visible viewport (`north/south/east/west`), instead of fetching a fixed limit of listings from the entire area.
+- Environment variable: `VITE_API_BASE` (default `http://localhost:8000`).

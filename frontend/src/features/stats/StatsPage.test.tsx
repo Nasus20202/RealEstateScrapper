@@ -9,7 +9,7 @@ import { StatsPage } from "./StatsPage";
 const BASE = "http://localhost:8000";
 
 describe("StatsPage", () => {
-  it("renderuje podsumowanie i agregacje", async () => {
+  it("renders summary and aggregations", async () => {
     server.use(
       http.get(`${BASE}/stats`, () =>
         HttpResponse.json({

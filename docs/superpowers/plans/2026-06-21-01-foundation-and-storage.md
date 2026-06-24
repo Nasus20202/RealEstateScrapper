@@ -1,27 +1,27 @@
-# Fundament i magazyn — Implementation Plan
+# Foundation and Storage — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Postawić szkielet projektu (Python/uv + FastAPI), uruchamialną bazę PostgreSQL+pgvector z migracjami i kanonicznym modelem danych oraz repozytorium ofert — gotowy, przetestowany fundament pod kolejne plany.
+**Goal:** Set up the project skeleton (Python/uv + FastAPI), a runnable PostgreSQL+pgvector database with migrations and a canonical data model, plus a listing repository — a ready, tested foundation for subsequent plans.
 
-**Architecture:** Modularny monolit. Pakiet `src/realestate/` z warstwami: `config`, `db`, `models`, `repositories`, `api`. SQLAlchemy 2.0 (async, asyncpg) + Alembic do migracji, rozszerzenie `pgvector` dla kolumny embeddingów. FastAPI udostępnia healthcheck. Testy integracyjne bazy na realnym Postgresie w kontenerze (testcontainers).
+**Architecture:** Modular monolith. Package `src/realestate/` with layers: `config`, `db`, `models`, `repositories`, `api`. SQLAlchemy 2.0 (async, asyncpg) + Alembic for migrations, `pgvector` extension for the embedding column. FastAPI exposes a healthcheck. Database integration tests on a real Postgres container (testcontainers).
 
-**Tech Stack:** Python 3.14, uv, FastAPI, Uvicorn, SQLAlchemy 2.0 (asyncio), asyncpg, Alembic, pgvector, Pydantic v2, pydantic-settings, pytest, pytest-asyncio, httpx, testcontainers[postgres], ruff. Docker Compose (obraz `pgvector/pgvector:pg18`).
+**Tech Stack:** Python 3.14, uv, FastAPI, Uvicorn, SQLAlchemy 2.0 (asyncio), asyncpg, Alembic, pgvector, Pydantic v2, pydantic-settings, pytest, pytest-asyncio, httpx, testcontainers[postgres], ruff. Docker Compose (`pgvector/pgvector:pg18` image).
 
 ## Global Constraints
 
-- Python: **3.14** (najnowszy stabilny); zarządzanie zależnościami i uruchamianie przez **uv** (`uv run ...`). Biblioteki w najnowszych wersjach (floory `>=` w `pyproject.toml`).
-- Brak hardcodowanych sekretów/konfiguracji — wszystko przez `pydantic-settings` (env / `.env`). `.env.example` jako wzór, `.env` w `.gitignore`.
-- ORM: **SQLAlchemy 2.0** styl deklaratywny `Mapped[...]` / `mapped_column(...)`, w pełni **async** (`asyncpg`).
-- Migracje schematu **wyłącznie przez Alembic** (żadnego `create_all` w kodzie produkcyjnym).
-- Embeddingi: kolumna `pgvector` o wymiarze z konfiguracji (`EMBEDDING_DIM`, domyślnie 2048).
-- TDD: każdy task = czerwony test → minimalna implementacja → zielony test → commit.
-- Lint: `ruff` musi przechodzić przed commitem (`uv run ruff check .`).
-- Testy bazodanowe używają realnego Postgresa+pgvector (testcontainers), nie SQLite.
+- Python: **3.14** (latest stable); dependency management and execution via **uv** (`uv run ...`). Libraries at latest versions (floors `>=` in `pyproject.toml`).
+- No hardcoded secrets/configuration — everything via `pydantic-settings` (env / `.env`). `.env.example` as a template, `.env` in `.gitignore`.
+- ORM: **SQLAlchemy 2.0** declarative style `Mapped[...]` / `mapped_column(...)`, fully **async** (`asyncpg`).
+- Schema migrations **only via Alembic** (no `create_all` in production code).
+- Embeddings: `pgvector` column with configurable dimension (`EMBEDDING_DIM`, default 2048).
+- TDD: each task = red test → minimal implementation → green test → commit.
+- Lint: `ruff` must pass before commit (`uv run ruff check .`).
+- Database tests use a real Postgres+pgvector (testcontainers), not SQLite.
 
 ---
 
-### Task 1: Scaffolding projektu (uv, struktura, AGENTS.md, narzędzia)
+### Task 1: Project scaffolding (uv, structure, AGENTS.md, tooling)
 
 **Files:**
 
@@ -36,10 +36,10 @@
 
 **Interfaces:**
 
-- Consumes: nic (pierwszy task).
-- Produces: pakiet importowalny `realestate` (`realestate.__version__: str`); działające `uv run pytest` i `uv run ruff check .`.
+- Consumes: nothing (first task).
+- Produces: importable `realestate` package (`realestate.__version__: str`); working `uv run pytest` and `uv run ruff check .`.
 
-- [ ] **Step 1: Napisz failujący test smoke**
+- [ ] **Step 1: Write a failing smoke test**
 
 `tests/test_smoke.py`:
 
@@ -52,12 +52,12 @@ def test_package_has_version():
     assert realestate.__version__
 ```
 
-- [ ] **Step 2: Uruchom test — ma faliować**
+- [ ] **Step 2: Run test — should fail**
 
 Run: `uv run pytest tests/test_smoke.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'realestate'` (lub błąd braku konfiguracji projektu).
+Expected: FAIL — `ModuleNotFoundError: No module named 'realestate'` (or project configuration error).
 
-- [ ] **Step 3: Utwórz `pyproject.toml`**
+- [ ] **Step 3: Create `pyproject.toml`**
 
 ```toml
 [project]
@@ -105,7 +105,7 @@ target-version = "py314"
 select = ["E", "F", "I", "UP", "B"]
 ```
 
-- [ ] **Step 4: Utwórz pakiet i pliki pomocnicze**
+- [ ] **Step 4: Create package and helper files**
 
 `src/realestate/__init__.py`:
 
@@ -134,7 +134,7 @@ node_modules/
 # PostgreSQL
 DATABASE_URL=postgresql+asyncpg://realestate:realestate@localhost:5432/realestate
 
-# Embeddingi
+# Embeddings
 EMBEDDING_DIM=2048
 ```
 
@@ -182,7 +182,7 @@ Instrukcje dla agentów/developerów pracujących w tym repozytorium.
 Specyfikacje: `docs/superpowers/specs/`. Plany: `docs/superpowers/plans/`.
 ```
 
-- [ ] **Step 5: Utwórz symlink CLAUDE.md → AGENTS.md i zsynchronizuj zależności**
+- [ ] **Step 5: Create symlink CLAUDE.md → AGENTS.md and sync dependencies**
 
 Run:
 
@@ -191,23 +191,23 @@ ln -s AGENTS.md CLAUDE.md
 uv sync --extra dev
 ```
 
-Expected: symlink utworzony; `uv` tworzy `.venv` i instaluje zależności.
+Expected: symlink created; `uv` creates `.venv` and installs dependencies.
 
-- [ ] **Step 6: Uruchom test — ma przejść + lint**
+- [ ] **Step 6: Run test — should pass + lint**
 
 Run: `uv run pytest tests/test_smoke.py -v && uv run ruff check .`
-Expected: PASS; ruff bez błędów.
+Expected: PASS; ruff with no errors.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add pyproject.toml .gitignore .env.example AGENTS.md CLAUDE.md README.md src/realestate/__init__.py tests/test_smoke.py
-git commit -m "chore: scaffolding projektu (uv, FastAPI stack, AGENTS.md)"
+git commit -m "chore: project scaffolding (uv, FastAPI stack, AGENTS.md)"
 ```
 
 ---
 
-### Task 2: Konfiguracja aplikacji (pydantic-settings)
+### Task 2: Application configuration (pydantic-settings)
 
 **Files:**
 
@@ -216,12 +216,12 @@ git commit -m "chore: scaffolding projektu (uv, FastAPI stack, AGENTS.md)"
 
 **Interfaces:**
 
-- Consumes: nic istotnego (czyta env).
+- Consumes: nothing significant (reads env).
 - Produces:
-  - `Settings` (pydantic-settings) z polami: `database_url: str`, `embedding_dim: int = 2048`.
-  - `get_settings() -> Settings` — cache'owana (`functools.lru_cache`) fabryka.
+  - `Settings` (pydantic-settings) with fields: `database_url: str`, `embedding_dim: int = 2048`.
+  - `get_settings() -> Settings` — cached (`functools.lru_cache`) factory.
 
-- [ ] **Step 1: Napisz failujący test**
+- [ ] **Step 1: Write a failing test**
 
 `tests/test_config.py`:
 
@@ -243,12 +243,12 @@ def test_embedding_dim_defaults_to_2048(monkeypatch):
     assert Settings().embedding_dim == 2048
 ```
 
-- [ ] **Step 2: Uruchom test — ma faliować**
+- [ ] **Step 2: Run test — should fail**
 
 Run: `uv run pytest tests/test_config.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.config'`.
 
-- [ ] **Step 3: Zaimplementuj `config.py`**
+- [ ] **Step 3: Implement `config.py`**
 
 ```python
 from functools import lru_cache
@@ -268,21 +268,21 @@ def get_settings() -> Settings:
     return Settings()
 ```
 
-- [ ] **Step 4: Uruchom test — ma przejść**
+- [ ] **Step 4: Run test — should pass**
 
 Run: `uv run pytest tests/test_config.py -v`
-Expected: PASS (oba testy).
+Expected: PASS (both tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/realestate/config.py tests/test_config.py
-git commit -m "feat: konfiguracja przez pydantic-settings"
+git commit -m "feat: configuration via pydantic-settings"
 ```
 
 ---
 
-### Task 3: Docker Compose (Postgres+pgvector) + warstwa połączenia DB
+### Task 3: Docker Compose (Postgres+pgvector) + DB connection layer
 
 **Files:**
 
@@ -298,10 +298,10 @@ git commit -m "feat: konfiguracja przez pydantic-settings"
 - Produces:
   - `create_engine(database_url: str) -> AsyncEngine`
   - `create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]`
-  - Fixture pytest `pg_url` (sesyjny) — URL do Postgresa+pgvector w kontenerze (asyncpg DSN).
-  - Fixture pytest `engine` — `AsyncEngine` na bazie `pg_url`.
+  - Pytest fixture `pg_url` (session) — URL to Postgres+pgvector in container (asyncpg DSN).
+  - Pytest fixture `engine` — `AsyncEngine` on top of `pg_url`.
 
-- [ ] **Step 1: Utwórz `docker-compose.yml`**
+- [ ] **Step 1: Create `docker-compose.yml`**
 
 ```yaml
 services:
@@ -325,7 +325,7 @@ volumes:
   pgdata:
 ```
 
-- [ ] **Step 2: Napisz fixture'y testowe (conftest) i failujący test**
+- [ ] **Step 2: Write test fixtures (conftest) and a failing test**
 
 `tests/conftest.py`:
 
@@ -363,12 +363,12 @@ async def test_engine_connects(engine):
         assert result.scalar_one() == 1
 ```
 
-- [ ] **Step 3: Uruchom test — ma faliować**
+- [ ] **Step 3: Run test — should fail**
 
 Run: `uv run pytest tests/db/test_engine.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.db.engine'`.
 
-- [ ] **Step 4: Zaimplementuj `db/engine.py`**
+- [ ] **Step 4: Implement `db/engine.py`**
 
 `src/realestate/db/__init__.py`:
 
@@ -395,21 +395,21 @@ def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessi
     return async_sessionmaker(engine, expire_on_commit=False)
 ```
 
-- [ ] **Step 5: Uruchom test — ma przejść**
+- [ ] **Step 5: Run test — should pass**
 
 Run: `uv run pytest tests/db/test_engine.py -v`
-Expected: PASS (testcontainers wystartuje kontener pgvector; pierwszy raz wolniej — pobranie obrazu).
+Expected: PASS (testcontainers starts a pgvector container; first run may be slower — image pull).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add docker-compose.yml src/realestate/db/ tests/conftest.py tests/db/test_engine.py
-git commit -m "feat: docker-compose pgvector + warstwa połączenia DB (async)"
+git commit -m "feat: docker-compose pgvector + DB connection layer (async)"
 ```
 
 ---
 
-### Task 4: Baza deklaratywna + włączenie rozszerzenia pgvector (Alembic)
+### Task 4: Declarative base + enabling pgvector extension (Alembic)
 
 **Files:**
 
@@ -425,10 +425,10 @@ git commit -m "feat: docker-compose pgvector + warstwa połączenia DB (async)"
 
 - Consumes: `realestate.db.engine.create_engine`, `realestate.config.get_settings`.
 - Produces:
-  - `Base` — deklaratywna baza (`DeclarativeBase`) z `metadata`.
-  - Działające `alembic upgrade head`, które tworzy rozszerzenie `vector` w bazie.
+  - `Base` — declarative base (`DeclarativeBase`) with `metadata`.
+  - Working `alembic upgrade head` that creates the `vector` extension in the database.
 
-- [ ] **Step 1: Utwórz bazę deklaratywną**
+- [ ] **Step 1: Create the declarative base**
 
 `src/realestate/models/__init__.py`:
 
@@ -448,9 +448,9 @@ class Base(DeclarativeBase):
     pass
 ```
 
-- [ ] **Step 2: Skonfiguruj Alembic (async)**
+- [ ] **Step 2: Configure Alembic (async)**
 
-`alembic.ini` (kluczowe sekcje):
+`alembic.ini` (key sections):
 
 ```ini
 [alembic]
@@ -563,9 +563,9 @@ else:
     asyncio.run(run_migrations_online())
 ```
 
-- [ ] **Step 3: Napisz failujący test migracji**
+- [ ] **Step 3: Write a failing migration test**
 
-Na tym etapie katalog `migrations/versions/` jest pusty — `upgrade head` nic nie zrobi, więc rozszerzenie `vector` nie powstanie i test będzie czerwony.
+At this stage the `migrations/versions/` directory is empty — `upgrade head` does nothing, so the `vector` extension won't be created and the test will be red.
 
 `tests/db/test_migrations.py`:
 
@@ -593,12 +593,12 @@ async def test_pgvector_extension_enabled(engine, pg_url, monkeypatch):
         assert result.scalar_one_or_none() == 1
 ```
 
-- [ ] **Step 4: Uruchom test — ma faliować**
+- [ ] **Step 4: Run test — should fail**
 
 Run: `uv run pytest tests/db/test_migrations.py -v`
-Expected: FAIL — `assert None == 1` (brak migracji, rozszerzenie `vector` nieobecne).
+Expected: FAIL — `assert None == 1` (no migration, `vector` extension absent).
 
-- [ ] **Step 5: Utwórz migrację włączającą pgvector**
+- [ ] **Step 5: Create migration enabling pgvector**
 
 `migrations/versions/0001_enable_pgvector.py`:
 
@@ -625,21 +625,21 @@ def downgrade() -> None:
     op.execute("DROP EXTENSION IF EXISTS vector")
 ```
 
-- [ ] **Step 6: Uruchom test — ma przejść**
+- [ ] **Step 6: Run test — should pass**
 
 Run: `uv run pytest tests/db/test_migrations.py -v`
-Expected: PASS — rozszerzenie `vector` istnieje po `upgrade head`.
+Expected: PASS — `vector` extension exists after `upgrade head`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add alembic.ini migrations/ src/realestate/models/ tests/db/test_migrations.py
-git commit -m "feat: konfiguracja Alembic + migracja włączająca pgvector"
+git commit -m "feat: Alembic configuration + migration enabling pgvector"
 ```
 
 ---
 
-### Task 5: Model słownikowy `sources` + enumy domenowe
+### Task 5: Dictionary model `sources` + domain enums
 
 **Files:**
 
@@ -653,11 +653,11 @@ git commit -m "feat: konfiguracja Alembic + migracja włączająca pgvector"
 
 - Consumes: `Base`.
 - Produces:
-  - `MarketType(str, Enum)` z wartościami `PRIMARY = "primary"`, `SECONDARY = "secondary"`.
-  - `ListingStatus(str, Enum)` z wartościami `ACTIVE = "active"`, `GONE = "gone"`.
-  - Model `Source`: `id: int (pk)`, `source_id: str (unique, np. "otodom")`, `display_name: str`, `enabled: bool = True`, `config: dict (JSONB, default {})`.
+  - `MarketType(str, Enum)` with values `PRIMARY = "primary"`, `SECONDARY = "secondary"`.
+  - `ListingStatus(str, Enum)` with values `ACTIVE = "active"`, `GONE = "gone"`.
+  - Model `Source`: `id: int (pk)`, `source_id: str (unique, e.g. "otodom")`, `display_name: str`, `enabled: bool = True`, `config: dict (JSONB, default {})`.
 
-- [ ] **Step 1: Napisz failujący test**
+- [ ] **Step 1: Write a failing test**
 
 `tests/db/test_source_model.py`:
 
@@ -683,14 +683,14 @@ async def test_source_roundtrip(engine):
         assert row.config == {}
 ```
 
-- [ ] **Step 2: Uruchom test — ma faliować**
+- [ ] **Step 2: Run test — should fail**
 
 Run: `uv run pytest tests/db/test_source_model.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.models.source'`.
 
-- [ ] **Step 3: Zaimplementuj enumy i model**
+- [ ] **Step 3: Implement enums and model**
 
-`src/realestate/models/enums.py` (użyj `StrEnum` — ruleset ruff `UP` wymusza to przez UP042; `(str, Enum)` nie przeszłoby lintu):
+`src/realestate/models/enums.py` (use `StrEnum` — ruff ruleset `UP` enforces this via UP042; `(str, Enum)` would not pass lint):
 
 ```python
 from enum import StrEnum
@@ -736,7 +736,7 @@ from realestate.models.source import Source
 __all__ = ["Base", "Source", "MarketType", "ListingStatus"]
 ```
 
-- [ ] **Step 4: Utwórz migrację `0002_sources`**
+- [ ] **Step 4: Create migration `0002_sources`**
 
 `migrations/versions/0002_sources.py`:
 
@@ -774,7 +774,7 @@ def downgrade() -> None:
     op.drop_table("sources")
 ```
 
-- [ ] **Step 5: Uruchom test — ma przejść**
+- [ ] **Step 5: Run test — should pass**
 
 Run: `uv run pytest tests/db/test_source_model.py -v`
 Expected: PASS.
@@ -783,12 +783,12 @@ Expected: PASS.
 
 ```bash
 git add src/realestate/models/ migrations/versions/0002_sources.py tests/db/test_source_model.py
-git commit -m "feat: model Source + enumy domenowe + migracja"
+git commit -m "feat: Source model + domain enums + migration"
 ```
 
 ---
 
-### Task 6: Model `Listing` (kanoniczna oferta + embedding pgvector) + `price_history`
+### Task 6: `Listing` model (canonical listing + pgvector embedding) + `price_history`
 
 **Files:**
 
@@ -801,7 +801,7 @@ git commit -m "feat: model Source + enumy domenowe + migracja"
 
 - Consumes: `Base`, `MarketType`, `ListingStatus`, `get_settings().embedding_dim`.
 - Produces:
-  - Model `Listing` z polami: `id: int (pk)`, `source_id: str`, `external_id: str`,
+  - Model `Listing` with fields: `id: int (pk)`, `source_id: str`, `external_id: str`,
     `url: str`, `title: str`, `price: Decimal | None`, `price_per_m2: Decimal | None`,
     `area_m2: float | None`, `rooms: int | None`, `floor: int | None`,
     `total_floors: int | None`, `city: str | None`, `district: str | None`,
@@ -809,10 +809,10 @@ git commit -m "feat: model Source + enumy domenowe + migracja"
     `market: MarketType | None`, `description: str | None`, `images: list[str]`,
     `posted_at: datetime | None`, `raw_hash: str`, `status: ListingStatus`,
     `first_seen: datetime`, `last_seen: datetime`, `embedding: Vector | None`.
-    Unikalność `(source_id, external_id)`.
+    Uniqueness `(source_id, external_id)`.
   - Model `PriceHistory`: `id`, `listing_id (fk)`, `price: Decimal`, `observed_at: datetime`.
 
-- [ ] **Step 1: Napisz failujący test**
+- [ ] **Step 1: Write a failing test**
 
 `tests/db/test_listing_model.py`:
 
@@ -865,17 +865,17 @@ async def test_listing_unique_source_external(engine):
     factory = create_session_factory(engine)
     async with factory() as session:
         session.add(_listing())
-        session.add(_listing())  # ten sam (source_id, external_id)
+        session.add(_listing())  # same (source_id, external_id)
         with pytest.raises(IntegrityError):
             await session.commit()
 ```
 
-- [ ] **Step 2: Uruchom test — ma faliować**
+- [ ] **Step 2: Run test — should fail**
 
 Run: `uv run pytest tests/db/test_listing_model.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.models.listing'`.
 
-- [ ] **Step 3: Zaimplementuj model**
+- [ ] **Step 3: Implement the model**
 
 `src/realestate/models/listing.py`:
 
@@ -902,8 +902,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from realestate.models.base import Base
 from realestate.models.enums import ListingStatus, MarketType
 
-# Wymiar embeddingu czytany bezpośrednio z env, aby import modelu NIE wymagał
-# pełnej konfiguracji (Settings wymaga DATABASE_URL). Jedno źródło wartości: EMBEDDING_DIM.
+# Embedding dimension read directly from env so the model import does NOT require
+# full configuration (Settings requires DATABASE_URL). Single source of truth: EMBEDDING_DIM.
 _EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "2048"))
 
 
@@ -978,7 +978,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Utwórz migrację `0003_listings`**
+- [ ] **Step 4: Create migration `0003_listings`**
 
 `migrations/versions/0003_listings.py`:
 
@@ -1066,21 +1066,21 @@ def downgrade() -> None:
     market.drop(op.get_bind(), checkfirst=True)
 ```
 
-- [ ] **Step 5: Uruchom test — ma przejść**
+- [ ] **Step 5: Run test — should pass**
 
 Run: `uv run pytest tests/db/test_listing_model.py -v`
-Expected: PASS (oba testy).
+Expected: PASS (both tests).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add src/realestate/models/ migrations/versions/0003_listings.py tests/db/test_listing_model.py
-git commit -m "feat: model Listing (z embedding pgvector) + PriceHistory + migracja"
+git commit -m "feat: Listing model (with pgvector embedding) + PriceHistory + migration"
 ```
 
 ---
 
-### Task 7: Repozytorium ofert (`ListingRepository`) — upsert + pobieranie
+### Task 7: Listing repository (`ListingRepository`) — upsert + retrieval
 
 **Files:**
 
@@ -1090,7 +1090,7 @@ git commit -m "feat: model Listing (z embedding pgvector) + PriceHistory + migra
 
 **Interfaces:**
 
-- Consumes: `AsyncSession` (z `create_session_factory`), `Listing`.
+- Consumes: `AsyncSession` (from `create_session_factory`), `Listing`.
 - Produces:
   - `class ListingRepository(session: AsyncSession)`
   - `async get_by_external(source_id: str, external_id: str) -> Listing | None`
@@ -1098,7 +1098,7 @@ git commit -m "feat: model Listing (z embedding pgvector) + PriceHistory + migra
   - `async list_active(limit: int = 100, offset: int = 0) -> list[Listing]`
   - `async count_active() -> int`
 
-- [ ] **Step 1: Napisz failujący test**
+- [ ] **Step 1: Write a failing test**
 
 `tests/repositories/test_listing_repository.py`:
 
@@ -1159,12 +1159,12 @@ async def test_list_active_and_count(engine):
         assert {r.external_id for r in rows} == {"a1", "a2"}
 ```
 
-- [ ] **Step 2: Uruchom test — ma faliować**
+- [ ] **Step 2: Run test — should fail**
 
 Run: `uv run pytest tests/repositories/test_listing_repository.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.repositories.listings'`.
 
-- [ ] **Step 3: Zaimplementuj repozytorium**
+- [ ] **Step 3: Implement the repository**
 
 `src/realestate/repositories/__init__.py`:
 
@@ -1215,10 +1215,10 @@ class ListingRepository:
         return (await self.session.execute(stmt)).scalar_one()
 ```
 
-- [ ] **Step 4: Uruchom test — ma przejść**
+- [ ] **Step 4: Run test — should pass**
 
 Run: `uv run pytest tests/repositories/test_listing_repository.py -v`
-Expected: PASS (oba testy).
+Expected: PASS (both tests).
 
 - [ ] **Step 5: Commit**
 
@@ -1229,7 +1229,7 @@ git commit -m "feat: ListingRepository (upsert/get/list/count)"
 
 ---
 
-### Task 8: Szkielet aplikacji FastAPI + healthcheck (DB + pgvector)
+### Task 8: FastAPI application skeleton + healthcheck (DB + pgvector)
 
 **Files:**
 
@@ -1242,11 +1242,11 @@ git commit -m "feat: ListingRepository (upsert/get/list/count)"
 
 - Consumes: `get_settings`, `create_engine`, `text` query.
 - Produces:
-  - `check_database(engine) -> bool` — true gdy `SELECT 1` działa i rozszerzenie `vector` jest obecne.
-  - `create_app() -> FastAPI` z endpointem `GET /health` → `{"status": "ok", "database": true}` (200) lub `{"status": "degraded", "database": false}` (503).
-  - `app = create_app()` na poziomie modułu (dla `uvicorn realestate.api.app:app`).
+  - `check_database(engine) -> bool` — true when `SELECT 1` works and the `vector` extension is present.
+  - `create_app() -> FastAPI` with endpoint `GET /health` → `{"status": "ok", "database": true}` (200) or `{"status": "degraded", "database": false}` (503).
+  - `app = create_app()` at module level (for `uvicorn realestate.api.app:app`).
 
-- [ ] **Step 1: Napisz failujący test (z nadpisaniem zależności DB)**
+- [ ] **Step 1: Write a failing test (with DB dependency override)**
 
 `tests/api/test_health.py`:
 
@@ -1276,12 +1276,12 @@ async def test_health_degraded_when_db_down():
     assert resp.json()["database"] is False
 ```
 
-- [ ] **Step 2: Uruchom test — ma faliować**
+- [ ] **Step 2: Run test — should fail**
 
 Run: `uv run pytest tests/api/test_health.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'realestate.api.app'`.
 
-- [ ] **Step 3: Zaimplementuj healthcheck DB i aplikację**
+- [ ] **Step 3: Implement healthcheck DB and application**
 
 `src/realestate/db/health.py`:
 
@@ -1342,29 +1342,29 @@ def create_app() -> FastAPI:
 app = create_app()
 ```
 
-- [ ] **Step 4: Uruchom test — ma przejść**
+- [ ] **Step 4: Run test — should pass**
 
 Run: `uv run pytest tests/api/test_health.py -v`
-Expected: PASS (oba testy).
+Expected: PASS (both tests).
 
-- [ ] **Step 5: Uruchom pełną zestaw testów + lint**
+- [ ] **Step 5: Run full test suite + lint**
 
 Run: `uv run pytest && uv run ruff check .`
-Expected: wszystkie testy PASS; ruff bez błędów.
+Expected: all tests PASS; ruff with no errors.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add src/realestate/api/ src/realestate/db/health.py tests/api/test_health.py
-git commit -m "feat: szkielet FastAPI + healthcheck DB/pgvector"
+git commit -m "feat: FastAPI skeleton + DB/pgvector healthcheck"
 ```
 
 ---
 
-## Definicja ukończenia (Plan 1)
+## Definition of done (Plan 1)
 
-- `uv run pytest` zielony; `uv run ruff check .` bez błędów.
-- `docker compose up -d db` + `uv run alembic upgrade head` tworzy schemat z rozszerzeniem `vector`.
-- `uv run uvicorn realestate.api.app:app` wystawia `GET /health` (200/503 zależnie od DB).
-- Repozytorium ofert działa na realnym Postgresie+pgvector (testcontainers).
-- `AGENTS.md` + symlink `CLAUDE.md` obecne; sekrety poza repo.
+- `uv run pytest` green; `uv run ruff check .` with no errors.
+- `docker compose up -d db` + `uv run alembic upgrade head` creates schema with `vector` extension.
+- `uv run uvicorn realestate.api.app:app` exposes `GET /health` (200/503 depending on DB).
+- Listing repository works on real Postgres+pgvector (testcontainers).
+- `AGENTS.md` + symlink `CLAUDE.md` present; secrets outside repo.

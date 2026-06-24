@@ -1,71 +1,71 @@
-# Dodawanie nowej wtyczki scrapera
+# Adding a New Scraper Plugin
 
-Scrapery są wtyczkami implementującymi protokół `Scraper` z `backend/src/realestate/scrapers/base.py`. Rejestracja odbywa się przez wywołanie `register(scraper)` na poziomie modułu — framework wykrywa i ładuje zarejestrowane wtyczki automatycznie.
+Scrapers are plugins implementing the `Scraper` protocol from `backend/src/realestate/scrapers/base.py`. Registration is done by calling `register(scraper)` at the module level — the framework detects and loads registered plugins automatically.
 
 ---
 
-## 1. Zaimplementuj protokół `Scraper`
+## 1. Implement the `Scraper` Protocol
 
-Utwórz nowy plik w `backend/src/realestate/scrapers/`, np. `backend/src/realestate/scrapers/moj_portal.py`.
+Create a new file in `backend/src/realestate/scrapers/`, e.g. `backend/src/realestate/scrapers/my_portal.py`.
 
 ```python
 from realestate.scrapers.base import RawListing, Scraper, SearchCriteria, register
 
 
-class MojPortalScraper:
-    source_id = "moj-portal"
-    display_name = "Mój Portal"
+class MyPortalScraper:
+    source_id = "my-portal"
+    display_name = "My Portal"
 
     def build_search_url(self, criteria: SearchCriteria, page: int) -> str:
-        """Zwróć URL strony z wynikami wyszukiwania dla podanych kryteriów i numeru strony."""
-        base = "https://www.moj-portal.pl/mieszkania"
+        """Return the URL of the search results page for the given criteria and page number."""
+        base = "https://www.my-portal.pl/mieszkania"
         return f"{base}?city={criteria.city}&page={page}"
 
     def parse_search(self, html: str) -> list[RawListing]:
-        """Parsuj HTML strony wyników i zwróć listę RawListing."""
+        """Parse the search results page HTML and return a list of RawListing."""
         results: list[RawListing] = []
-        # ... parsowanie HTML ...
+        # ... HTML parsing ...
         return results
 
     def parse_detail(self, html: str, url: str) -> RawListing:
-        """Parsuj HTML strony szczegółów oferty."""
-        # ... parsowanie HTML ...
+        """Parse the listing detail page HTML."""
+        # ... HTML parsing ...
         return RawListing(
             source_id=self.source_id,
             external_id="123",
             url=url,
-            title="Przykładowe mieszkanie",
+            title="Example listing",
         )
 
 
-# Rejestracja — musi być na poziomie modułu
-register(MojPortalScraper())
+# Registration — must be at module level
+register(MyPortalScraper())
 ```
 
 ---
 
-## 2. Wymagane atrybuty i metody
+## 2. Required Attributes and Methods
 
-| Element | Typ | Opis |
+| Element | Type | Description |
 |---|---|---|
-| `source_id` | `str` | Unikalny identyfikator źródła (np. `"otodom"`, `"moj-portal"`). Używany jako klucz w rejestrze i bazie danych. |
-| `display_name` | `str` | Wyświetlana nazwa źródła (np. `"Otodom"`, `"Mój Portal"`). |
-| `build_search_url(criteria, page)` | `str` | Zwraca URL do pobrania strony wyników. `page` zaczyna się od 1. |
-| `parse_search(html)` | `list[RawListing]` | Parsuje HTML strony wyników. Zwraca listę ofert. Może zwrócić pustą listę (koniec paginacji). |
-| `parse_detail(html, url)` | `RawListing` | Parsuje HTML strony szczegółów oferty. |
+| `source_id` | `str` | Unique source identifier (e.g. `"otodom"`, `"my-portal"`). Used as a key in the registry and database. |
+| `display_name` | `str` | Display name of the source (e.g. `"Otodom"`, `"My Portal"`). |
+| `build_search_url(criteria, page)` | `str` | Returns the URL to fetch the results page. `page` starts at 1. |
+| `parse_search(html)` | `list[RawListing]` | Parses the search results page HTML. Returns a list of listings. May return an empty list (end of pagination). |
+| `parse_detail(html, url)` | `RawListing` | Parses the listing detail page HTML. |
 
 ---
 
-## 3. Obiekt `RawListing`
+## 3. `RawListing` Object
 
-`RawListing` to pydantic DTO z następującymi polami (wszystkie oprócz `source_id`, `external_id`, `url`, `title` są opcjonalne):
+`RawListing` is a pydantic DTO with the following fields (all except `source_id`, `external_id`, `url`, `title` are optional):
 
 ```python
 class RawListing(BaseModel):
-    source_id: str          # ID źródła
-    external_id: str        # Unikalny ID oferty w tym źródle (stabilny przy re-scrapowaniu)
-    url: str                # Absolutny URL oferty
-    title: str              # Tytuł ogłoszenia
+    source_id: str          # Source ID
+    external_id: str        # Unique listing ID within the source (stable across re-scrapes)
+    url: str                # Absolute listing URL
+    title: str              # Listing title
     price: Decimal | None = None
     area_m2: float | None = None
     rooms: int | None = None
@@ -74,69 +74,69 @@ class RawListing(BaseModel):
     city: str | None = None
     district: str | None = None
     street: str | None = None
-    market: str | None = None    # "primary" lub "secondary"
+    market: str | None = None    # "primary" or "secondary"
     description: str | None = None
     images: list[str] = []
     posted_at: datetime | None = None
-    raw: dict = {}               # Surowe dane źródłowe (opcjonalnie)
+    raw: dict = {}               # Raw source data (optional)
 ```
 
-Para `(source_id, external_id)` musi być unikalna i stabilna — służy do deduplikacji przy inkrementalnym synchronizowaniu.
+The pair `(source_id, external_id)` must be unique and stable — it is used for deduplication during incremental syncing.
 
 ---
 
-## 4. Rejestracja wtyczki
+## 4. Plugin Registration
 
-Wywołaj `register(scraper)` na poziomie modułu (poza klasą, po jej definicji):
+Call `register(scraper)` at the module level (outside the class, after its definition):
 
 ```python
-register(MojPortalScraper())
+register(MyPortalScraper())
 ```
 
-Framework importuje moduły scrapera automatycznie — upewnij się, że plik jest w `backend/src/realestate/scrapers/` i zaimportuj go w `backend/src/realestate/scrapers/__init__.py` (lub sprawdź mechanizm auto-discovery).
+The framework imports scraper modules automatically — ensure the file is in `backend/src/realestate/scrapers/` and import it in `backend/src/realestate/scrapers/__init__.py` (or check the auto-discovery mechanism).
 
 ---
 
-## 5. Testy offline
+## 5. Offline Tests
 
-Dodaj fixture HTML w `tests/fixtures/data/`:
+Add HTML fixtures in `tests/fixtures/data/`:
 
 ```
-tests/fixtures/data/moj_portal_search.html.gz    # spakowana strona wyników
-tests/fixtures/data/moj_portal_detail.html.gz    # spakowana strona szczegółów
+tests/fixtures/data/my_portal_search.html.gz    # gzipped search results page
+tests/fixtures/data/my_portal_detail.html.gz    # gzipped detail page
 ```
 
-Napisz testy offline (bez sieci):
+Write offline tests (no network):
 
 ```python
 import gzip
 from pathlib import Path
-from realestate.scrapers.moj_portal import MojPortalScraper
+from realestate.scrapers.my_portal import MyPortalScraper
 
 FIXTURES = Path(__file__).parent / "fixtures" / "data"
 
 
 def test_parse_search():
-    html = gzip.decompress((FIXTURES / "moj_portal_search.html.gz").read_bytes()).decode()
-    scraper = MojPortalScraper()
+    html = gzip.decompress((FIXTURES / "my_portal_search.html.gz").read_bytes()).decode()
+    scraper = MyPortalScraper()
     results = scraper.parse_search(html)
     assert len(results) > 0
-    assert results[0].source_id == "moj-portal"
+    assert results[0].source_id == "my-portal"
     assert results[0].external_id
 
 
 def test_parse_detail():
-    html = gzip.decompress((FIXTURES / "moj_portal_detail.html.gz").read_bytes()).decode()
-    scraper = MojPortalScraper()
-    listing = scraper.parse_detail(html, "https://www.moj-portal.pl/oferta/123")
+    html = gzip.decompress((FIXTURES / "my_portal_detail.html.gz").read_bytes()).decode()
+    scraper = MyPortalScraper()
+    listing = scraper.parse_detail(html, "https://www.my-portal.pl/offer/123")
     assert listing.title
     assert listing.url
 ```
 
 ---
 
-## 6. Kontrakt pól
+## 6. Field Contract
 
-Każdy scraper ma różną dostępność pól w wynikach wyszukiwania vs. na stronie szczegółów. Udokumentuj, które pola są zawsze/zwykle/czasami/nigdy dostępne, analogicznie do istniejącego kontraktu: [`docs/scrapers-field-contract.md`](scrapers-field-contract.md).
+Each scraper has different field availability in search results vs. detail page. Document which fields are always/usually/sometimes/never available, analogous to the existing contract: [`docs/scrapers-field-contract.md`](scrapers-field-contract.md).
 
-Przykład: `nieruchomosci-online` nie wypełnia `images` ani `posted_at` przy parsowaniu wyników — dopiero strona szczegółów może je zawierać. Filtrowanie po cenie/powierzchni nie jest encodowane w URL przez ten scraper — odbywa się downstream w warstwie SQL.
+Example: `nieruchomosci-online` does not populate `images` or `posted_at` when parsing results — only the detail page may contain them. Price/area filtering is not encoded in the URL by this scraper — it happens downstream in the SQL layer.

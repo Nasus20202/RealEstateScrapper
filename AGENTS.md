@@ -1,47 +1,47 @@
 # AGENTS.md
 
-Instrukcje dla agentów/developerów pracujących w tym repozytorium.
+Instructions for agents/developers working in this repository.
 
 ## Stack
 
-- Python 3.14 (najnowszy stabilny), uv. Uruchamianie: `uv run <cmd>` (z katalogu `backend/`).
+- Python 3.14 (latest stable), uv. Run: `uv run <cmd>` (from `backend/` directory).
 - FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, pgvector, PostGIS.
-- PostgreSQL 18.4 przez docker compose (`docker compose up -d db`), własny obraz `docker/db/Dockerfile` na bazie `postgres:18.4-trixie` z pakietami PostGIS i pgvector.
+- PostgreSQL 18.4 via docker compose (`docker compose up -d db`), custom image `docker/db/Dockerfile` based on `postgres:18.4-trixie` with PostGIS and pgvector packages.
 
-## Zasady
+## Rules
 
-- TDD: test → implementacja → commit.
-- Lint: `uv run ruff check .` musi przechodzić.
-- Brak sekretów w repo — konfiguracja przez `pydantic-settings` (`.env`).
-- Migracje schematu tylko przez Alembic.
+- TDD: test → implementation → commit.
+- Lint: `uv run ruff check .` must pass.
+- No secrets in repo — configuration via `pydantic-settings` (`.env`).
+- Schema migrations only via Alembic.
 
-## Komendy
+## Commands
 
-- Testy: `uv run pytest` (uruchamiać z katalogu `backend/`)
-- Lint: `uv run ruff check .` (uruchamiać z katalogu `backend/`)
-- Migracje: `uv run alembic upgrade head` — Alembic nie ładuje `.env` automatycznie, więc `EMBEDDING_DIM` musi być ustawiony jako zmienna środowiskowa przed uruchomieniem tego polecenia; wartość musi być taka sama jak przy uruchomieniu aplikacji, inaczej wymiar kolumny `listings.embedding` będzie niezgodny.
+- Tests: `uv run pytest` (run from `backend/` directory)
+- Lint: `uv run ruff check .` (run from `backend/` directory)
+- Migrations: `uv run alembic upgrade head` — Alembic does not load `.env` automatically, so `EMBEDDING_DIM` must be set as an environment variable before running this command; the value must match the one used when running the application, otherwise the `listings.embedding` column dimension will be incorrect.
 - App: `uv run uvicorn realestate.api.app:app --reload`
 
-Specyfikacje: `docs/superpowers/specs/`. Plany: `docs/superpowers/plans/`.
+Specifications: `docs/superpowers/specs/`. Plans: `docs/superpowers/plans/`.
 
 ## Frontend
 
-Frontend to samodzielny projekt w katalogu `frontend/` (React 19 + Vite 8 + TypeScript 6 + react-router v6).
+Frontend is a standalone project in the `frontend/` directory (React 19 + Vite 8 + TypeScript 6 + react-router v6).
 
-- Instalacja: `pnpm install`
+- Install: `pnpm install`
 - Dev server: `pnpm --dir frontend dev`
-- Build produkcyjny: `pnpm --dir frontend build` (= `tsc -b && vite build`)
-- Testy: `pnpm --dir frontend exec vitest run` (Vitest 4 + Testing Library + MSW + jsdom 29)
-- Zmienna środowiskowa: `VITE_API_BASE` — adres backendu (domyślnie `http://localhost:8000`)
+- Production build: `pnpm --dir frontend build` (= `tsc -b && vite build`)
+- Tests: `pnpm --dir frontend exec vitest run` (Vitest 4 + Testing Library + MSW + jsdom 29)
+- Environment variable: `VITE_API_BASE` — backend address (default `http://localhost:8000`)
 
-## Dokumentacja
+## Documentation
 
-Pełna dokumentacja techniczna projektu:
+Full technical documentation for the project:
 
-- [`README.md`](README.md) — przegląd projektu, szybki start, linki do docs/
-- [`docs/architecture.md`](docs/architecture.md) — architektura warstw i przepływ danych
-- [`docs/running.md`](docs/running.md) — pełna instrukcja uruchomienia (wymagania, baza, migracje, API, frontend)
-- [`docs/configuration.md`](docs/configuration.md) — wszystkie zmienne konfiguracyjne (Settings)
-- [`docs/adding-a-scraper.md`](docs/adding-a-scraper.md) — jak dodać nową wtyczkę scrapera
-- [`docs/testing.md`](docs/testing.md) — strategia testów, markery, lint, frontend
-- [`docs/scrapers-field-contract.md`](docs/scrapers-field-contract.md) — kontrakt pól RawListing per źródło
+- [`README.md`](README.md) — project overview, quick start, links to docs/
+- [`docs/architecture.md`](docs/architecture.md) — layered architecture and data flow
+- [`docs/running.md`](docs/running.md) — full setup instructions (requirements, database, migrations, API, frontend)
+- [`docs/configuration.md`](docs/configuration.md) — all configuration variables (Settings)
+- [`docs/adding-a-scraper.md`](docs/adding-a-scraper.md) — how to add a new scraper plugin
+- [`docs/testing.md`](docs/testing.md) — test strategy, markers, lint, frontend
+- [`docs/scrapers-field-contract.md`](docs/scrapers-field-contract.md) — RawListing field contract per source

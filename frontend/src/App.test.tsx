@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { App } from "./App";
 
 describe("App", () => {
-  it("renderuje nawigację i domyślną stronę listy ofert", async () => {
+  it("renders navigation and default listings page", async () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <App />
@@ -17,11 +17,11 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Zapisane" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ulubione" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ustawienia" })).toBeInTheDocument();
-    // domyślna trasa renderuje formularz listy ofert (etykieta "Miasto")
+    // default route renders listings form (label "Miasto")
     expect(await screen.findByLabelText("Miasto")).toBeInTheDocument();
   });
 
-  it("renderuje stronę ustawień pod /settings", async () => {
+  it("renders settings page at /settings", async () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
         <App />

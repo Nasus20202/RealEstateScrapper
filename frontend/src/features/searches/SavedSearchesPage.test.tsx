@@ -27,7 +27,7 @@ function renderPage() {
 }
 
 describe("SavedSearchesPage", () => {
-  it("listuje i tworzy zapisane wyszukiwanie", async () => {
+  it("lists and creates saved search", async () => {
     let posted: unknown = null;
     server.use(
       http.get(`${BASE}/searches`, () =>
@@ -65,7 +65,7 @@ describe("SavedSearchesPage", () => {
     );
   });
 
-  it("Zastosuj nawiguje do listingów z parametrami", async () => {
+  it("Apply navigates to listings with parameters", async () => {
     server.use(
       http.get(`${BASE}/searches`, () =>
         HttpResponse.json([
