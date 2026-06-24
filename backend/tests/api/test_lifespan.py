@@ -14,6 +14,17 @@ async def test_lifespan_sets_state_without_scheduler_by_default(pg_url, monkeypa
         assert app.state.scheduler.jobs() == []  # no active job by default
 
 
+async def test_lifespan_shares_state_with_mcp_mount(pg_url, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", pg_url)
+    monkeypatch.setenv("DB_MIGRATE_ON_STARTUP", "false")
+    app = create_app()
+    mcp_mount = next(route for route in app.routes if getattr(route, "path", None) == "/mcp")
+
+    async with app.router.lifespan_context(app):
+        assert mcp_mount.app.state.session_factory is app.state.session_factory
+        assert mcp_mount.app.state.event_bus is app.state.event_bus
+
+
 async def test_lifespan_starts_scheduler_when_enabled(pg_url, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", pg_url)
     monkeypatch.setenv("DB_MIGRATE_ON_STARTUP", "false")

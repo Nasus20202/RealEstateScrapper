@@ -31,6 +31,9 @@ export const handlers = [
     }),
   ),
   http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([])),
+  http.post(`${BASE}/scrape/enrich`, () =>
+    HttpResponse.json({ selected_listings: 0, enriched_listings: 0 }),
+  ),
   http.get(`${BASE}/searches`, () => HttpResponse.json([])),
   http.get(`${BASE}/favorites`, () => HttpResponse.json([])),
   http.get(`${BASE}/settings`, () =>

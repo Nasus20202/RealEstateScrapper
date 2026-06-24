@@ -246,5 +246,15 @@ class ScrapeResponse(BaseModel):
     runs: list[ScrapeRunOut]
 
 
+class EnrichmentRequest(BaseModel):
+    limit: int | None = None
+    only_missing_embeddings: bool = True
+
+
+class EnrichmentResponse(BaseModel):
+    selected_listings: int
+    enriched_listings: int
+
+
 class CleanupResponse(BaseModel):
     deleted_listings: int

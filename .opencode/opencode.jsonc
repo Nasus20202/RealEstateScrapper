@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "realestate-local": {
+      "type": "remote",
+      "url": "http://127.0.0.1:8000/mcp/",
+      "enabled": true,
+    },
+    "realestate-docker": {
+      "type": "remote",
+      "url": "http://127.0.0.1:8080/api/mcp/",
+      "enabled": true,
+    },
+  },
+}

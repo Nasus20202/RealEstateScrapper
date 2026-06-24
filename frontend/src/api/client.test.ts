@@ -1,7 +1,14 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { addFavorite, ApiError, getListing, getListings, postScrape } from "./client";
+import {
+  addFavorite,
+  ApiError,
+  getListing,
+  getListings,
+  postEnrichment,
+  postScrape,
+} from "./client";
 import { server } from "../test/server";
 
 describe("api client", () => {
@@ -67,6 +74,19 @@ describe("api client", () => {
     const res = await postScrape({ city: "Gdansk", max_pages: 2 });
     expect(body).toEqual({ city: "Gdansk", max_pages: 2 });
     expect(res.runs[0].id).toBe(7);
+  });
+
+  it("postEnrichment sends JSON body and parses summary", async () => {
+    let body: unknown = null;
+    server.use(
+      http.post("/api/scrape/enrich", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ selected_listings: 50, enriched_listings: 47 });
+      }),
+    );
+    const res = await postEnrichment({ limit: 50, only_missing_embeddings: true });
+    expect(body).toEqual({ limit: 50, only_missing_embeddings: true });
+    expect(res.enriched_listings).toBe(47);
   });
 
   it("addFavorite POSTs listing_id", async () => {

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 
-import { getRuns, getSettings, postScrape } from "../../api/client";
+import { getRuns, getSettings, postEnrichment, postScrape } from "../../api/client";
 import { subscribeScrapeEvents } from "../../api/events";
 import type {
+  EnrichmentResponse,
   ScrapeEvent,
   ScrapeLogEvent,
   ScrapeRequest,
@@ -38,7 +39,10 @@ export function ScrapePage() {
   const [events, setEvents] = useState<ScrapeEvent[]>([]);
   const [logs, setLogs] = useState<ScrapeLogEvent[]>([]);
   const [busy, setBusy] = useState(false);
+  const [enrichmentBusy, setEnrichmentBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [enrichmentError, setEnrichmentError] = useState<string | null>(null);
+  const [enrichmentResult, setEnrichmentResult] = useState<EnrichmentResponse | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const [cityMode, setCityMode] = useState("__default");
@@ -46,6 +50,8 @@ export function ScrapePage() {
   const [maxPages, setMaxPages] = useState("1");
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [sourcePages, setSourcePages] = useState<Record<string, string>>({});
+  const [enrichmentLimit, setEnrichmentLimit] = useState("200");
+  const [onlyMissingEmbeddings, setOnlyMissingEmbeddings] = useState(true);
 
   useEffect(() => {
     startTransition(async () => {
@@ -132,8 +138,70 @@ export function ScrapePage() {
     }
   }
 
+  async function onEnrich(e: React.FormEvent) {
+    e.preventDefault();
+    setEnrichmentBusy(true);
+    setEnrichmentError(null);
+    setEnrichmentResult(null);
+    try {
+      const limit = toNumber(enrichmentLimit);
+      const result = await postEnrichment({
+        limit,
+        only_missing_embeddings: onlyMissingEmbeddings,
+      });
+      setEnrichmentResult(result);
+    } catch (err) {
+      setEnrichmentError(err instanceof Error ? err.message : "Błąd wzbogacania ofert");
+    } finally {
+      setEnrichmentBusy(false);
+    }
+  }
+
   return (
     <section className="scrape-page">
+      <section className="scrape-control-panel">
+        <div>
+          <h2 className="scrape-section-title">Providery</h2>
+          <p className="scrape-panel-copy">
+            Najpierw wybierz źródła i limit stron. Każdy provider ma własny przełącznik i własny
+            limit pobieranych stron.
+          </p>
+        </div>
+        {availableSources.length > 0 && (
+          <div className="scrape-provider-grid">
+            {availableSources.map((src) => {
+              const selected = selectedSources.includes(src);
+              return (
+                <label
+                  key={src}
+                  className={`scrape-provider-card ${selected ? "scrape-provider-card--active" : ""}`}
+                >
+                  <span className="scrape-provider-card__top">
+                    <span className="scrape-provider-card__name">{src}</span>
+                    <input type="checkbox" checked={selected} onChange={() => toggleSource(src)} />
+                  </span>
+                  <span className="scrape-provider-card__meta">
+                    {selected
+                      ? "Włączony do tego przebiegu"
+                      : "Pominięty; zostanie uruchomiony tylko gdy nic nie zaznaczysz"}
+                  </span>
+                  <span className="scrape-provider-card__field">
+                    <span>Strony</span>
+                    <input
+                      aria-label={`Strony dla ${src}`}
+                      id={`s-pages-${src}`}
+                      inputMode="numeric"
+                      value={sourcePages[src] ?? "1"}
+                      onChange={(e) => updateSourcePages(src, e.target.value)}
+                    />
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <div className="scrape-layout">
         <div className="scrape-form-wrapper">
           <h2 className="scrape-section-title">Uruchom scraping</h2>
@@ -171,45 +239,55 @@ export function ScrapePage() {
               onChange={(e) => setMaxPages(e.target.value)}
             />
 
-            {availableSources.length > 0 && (
-              <>
-                <label className="sources-label">Źródła</label>
-                <div className="sources-checkboxes">
-                  {availableSources.map((src) => (
-                    <div key={src} className="source-config-row">
-                      <label className="source-check">
-                        <input
-                          type="checkbox"
-                          checked={selectedSources.includes(src)}
-                          onChange={() => toggleSource(src)}
-                        />
-                        {src}
-                      </label>
-                      <label htmlFor={`s-pages-${src}`} className="source-pages-label">
-                        Strony
-                        <input
-                          id={`s-pages-${src}`}
-                          inputMode="numeric"
-                          value={sourcePages[src] ?? "1"}
-                          onChange={(e) => updateSourcePages(src, e.target.value)}
-                        />
-                      </label>
-                    </div>
-                  ))}
-                  <span className="sources-hint">
-                    {selectedSources.length === 0
-                      ? "wszystkie; strony można ustawić osobno per provider"
-                      : `${selectedSources.length} wybranych`}
-                  </span>
-                </div>
-              </>
-            )}
+            <p className="sources-hint">
+              {selectedSources.length === 0
+                ? "Bez zaznaczenia uruchomią się wszystkie providery z ustawionymi limitami stron."
+                : `Wybrano ${selectedSources.length} providery do tego przebiegu.`}
+            </p>
 
             <button type="submit" disabled={busy}>
               {busy ? "Trwa…" : "Uruchom"}
             </button>
           </form>
           {error && <p className="error">{error}</p>}
+
+          <div className="scrape-divider" />
+
+          <h2 className="scrape-section-title">Embeddingi i analiza</h2>
+          <form className="scrape-form scrape-form--subtle" onSubmit={onEnrich}>
+            <label htmlFor="s-enrichment-limit">Liczba najnowszych ofert</label>
+            <input
+              id="s-enrichment-limit"
+              inputMode="numeric"
+              value={enrichmentLimit}
+              onChange={(e) => setEnrichmentLimit(e.target.value)}
+              placeholder="puste = wszystkie"
+            />
+
+            <label className="settings-check">
+              <input
+                type="checkbox"
+                checked={onlyMissingEmbeddings}
+                onChange={(e) => setOnlyMissingEmbeddings(e.target.checked)}
+              />
+              Tylko oferty bez embeddingu
+            </label>
+
+            <button type="submit" disabled={enrichmentBusy}>
+              {enrichmentBusy ? "Trwa wzbogacanie…" : "Uruchom embeddingi"}
+            </button>
+          </form>
+          <p className="scrape-panel-copy">
+            To używa endpointu ręcznego. Możesz przeliczyć tylko brakujące embeddingi albo zrobić
+            pełny przebieg dla wszystkich aktywnych ofert.
+          </p>
+          {enrichmentResult && (
+            <p className="scrape-success">
+              Wybrano {enrichmentResult.selected_listings} ofert, wzbogacono{" "}
+              {enrichmentResult.enriched_listings}.
+            </p>
+          )}
+          {enrichmentError && <p className="error">{enrichmentError}</p>}
         </div>
 
         <div className="scrape-live">

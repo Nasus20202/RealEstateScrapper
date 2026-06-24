@@ -182,6 +182,16 @@ export interface ScrapeResponse {
   runs: ScrapeRunOut[];
 }
 
+export interface EnrichmentRequest {
+  limit?: number;
+  only_missing_embeddings?: boolean;
+}
+
+export interface EnrichmentResponse {
+  selected_listings: number;
+  enriched_listings: number;
+}
+
 export interface SavedSearchOut {
   id: number;
   name: string;

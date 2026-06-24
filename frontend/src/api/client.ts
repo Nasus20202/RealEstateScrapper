@@ -1,4 +1,6 @@
 import type {
+  EnrichmentRequest,
+  EnrichmentResponse,
   CreateSavedSearch,
   FavoriteOut,
   HealthOut,
@@ -128,6 +130,13 @@ export function getRun(id: number): Promise<ScrapeRunOut> {
   return request<ScrapeRunOut>(`/scrape/runs/${id}`);
 }
 
+export function postEnrichment(body: EnrichmentRequest): Promise<EnrichmentResponse> {
+  return request<EnrichmentResponse>("/scrape/enrich", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export function getSearches(): Promise<SavedSearchOut[]> {
   return request<SavedSearchOut[]>("/searches");
 }
@@ -177,6 +186,8 @@ export function cleanupDatabase(): Promise<CleanupResponse> {
 }
 
 export type {
+  EnrichmentRequest,
+  EnrichmentResponse,
   CreateSavedSearch,
   FavoriteOut,
   HealthOut,

@@ -89,6 +89,8 @@ describe("ScrapePage", () => {
     await userEvent.selectOptions(screen.getByLabelText("Miasto"), "Sopot");
     await userEvent.clear(screen.getByLabelText("Maks. stron"));
     await userEvent.type(screen.getByLabelText("Maks. stron"), "3");
+    await userEvent.clear(screen.getByLabelText("Strony dla otodom"));
+    await userEvent.type(screen.getByLabelText("Strony dla otodom"), "4");
 
     await userEvent.click(screen.getByRole("button", { name: "Uruchom" }));
 
@@ -96,7 +98,7 @@ describe("ScrapePage", () => {
       expect(body).toMatchObject({
         city: "Sopot",
         max_pages: 3,
-        source_max_pages: { otodom: 1, hossa: 1 },
+        source_max_pages: { otodom: 4, hossa: 1 },
       }),
     );
   });
@@ -123,6 +125,32 @@ describe("ScrapePage", () => {
       }),
     );
     expect(body).not.toHaveProperty("city");
+  });
+
+  it("runs enrichment from the visible button", async () => {
+    setupMocks();
+    let body: unknown = null;
+    server.use(
+      http.get(`${BASE}/scrape/runs`, () => HttpResponse.json([])),
+      http.post(`${BASE}/scrape/enrich`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ selected_listings: 25, enriched_listings: 19 });
+      }),
+    );
+    render(<ScrapePage />);
+    await screen.findByRole("button", { name: "Uruchom embeddingi" });
+
+    await userEvent.clear(screen.getByLabelText("Liczba najnowszych ofert"));
+    await userEvent.type(screen.getByLabelText("Liczba najnowszych ofert"), "25");
+    await userEvent.click(screen.getByRole("button", { name: "Uruchom embeddingi" }));
+
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        limit: 25,
+        only_missing_embeddings: true,
+      }),
+    );
+    expect(await screen.findByText(/Wybrano 25 ofert, wzbogacono 19/)).toBeInTheDocument();
   });
 
   it("progress panel shows SSE events injected via fake", async () => {

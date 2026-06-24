@@ -78,6 +78,18 @@ async def test_hybrid_degrades_to_rule_based_when_embedding_fails(engine):
         assert items[0].score is None
 
 
+async def test_hybrid_degrades_to_rule_based_when_no_listings_have_embeddings(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        await _listing(s, ext="a", vec=None)
+        svc = SearchService(s, client=_HybridClient('{"matches": []}'))
+        items, total = await svc.search_hybrid(ListingFilters(nl_query="dom"))
+        assert total == 1
+        assert items[0].listing.external_id == "a"
+        assert items[0].score is None
+
+
 async def test_hybrid_uses_llm_rerank(engine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

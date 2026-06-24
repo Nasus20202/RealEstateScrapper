@@ -1,19 +1,32 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from realestate.api.deps import (
     get_event_bus_dep,
     get_fetcher_dep,
     get_geocoder_dep,
+    get_llm_client_dep,
     get_session,
     get_session_factory,
 )
-from realestate.api.schemas import ScrapeRequest, ScrapeResponse, ScrapeRunOut
+from realestate.api.schemas import (
+    EnrichmentRequest,
+    EnrichmentResponse,
+    ScrapeRequest,
+    ScrapeResponse,
+    ScrapeRunOut,
+)
 from realestate.config import get_settings
+from realestate.enrichment.service import EnrichmentService
 from realestate.events.bus import EventBus
 from realestate.ingestion.service import IngestionService
+from realestate.models.enums import ListingStatus
+from realestate.models.listing import Listing
 from realestate.repositories.scrape_runs import ScrapeRunRepository
 from realestate.repositories.user_data import AppSettingRepository
 from realestate.scrapers.base import SearchCriteria
@@ -89,6 +102,32 @@ async def trigger_scrape(
             )
         )
     return ScrapeResponse(runs=[ScrapeRunOut.from_run(r) for r in runs])
+
+
+@router.post("/scrape/enrich", response_model=EnrichmentResponse)
+async def enrich_listings(
+    body: EnrichmentRequest,
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+    client=Depends(get_llm_client_dep),  # noqa: B008
+) -> EnrichmentResponse:
+    if client is None:
+        raise HTTPException(status_code=400, detail="LLM client not configured")
+
+    stmt = select(Listing).where(Listing.status == ListingStatus.ACTIVE)
+    if body.only_missing_embeddings:
+        stmt = stmt.where(Listing.embedding.is_(None))
+    stmt = stmt.order_by(Listing.last_seen.desc(), Listing.id.desc())
+    if body.limit is not None:
+        stmt = stmt.limit(max(0, body.limit))
+
+    listings = list((await session.execute(stmt)).scalars().all())
+    enriched = await EnrichmentService(
+        session,
+        client,
+        model_name=get_settings().llm_model or "unknown",
+    ).enrich_many(listings, now=datetime.now(UTC))
+    await session.commit()
+    return EnrichmentResponse(selected_listings=len(listings), enriched_listings=enriched)
 
 
 @router.get("/scrape/runs", response_model=list[ScrapeRunOut])

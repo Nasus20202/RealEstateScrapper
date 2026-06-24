@@ -103,6 +103,13 @@ class SearchService:
             total,
             top_k,
         )
+        if not candidates:
+            logger.warning(
+                "Hybrid search found no embedded candidates; falling back to filtered search "
+                "total=%s",
+                total,
+            )
+            return await self.search(filters, limit=limit, offset=offset)
 
         try:
             matches = await match_and_rank(self.client, candidates, filters.nl_query)

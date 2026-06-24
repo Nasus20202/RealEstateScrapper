@@ -1262,11 +1262,88 @@ button.btn-ghost:hover {
 }
 
 /* ---------- Scrape page ---------- */
+.scrape-control-panel {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at top left, rgba(45, 212, 191, 0.14), transparent 34%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.28), transparent 58%), var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
 .scrape-layout {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
+}
+.scrape-panel-copy {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.scrape-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+.scrape-provider-card {
+  display: grid;
+  gap: 0.7rem;
+  align-content: start;
+  padding: 0.95rem;
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease,
+    background 120ms ease;
+}
+.scrape-provider-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(45, 212, 191, 0.35);
+}
+.scrape-provider-card--active {
+  background: linear-gradient(160deg, rgba(20, 184, 166, 0.15), rgba(15, 23, 42, 0.82));
+  border-color: rgba(45, 212, 191, 0.45);
+}
+.scrape-provider-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.scrape-provider-card__top input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+}
+.scrape-provider-card__name {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.scrape-provider-card__meta {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.scrape-provider-card__field {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.scrape-provider-card__field input {
+  padding: 0.42rem 0.5rem;
 }
 @media (max-width: 820px) {
   .scrape-layout {
@@ -1302,9 +1379,22 @@ button.btn-ghost:hover {
   gap: 0.75rem;
   align-items: stretch;
 }
+.scrape-form--subtle {
+  margin-top: 0.35rem;
+}
 .scrape-form-wrapper .scrape-form > label,
 .scrape-form-wrapper .scrape-form .sources-label {
   margin-top: 0.15rem;
+}
+.scrape-divider {
+  height: 1px;
+  margin: 1.15rem 0;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+.scrape-success {
+  margin: 0.7rem 0 0;
+  color: #4ade80;
+  font-weight: 600;
 }
 
 .settings-check {
@@ -1462,49 +1552,10 @@ button.btn-ghost:hover {
   letter-spacing: 0.04em;
   color: var(--text-dim);
 }
-.sources-checkboxes {
-  display: grid;
-  gap: 0.55rem;
-}
-.source-config-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 82px;
-  gap: 0.6rem;
-  align-items: center;
-  padding: 0.55rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.source-check {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.9rem;
-  cursor: pointer;
-  color: var(--text-muted);
-}
-.source-check input[type="checkbox"] {
-  width: auto;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
-.source-pages-label {
-  display: grid;
-  gap: 0.2rem;
-  color: var(--text-dim);
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.source-pages-label input {
-  padding: 0.38rem 0.45rem;
-}
 .sources-hint {
+  margin: 0;
   font-size: 0.78rem;
   color: var(--text-dim);
-  font-style: italic;
 }
 .scrape-live {
   background: var(--bg-elev);

@@ -1,0 +1,46 @@
+schema: spec-driven
+
+context: |
+  Backend lives in `backend/` and uses Python 3.14, uv, FastAPI, SQLAlchemy 2.0 async,
+  asyncpg, Alembic, PostgreSQL 18.4, pgvector, and PostGIS.
+
+  Frontend lives in `frontend/` and uses React 19, Vite 8, TypeScript 6, and react-router v6.
+
+  Run backend commands from `backend/`:
+  - `uv run pytest`
+  - `uv run ruff check .`
+  - `uv run alembic upgrade head`
+  - `uv run uvicorn realestate.api.app:app --reload`
+
+  Run frontend commands from the repo root:
+  - `pnpm --dir frontend exec vitest run`
+  - `pnpm --dir frontend build`
+
+  API routes are currently implemented at the FastAPI app root, for example `/health`,
+  `/listings`, `/scrape`, `/events`, `/searches`, `/favorites`, and `/settings`. The
+  frontend and nginx typically expose them behind `/api`.
+
+  Canonical capability specs live in `openspec/specs/`. `docs/superpowers/` is a legacy
+  planning archive and is not the source of truth.
+
+  Important implementation constraints:
+  - `EMBEDDING_DIM` must match between Alembic migrations and runtime.
+  - Scheduler, saved searches, favorites, and settings are global rather than per-user.
+  - LLM enrichment and dedup services exist, but they are not automatically triggered by
+    manual scrapes, scheduled scrapes, or public API routes.
+
+rules:
+  proposal:
+    - Keep proposals grounded in the current repository architecture and deployed behavior.
+    - Call out non-goals and any gaps between proposed behavior and current implementation.
+  specs:
+    - Treat `openspec/specs/` as the canonical product and capability source of truth.
+    - Keep requirements consistent with the implementation unless the change explicitly proposes a new behavior.
+    - Do not restate legacy `docs/superpowers` assumptions that are not implemented.
+    - Be explicit when current behavior differs from older docs, especially for API paths and automation flows.
+  design:
+    - Reference concrete code paths, data models, and runtime constraints from this repo.
+    - Prefer small extensions of existing flows over parallel replacement architectures.
+  tasks:
+    - Break work into small verifiable steps.
+    - Include the concrete validation commands needed for the touched backend, frontend, or OpenSpec files.
