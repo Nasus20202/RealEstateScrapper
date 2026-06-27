@@ -27,5 +27,8 @@ RUN uv sync --frozen --no-dev
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+HEALTHCHECK --interval=5s --timeout=5s --retries=5 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"
+
 EXPOSE 8000
 ENTRYPOINT ["/entrypoint.sh"]
