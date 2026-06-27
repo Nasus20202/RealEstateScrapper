@@ -584,7 +584,11 @@ export function ListingsPage() {
                   </div>
                   <div>
                     <dt>Źródło</dt>
-                    <dd>{preview.source_id}</dd>
+                    <dd>
+                      <a href={preview.url} target="_blank" rel="noreferrer">
+                        {preview.source_id}
+                      </a>
+                    </dd>
                   </div>
                   <div>
                     <dt>Rynek</dt>
