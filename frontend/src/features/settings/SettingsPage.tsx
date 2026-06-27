@@ -30,7 +30,7 @@ export function SettingsPage() {
       setEnabled(data.sources);
       setSourcePages(
         Object.fromEntries(
-          data.sources.map((source) => [source, String(data.source_max_pages?.[source] ?? 1)]),
+          data.sources.map((source) => [source, String(data.source_max_pages?.[source] ?? "")]),
         ),
       );
       setSourceCrons(
@@ -87,7 +87,7 @@ export function SettingsPage() {
     setDefaultCities((updated.default_cities ?? []).join(", "));
     setSourcePages(
       Object.fromEntries(
-        updated.sources.map((source) => [source, String(updated.source_max_pages?.[source] ?? 1)]),
+        updated.sources.map((source) => [source, String(updated.source_max_pages?.[source] ?? "")]),
       ),
     );
     setSourceCrons(
@@ -205,7 +205,7 @@ export function SettingsPage() {
                       <input
                         id={`set-pages-${source}`}
                         inputMode="numeric"
-                        value={sourcePages[source] ?? "1"}
+                        value={sourcePages[source] ?? ""}
                         onChange={(e) => updateSourcePages(source, e.target.value)}
                       />
                     </label>

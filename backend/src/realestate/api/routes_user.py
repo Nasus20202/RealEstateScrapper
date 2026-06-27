@@ -29,7 +29,7 @@ from realestate.repositories.user_data import (
 )
 from realestate.scrapers.base import get_scrapers
 
-router = APIRouter()
+router = APIRouter(tags=["User Data"])
 
 
 @router.post("/cleanup", response_model=CleanupResponse)

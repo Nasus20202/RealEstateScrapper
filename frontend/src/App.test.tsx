@@ -29,4 +29,13 @@ describe("App", () => {
     );
     expect(await screen.findByText("Ustawienia")).toBeInTheDocument();
   });
+
+  it("redirects unknown paths to /", async () => {
+    render(
+      <MemoryRouter initialEntries={["/xyz"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByLabelText("Miasto")).toBeInTheDocument();
+  });
 });

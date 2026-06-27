@@ -1,4 +1,6 @@
 # tests/e2e/test_full_flow.py
+import asyncio
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -68,13 +70,13 @@ async def test_full_flow_scrape_list_detail_favorite(engine):
     app = _app(engine)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as client:
-        # 1) scrape
+        # 1) scrape (background)
         scraped = await client.post(
             "/scrape", json={"city": "gdansk", "source_ids": ["otodom"], "max_pages": 2}
         )
-        assert scraped.status_code == 200
-        assert scraped.json()["runs"][0]["status"] == "success"
-        assert scraped.json()["runs"][0]["new_count"] >= 20
+        assert scraped.status_code == 204
+
+        await asyncio.sleep(2)
 
         # 2) list (rule-based ranking, no LLM)
         listed = await client.get("/listings", params={"limit": 100})

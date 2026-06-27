@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 
 import pytest
@@ -177,16 +178,17 @@ async def test_scrape_then_list_runs(engine):
         resp = await client.post(
             "/scrape", json={"city": "gdansk", "source_ids": ["otodom"], "max_pages": 2}
         )
-        assert resp.status_code == 200
-        runs = resp.json()["runs"]
+        assert resp.status_code == 204
+
+        await asyncio.sleep(1)
+
+        listed = await client.get("/scrape/runs")
+        assert listed.status_code == 200
+        runs = listed.json()
         assert len(runs) == 1
         assert runs[0]["status"] == "success"
         assert runs[0]["new_count"] >= 20
         run_id = runs[0]["id"]
-
-        listed = await client.get("/scrape/runs")
-        assert listed.status_code == 200
-        assert any(r["id"] == run_id for r in listed.json())
 
         one = await client.get(f"/scrape/runs/{run_id}")
         assert one.status_code == 200 and one.json()["id"] == run_id
@@ -202,8 +204,10 @@ async def test_enrich_listings_uses_newest_pending_limit(engine):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as client:
         resp = await client.post("/scrape/enrich", json={"limit": 2})
-    assert resp.status_code == 200
-    assert resp.json() == {"selected_listings": 2, "enriched_listings": 2}
+    assert resp.status_code == 204
+
+    await asyncio.sleep(1)
+
     embeddings = await _fetch_embeddings(engine)
     assert embeddings["oldest"] is None
     assert embeddings["middle"] is not None
@@ -220,8 +224,10 @@ async def test_enrich_listings_all_pending_by_default(engine):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as client:
         resp = await client.post("/scrape/enrich", json={})
-    assert resp.status_code == 200
-    assert resp.json() == {"selected_listings": 3, "enriched_listings": 3}
+    assert resp.status_code == 204
+
+    await asyncio.sleep(1)
+
     embeddings = await _fetch_embeddings(engine)
     assert all(embedding is not None for embedding in embeddings.values())
     assert llm_client.complete_calls == 3

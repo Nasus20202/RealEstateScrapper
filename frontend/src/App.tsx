@@ -1,5 +1,5 @@
 // frontend/src/App.tsx
-import { NavLink, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { FavoritesPage } from "./features/favorites/FavoritesPage";
 import { ListingDetailPage } from "./features/listings/ListingDetailPage";
@@ -38,6 +38,7 @@ export function App() {
           <Route path="/searches" element={<SavedSearchesPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>

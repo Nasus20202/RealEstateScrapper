@@ -47,7 +47,7 @@ export function ScrapePage() {
 
   const [cityMode, setCityMode] = useState("__default");
   const [customCity, setCustomCity] = useState("");
-  const [maxPages, setMaxPages] = useState("1");
+  const [maxPages, setMaxPages] = useState("10");
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [sourcePages, setSourcePages] = useState<Record<string, string>>({});
   const [enrichmentLimit, setEnrichmentLimit] = useState("200");
@@ -62,7 +62,7 @@ export function ScrapePage() {
         Object.fromEntries(
           initialSettings.sources.map((source) => [
             source,
-            String(initialSettings.source_max_pages?.[source] ?? 1),
+            String(initialSettings.source_max_pages?.[source] ?? ""),
           ]),
         ),
       );
@@ -112,9 +112,9 @@ export function ScrapePage() {
     setEvents([]);
     setLogs([{ type: "scrape_log", source_id: "app", message: "Startuję scraping…" }]);
     try {
-      const body: ScrapeRequest = {
-        max_pages: toNumber(maxPages) ?? 1,
-      };
+      const maxPagesNum = toNumber(maxPages);
+      const body: ScrapeRequest = {};
+      if (maxPagesNum !== undefined) body.max_pages = maxPagesNum;
       if (cityMode === "__custom" && customCity.trim()) {
         body.city = customCity.trim();
       } else if (cityMode !== "__default") {
@@ -181,9 +181,9 @@ export function ScrapePage() {
                     <input type="checkbox" checked={selected} onChange={() => toggleSource(src)} />
                   </span>
                   <span className="scrape-provider-card__meta">
-                    {selected
-                      ? "Włączony do tego przebiegu"
-                      : "Pominięty; zostanie uruchomiony tylko gdy nic nie zaznaczysz"}
+                    {selected || !selectedSources.length
+                      ? "Włączony do scrappingu"
+                      : "Pominięty w tym przebiegu"}
                   </span>
                   <span className="scrape-provider-card__field">
                     <span>Strony</span>
@@ -191,8 +191,9 @@ export function ScrapePage() {
                       aria-label={`Strony dla ${src}`}
                       id={`s-pages-${src}`}
                       inputMode="numeric"
-                      value={sourcePages[src] ?? "1"}
+                      value={sourcePages[src] ?? ""}
                       onChange={(e) => updateSourcePages(src, e.target.value)}
+                      placeholder={maxPages}
                     />
                   </span>
                 </label>
@@ -246,7 +247,9 @@ export function ScrapePage() {
             </p>
 
             <button type="submit" disabled={busy}>
-              {busy ? "Trwa…" : "Uruchom"}
+              {busy
+                ? "Trwa…"
+                : `Uruchom scraping (${selectedSources.length || availableSources.length} źródeł)`}
             </button>
           </form>
           {error && <p className="error">{error}</p>}

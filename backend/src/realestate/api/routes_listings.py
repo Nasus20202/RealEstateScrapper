@@ -29,7 +29,7 @@ from realestate.models.source import Source
 from realestate.search.filters import ListingFilters
 from realestate.search.service import SearchService
 
-router = APIRouter()
+router = APIRouter(tags=["Listings"])
 logger = logging.getLogger(__name__)
 
 

@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from realestate.api.deps import get_event_bus_dep
 from realestate.events.bus import EventBus
 
-router = APIRouter()
+router = APIRouter(tags=["Events"])
 
 
 def format_sse(event: dict) -> str:

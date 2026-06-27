@@ -84,7 +84,7 @@ describe("ScrapePage", () => {
       }),
     );
     render(<ScrapePage />);
-    await screen.findByRole("button", { name: "Uruchom" });
+    await screen.findByRole("button", { name: /^Uruchom scraping/ });
 
     await userEvent.selectOptions(screen.getByLabelText("Miasto"), "Sopot");
     await userEvent.clear(screen.getByLabelText("Maks. stron"));
@@ -92,13 +92,13 @@ describe("ScrapePage", () => {
     await userEvent.clear(screen.getByLabelText("Strony dla otodom"));
     await userEvent.type(screen.getByLabelText("Strony dla otodom"), "4");
 
-    await userEvent.click(screen.getByRole("button", { name: "Uruchom" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Uruchom scraping/ }));
 
     await waitFor(() =>
       expect(body).toMatchObject({
         city: "Sopot",
         max_pages: 3,
-        source_max_pages: { otodom: 4, hossa: 1 },
+        source_max_pages: { otodom: 4 },
       }),
     );
   });
@@ -114,17 +114,12 @@ describe("ScrapePage", () => {
       }),
     );
     render(<ScrapePage />);
-    await screen.findByRole("button", { name: "Uruchom" });
+    await screen.findByRole("button", { name: /^Uruchom scraping/ });
 
-    await userEvent.click(screen.getByRole("button", { name: "Uruchom" }));
+    await userEvent.clear(screen.getByLabelText("Maks. stron"));
+    await userEvent.click(screen.getByRole("button", { name: /^Uruchom scraping/ }));
 
-    await waitFor(() =>
-      expect(body).toMatchObject({
-        max_pages: 1,
-        source_max_pages: { otodom: 1, hossa: 1 },
-      }),
-    );
-    expect(body).not.toHaveProperty("city");
+    await waitFor(() => expect(body).toEqual({}));
   });
 
   it("runs enrichment from the visible button", async () => {

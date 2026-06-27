@@ -128,7 +128,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.get("/health")
+    @app.get("/health", tags=["Health"])
     async def health(db_ok: bool = Depends(get_db_health)) -> JSONResponse:  # noqa: B008
         if db_ok:
             return JSONResponse({"status": "ok", "database": True})

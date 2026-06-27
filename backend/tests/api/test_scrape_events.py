@@ -54,7 +54,7 @@ async def test_scrape_publishes_events(engine):
                 "/scrape",
                 json={"city": "gdansk", "source_ids": ["otodom"], "max_pages": 2},
             )
-            assert resp.status_code == 200
+            assert resp.status_code == 204
             events = []
             while not queue.empty():
                 events.append(queue.get_nowait())
