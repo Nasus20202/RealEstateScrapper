@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.helpers import looks_like_street_or_code
 from realestate.scrapers.images import unique_listing_images
 
 _BASE_URL = "https://rynekpierwotny.pl"
@@ -46,7 +47,11 @@ def _district_from_address(address: str, city: str | None) -> str | None:
     parts = [p.strip() for p in address.split(",")]
     if len(parts) >= 2:
         district = parts[1].strip()
-        if district and district.lower() != city.lower():
+        if (
+            district
+            and district.lower() != city.lower()
+            and not looks_like_street_or_code(district)
+        ):
             return district
     return None
 

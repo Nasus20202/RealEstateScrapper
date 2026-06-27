@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { getSettings, getStats } from "../../api/client";
+import { getListingFilterOptions, getSettings, getStats } from "../../api/client";
 import type {
+  ListingFilterOptionsOut,
   StatsBucketOut,
   StatsGroupOut,
   StatsOut,
@@ -188,7 +189,8 @@ function BucketChart({ title, rows }: { title: string; rows: StatsBucketOut[] })
 }
 
 interface FilterState {
-  city: string;
+  cities: string[];
+  districts: string[];
   min_price: string;
   max_price: string;
   min_rooms: string;
@@ -199,7 +201,8 @@ interface FilterState {
 
 function filtersFromParams(params: URLSearchParams): FilterState {
   return {
-    city: params.get("city") ?? "",
+    cities: params.getAll("city"),
+    districts: params.getAll("district"),
     min_price: params.get("min_price") ?? "",
     max_price: params.get("max_price") ?? "",
     min_rooms: params.get("min_rooms") ?? "",
@@ -213,6 +216,7 @@ function paramsFromFilters(form: FilterState, current: URLSearchParams): URLSear
   const params = new URLSearchParams(current);
   for (const key of [
     "city",
+    "district",
     "min_price",
     "max_price",
     "min_rooms",
@@ -222,7 +226,8 @@ function paramsFromFilters(form: FilterState, current: URLSearchParams): URLSear
   ]) {
     params.delete(key);
   }
-  if (form.city.trim()) params.set("city", form.city.trim());
+  for (const city of form.cities) params.append("city", city);
+  for (const district of form.districts) params.append("district", district);
   if (form.min_price.trim()) params.set("min_price", form.min_price.trim());
   if (form.max_price.trim()) params.set("max_price", form.max_price.trim());
   if (form.min_rooms.trim()) params.set("min_rooms", form.min_rooms.trim());
@@ -234,7 +239,8 @@ function paramsFromFilters(form: FilterState, current: URLSearchParams): URLSear
 
 function queryFromFilters(filters: FilterState): StatsQuery {
   return {
-    city: filters.city.trim() || undefined,
+    city: filters.cities.length > 0 ? filters.cities : undefined,
+    district: filters.districts.length > 0 ? filters.districts : undefined,
     source_id: filters.source_ids.length > 0 ? filters.source_ids : undefined,
     min_price: Number(filters.min_price) || undefined,
     max_price: Number(filters.max_price) || undefined,
@@ -249,6 +255,11 @@ export function StatsPage() {
   const [stats, setStats] = useState<StatsOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sources, setSources] = useState<string[]>([]);
+  const [filterOptions, setFilterOptions] = useState<ListingFilterOptionsOut>({
+    cities: [],
+    districts: [],
+    districts_by_city: {},
+  });
   const [sorts, setSorts] = useState<Record<string, SortState>>({});
 
   function getSort(tableId: string): SortState {
@@ -297,6 +308,9 @@ export function StatsPage() {
     void getSettings()
       .then((s) => setSources(s.sources))
       .catch(() => {});
+    void getListingFilterOptions()
+      .then(setFilterOptions)
+      .catch(() => {});
   }, []);
 
   function update(field: keyof FilterState, value: string) {
@@ -304,12 +318,20 @@ export function StatsPage() {
     setSearchParams(paramsFromFilters(next, searchParams));
   }
 
-  function toggleSource(source: string) {
-    const nextIds = filters.source_ids.includes(source)
-      ? filters.source_ids.filter((s) => s !== source)
-      : [...filters.source_ids, source];
-    const next = { ...filters, source_ids: nextIds };
+  function toggleMulti(field: "cities" | "districts" | "source_ids", value: string) {
+    const selected = filters[field];
+    const next = {
+      ...filters,
+      [field]: selected.includes(value)
+        ? selected.filter((item) => item !== value)
+        : [...selected, value],
+      ...(field === "cities" ? { districts: [] } : {}),
+    };
     setSearchParams(paramsFromFilters(next, searchParams));
+  }
+
+  function toggleSource(source: string) {
+    toggleMulti("source_ids", source);
   }
 
   function applyFilters(event: React.FormEvent) {
@@ -321,6 +343,12 @@ export function StatsPage() {
   if (!stats) return <p className="loading">Ładowanie statystyk…</p>;
 
   const { overview } = stats;
+  const districtOptions =
+    filters.cities.length > 0
+      ? Array.from(
+          new Set(filters.cities.flatMap((city) => filterOptions.districts_by_city[city] ?? [])),
+        ).sort()
+      : filterOptions.districts;
 
   return (
     <section className="stats-page">
@@ -334,79 +362,102 @@ export function StatsPage() {
         )}
       </header>
 
-      <form className="map-filters" onSubmit={applyFilters}>
-        <label htmlFor="stats-city">
-          Miasto
-          <input
-            id="stats-city"
-            value={filters.city}
-            onChange={(e) => update("city", e.target.value)}
-            placeholder="np. Gdańsk"
-          />
-        </label>
-        <label htmlFor="stats-min-price">
-          Cena min.
-          <input
-            id="stats-min-price"
-            inputMode="numeric"
-            value={filters.min_price}
-            onChange={(e) => update("min_price", e.target.value)}
-          />
-        </label>
-        <label htmlFor="stats-max-price">
-          Cena maks.
-          <input
-            id="stats-max-price"
-            inputMode="numeric"
-            value={filters.max_price}
-            onChange={(e) => update("max_price", e.target.value)}
-          />
-        </label>
-        <label htmlFor="stats-min-rooms">
-          Pokoje min.
-          <input
-            id="stats-min-rooms"
-            inputMode="numeric"
-            value={filters.min_rooms}
-            onChange={(e) => update("min_rooms", e.target.value)}
-          />
-        </label>
-        <label htmlFor="stats-max-rooms">
-          Pokoje maks.
-          <input
-            id="stats-max-rooms"
-            inputMode="numeric"
-            value={filters.max_rooms}
-            onChange={(e) => update("max_rooms", e.target.value)}
-          />
-        </label>
-        <label htmlFor="stats-market">
-          Rynek
-          <select
-            id="stats-market"
-            value={filters.market}
-            onChange={(e) => update("market", e.target.value)}
-          >
-            <option value="">Wszystkie</option>
-            <option value="primary">Pierwotny</option>
-            <option value="secondary">Wtórny</option>
-          </select>
-        </label>
-        {sources.length > 0 && (
-          <div className="map-filters__sources">
-            {sources.map((source) => (
-              <label key={source} className="multi-select-option">
+      <form className="map-filters location-filters" onSubmit={applyFilters}>
+        <fieldset className="filter-fieldset location-filters__city">
+          <legend>Miasto</legend>
+          <div id="stats-city" className="multi-select-list multi-select-list--fixed">
+            {filterOptions.cities.map((city) => (
+              <label key={city} className="multi-select-option">
                 <input
                   type="checkbox"
-                  checked={filters.source_ids.includes(source)}
-                  onChange={() => toggleSource(source)}
+                  checked={filters.cities.includes(city)}
+                  onChange={() => toggleMulti("cities", city)}
                 />
-                {source}
+                {city}
               </label>
             ))}
           </div>
-        )}
-        <button type="submit">Filtruj</button>
+        </fieldset>
+        <fieldset className="filter-fieldset location-filters__districts">
+          <legend>Dzielnice</legend>
+          <div id="stats-districts" className="multi-select-list multi-select-list--fixed">
+            {districtOptions.map((district) => (
+              <label key={district} className="multi-select-option">
+                <input
+                  type="checkbox"
+                  checked={filters.districts.includes(district)}
+                  onChange={() => toggleMulti("districts", district)}
+                />
+                {district}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="location-filters__controls">
+          <label htmlFor="stats-min-price">
+            Cena min.
+            <input
+              id="stats-min-price"
+              inputMode="numeric"
+              value={filters.min_price}
+              onChange={(e) => update("min_price", e.target.value)}
+            />
+          </label>
+          <label htmlFor="stats-max-price">
+            Cena maks.
+            <input
+              id="stats-max-price"
+              inputMode="numeric"
+              value={filters.max_price}
+              onChange={(e) => update("max_price", e.target.value)}
+            />
+          </label>
+          <label htmlFor="stats-min-rooms">
+            Pokoje min.
+            <input
+              id="stats-min-rooms"
+              inputMode="numeric"
+              value={filters.min_rooms}
+              onChange={(e) => update("min_rooms", e.target.value)}
+            />
+          </label>
+          <label htmlFor="stats-max-rooms">
+            Pokoje maks.
+            <input
+              id="stats-max-rooms"
+              inputMode="numeric"
+              value={filters.max_rooms}
+              onChange={(e) => update("max_rooms", e.target.value)}
+            />
+          </label>
+          <label htmlFor="stats-market">
+            Rynek
+            <select
+              id="stats-market"
+              value={filters.market}
+              onChange={(e) => update("market", e.target.value)}
+            >
+              <option value="">Wszystkie</option>
+              <option value="primary">Pierwotny</option>
+              <option value="secondary">Wtórny</option>
+            </select>
+          </label>
+          {sources.length > 0 && (
+            <div className="map-filters__sources">
+              {sources.map((source) => (
+                <label key={source} className="multi-select-option">
+                  <input
+                    type="checkbox"
+                    checked={filters.source_ids.includes(source)}
+                    onChange={() => toggleSource(source)}
+                  />
+                  {source}
+                </label>
+              ))}
+            </div>
+          )}
+          <button type="submit">Filtruj</button>
+        </div>
       </form>
 
       <div className="stats-kpis">

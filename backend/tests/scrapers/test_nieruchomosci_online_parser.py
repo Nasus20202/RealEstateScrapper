@@ -5,6 +5,7 @@ from realestate.scrapers.nieruchomosci_online import (
     NieruchomosciOnlineScraper,
     _area,
     _money,
+    _split_address,
 )
 from tests.fixtures.loader import load_fixture
 
@@ -90,3 +91,19 @@ def test_area_handles_polish_decimal():
     assert _area("32,58 m²") == 32.58
     assert _area("1.234,56 m²") == 1234.56
     assert _area("") is None
+
+
+def test_split_address_keeps_code_out_of_district():
+    city, district, street = _split_address("10-457, Gdańsk")
+
+    assert city == "Gdańsk"
+    assert district is None
+    assert street == "10-457"
+
+
+def test_split_address_keeps_street_out_of_district():
+    city, district, street = _split_address("Aleja Niepodległości, Sopot")
+
+    assert city == "Sopot"
+    assert district is None
+    assert street == "Aleja Niepodległości"

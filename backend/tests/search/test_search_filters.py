@@ -115,3 +115,27 @@ async def test_source_filter(engine):
         items, total = await svc.search(ListingFilters(source_ids=["hossa"]), limit=10, offset=0)
         assert total == 1
         assert items[0].listing.external_id == "hos"
+
+
+async def test_text_and_price_per_m2_filters(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        balcony = await _listing(
+            s,
+            ext="balcony",
+            price=400000,
+            area=50,
+            rooms=2,
+            district="Wrzeszcz",
+        )
+        balcony.description = "Duży balkon i szybki dojazd"
+        await _listing(s, ext="cheap", price=300000, area=100, rooms=3, district="Oliwa")
+        svc = SearchService(s)
+        items, total = await svc.search(
+            ListingFilters(text="balkon", min_price_per_m2=7000, max_price_per_m2=9000),
+            limit=10,
+            offset=0,
+        )
+        assert total == 1
+        assert items[0].listing.external_id == "balcony"

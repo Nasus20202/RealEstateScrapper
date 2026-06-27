@@ -4,8 +4,8 @@ import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import { useMap } from "react-leaflet";
 import { useSearchParams } from "react-router-dom";
 
-import { getListings, getSettings } from "../../api/client";
-import type { ListingOut, ListingsQuery } from "../../api/types";
+import { getListingFilterOptions, getListings, getSettings } from "../../api/client";
+import type { ListingFilterOptionsOut, ListingOut, ListingsQuery } from "../../api/types";
 import { formatPrice, formatPricePerM2 } from "./format";
 import { HtmlDescription } from "./html";
 import { ListingCard } from "./ListingCard";
@@ -13,37 +13,13 @@ import { ListingCard } from "./ListingCard";
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
 
-const DISTRICTS = [
-  "Aniołki",
-  "Brzeźno",
-  "Chełm",
-  "Dolny Sopot",
-  "Działki Leśne",
-  "Górny Sopot",
-  "Jasień",
-  "Karwiny",
-  "Letnica",
-  "Mały Kack",
-  "Morena",
-  "Oliwa",
-  "Orłowo",
-  "Osowa",
-  "Piecki-Migowo",
-  "Przymorze",
-  "Redłowo",
-  "Śródmieście",
-  "Ujeścisko",
-  "Witomino",
-  "Wrzeszcz",
-  "Zaspa",
-  "Żabianka",
-];
-
 type View = "default" | "compact" | "list";
 
 interface FormState {
-  city: string;
+  cities: string[];
   max_price: string;
+  min_price_per_m2: string;
+  max_price_per_m2: string;
   min_price: string;
   min_rooms: string;
   max_rooms: string;
@@ -52,6 +28,7 @@ interface FormState {
   districts: string[];
   market: string;
   source_ids: string[];
+  text: string;
   q: string;
 }
 
@@ -81,9 +58,11 @@ function buildQuery(
 ): ListingsQuery {
   const [sort_by, sort_dir] = sort.split("-") as [string, "asc" | "desc"];
   return {
-    city: form.city.trim() || undefined,
+    city: form.cities.length > 0 ? form.cities : undefined,
     min_price: toNumber(form.min_price),
     max_price: toNumber(form.max_price),
+    min_price_per_m2: toNumber(form.min_price_per_m2),
+    max_price_per_m2: toNumber(form.max_price_per_m2),
     min_rooms: toNumber(form.min_rooms),
     max_rooms: toNumber(form.max_rooms),
     min_area: toNumber(form.min_area),
@@ -91,6 +70,7 @@ function buildQuery(
     district: form.districts.length > 0 ? form.districts : undefined,
     source_id: form.source_ids.length > 0 ? form.source_ids : undefined,
     market: form.market.trim() || undefined,
+    text: form.text.trim() || undefined,
     q: form.q.trim() || undefined,
     sort_by,
     sort_dir,
@@ -101,8 +81,10 @@ function buildQuery(
 
 function formFromParams(params: URLSearchParams): FormState {
   return {
-    city: params.get("city") ?? "",
+    cities: params.getAll("city"),
     max_price: params.get("max_price") ?? "",
+    min_price_per_m2: params.get("min_price_per_m2") ?? "",
+    max_price_per_m2: params.get("max_price_per_m2") ?? "",
     min_price: params.get("min_price") ?? "",
     min_rooms: params.get("min_rooms") ?? "",
     max_rooms: params.get("max_rooms") ?? "",
@@ -111,6 +93,7 @@ function formFromParams(params: URLSearchParams): FormState {
     districts: params.getAll("district"),
     market: params.get("market") ?? "",
     source_ids: params.getAll("source_id"),
+    text: params.get("text") ?? "",
     q: params.get("q") ?? "",
   };
 }
@@ -146,9 +129,15 @@ function paramsFromState(
   view: View,
 ): URLSearchParams {
   const params = new URLSearchParams();
-  if (form.city.trim()) params.set("city", form.city.trim());
+  for (const city of form.cities) params.append("city", city);
   if (form.min_price.trim()) params.set("min_price", form.min_price.trim());
   if (form.max_price.trim()) params.set("max_price", form.max_price.trim());
+  if (form.min_price_per_m2.trim()) {
+    params.set("min_price_per_m2", form.min_price_per_m2.trim());
+  }
+  if (form.max_price_per_m2.trim()) {
+    params.set("max_price_per_m2", form.max_price_per_m2.trim());
+  }
   if (form.min_rooms.trim()) params.set("min_rooms", form.min_rooms.trim());
   if (form.max_rooms.trim()) params.set("max_rooms", form.max_rooms.trim());
   if (form.min_area.trim()) params.set("min_area", form.min_area.trim());
@@ -156,6 +145,7 @@ function paramsFromState(
   for (const district of form.districts) params.append("district", district);
   if (form.market.trim()) params.set("market", form.market.trim());
   for (const source of form.source_ids) params.append("source_id", source);
+  if (form.text.trim()) params.set("text", form.text.trim());
   if (form.q.trim()) params.set("q", form.q.trim());
   const [sort_by, sort_dir] = sort.split("-");
   params.set("sort_by", sort_by);
@@ -188,6 +178,11 @@ export function ListingsPage() {
   const pageSize = useMemo(() => pageSizeFromParams(searchParams), [searchParams]);
   const view = useMemo(() => viewFromParams(searchParams), [searchParams]);
   const [availableSources, setAvailableSources] = useState<string[]>([]);
+  const [filterOptions, setFilterOptions] = useState<ListingFilterOptionsOut>({
+    cities: [],
+    districts: [],
+    districts_by_city: {},
+  });
   const [preview, setPreview] = useState<ListingOut | null>(null);
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [items, setItems] = useState<ListingOut[]>([]);
@@ -226,6 +221,9 @@ export function ListingsPage() {
     void getSettings()
       .then((settings) => setAvailableSources(settings.sources))
       .catch(() => {});
+    void getListingFilterOptions()
+      .then(setFilterOptions)
+      .catch(() => {});
   }, []);
 
   function onSubmit(event: React.FormEvent) {
@@ -251,7 +249,7 @@ export function ListingsPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function toggleMulti(field: "districts" | "source_ids", value: string) {
+  function toggleMulti(field: "cities" | "districts" | "source_ids", value: string) {
     setForm((prev) => {
       const selected = prev[field];
       return {
@@ -280,64 +278,101 @@ export function ListingsPage() {
   const currentPage = Math.floor(offset / pageSize) + 1;
   const previewMapCenter: [number, number] | null =
     preview?.lat != null && preview.lon != null ? [preview.lat, preview.lon] : null;
+  const districtOptions =
+    form.cities.length > 0
+      ? Array.from(
+          new Set(form.cities.flatMap((city) => filterOptions.districts_by_city[city] ?? [])),
+        ).sort()
+      : filterOptions.districts;
 
   return (
     <section className="listings-page">
       <div className="listings-shell">
         <form className="filters filters--sticky" onSubmit={onSubmit}>
-          <label htmlFor="f-city">
-            Miasto
-            <input
-              id="f-city"
-              value={form.city}
-              onChange={(e) => update("city", e.target.value)}
-              placeholder="np. Gdańsk"
-            />
-          </label>
+          <fieldset className="filter-fieldset">
+            <legend>Miasto</legend>
+            <div id="f-city" className="multi-select-list multi-select-list--compact">
+              {filterOptions.cities.map((city) => (
+                <label key={city} className="multi-select-option">
+                  <input
+                    type="checkbox"
+                    checked={form.cities.includes(city)}
+                    onChange={() => toggleMulti("cities", city)}
+                  />
+                  {city}
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
-          <label htmlFor="f-min-price">
-            Cena min.
-            <input
-              id="f-min-price"
-              inputMode="numeric"
-              value={form.min_price}
-              onChange={(e) => update("min_price", e.target.value)}
-              placeholder="zł"
-            />
-          </label>
+          <div className="filter-range">
+            <label htmlFor="f-min-price">
+              Cena min.
+              <input
+                id="f-min-price"
+                inputMode="numeric"
+                value={form.min_price}
+                onChange={(e) => update("min_price", e.target.value)}
+                placeholder="zł"
+              />
+            </label>
+            <label htmlFor="f-max-price">
+              Cena maks.
+              <input
+                id="f-max-price"
+                inputMode="numeric"
+                value={form.max_price}
+                onChange={(e) => update("max_price", e.target.value)}
+                placeholder="zł"
+              />
+            </label>
+          </div>
 
-          <label htmlFor="f-max-price">
-            Cena maks.
-            <input
-              id="f-max-price"
-              inputMode="numeric"
-              value={form.max_price}
-              onChange={(e) => update("max_price", e.target.value)}
-              placeholder="zł"
-            />
-          </label>
+          <div className="filter-range">
+            <label htmlFor="f-min-price-m2">
+              Cena/m² min.
+              <input
+                id="f-min-price-m2"
+                inputMode="numeric"
+                value={form.min_price_per_m2}
+                onChange={(e) => update("min_price_per_m2", e.target.value)}
+                placeholder="zł/m²"
+              />
+            </label>
+            <label htmlFor="f-max-price-m2">
+              Cena/m² maks.
+              <input
+                id="f-max-price-m2"
+                inputMode="numeric"
+                value={form.max_price_per_m2}
+                onChange={(e) => update("max_price_per_m2", e.target.value)}
+                placeholder="zł/m²"
+              />
+            </label>
+          </div>
 
-          <label htmlFor="f-min-rooms">
-            Pokoje min.
-            <input
-              id="f-min-rooms"
-              inputMode="numeric"
-              value={form.min_rooms}
-              onChange={(e) => update("min_rooms", e.target.value)}
-              placeholder="1"
-            />
-          </label>
-
-          <label htmlFor="f-max-rooms">
-            Pokoje maks.
-            <input
-              id="f-max-rooms"
-              inputMode="numeric"
-              value={form.max_rooms}
-              onChange={(e) => update("max_rooms", e.target.value)}
-              placeholder="5"
-            />
-          </label>
+          <div className="filter-range">
+            <label htmlFor="f-min-rooms">
+              Pokoje min.
+              <input
+                id="f-min-rooms"
+                inputMode="numeric"
+                value={form.min_rooms}
+                onChange={(e) => update("min_rooms", e.target.value)}
+                placeholder="1"
+              />
+            </label>
+            <label htmlFor="f-max-rooms">
+              Pokoje maks.
+              <input
+                id="f-max-rooms"
+                inputMode="numeric"
+                value={form.max_rooms}
+                onChange={(e) => update("max_rooms", e.target.value)}
+                placeholder="5"
+              />
+            </label>
+          </div>
 
           <label htmlFor="f-market">
             Rynek
@@ -352,30 +387,31 @@ export function ListingsPage() {
             </select>
           </label>
 
-          <label htmlFor="f-min-area">
-            Pow. min. (m²)
-            <input
-              id="f-min-area"
-              inputMode="decimal"
-              value={form.min_area}
-              onChange={(e) => update("min_area", e.target.value)}
-            />
-          </label>
-
-          <label htmlFor="f-max-area">
-            Pow. maks. (m²)
-            <input
-              id="f-max-area"
-              inputMode="decimal"
-              value={form.max_area}
-              onChange={(e) => update("max_area", e.target.value)}
-            />
-          </label>
+          <div className="filter-range">
+            <label htmlFor="f-min-area">
+              Pow. min. (m²)
+              <input
+                id="f-min-area"
+                inputMode="decimal"
+                value={form.min_area}
+                onChange={(e) => update("min_area", e.target.value)}
+              />
+            </label>
+            <label htmlFor="f-max-area">
+              Pow. maks. (m²)
+              <input
+                id="f-max-area"
+                inputMode="decimal"
+                value={form.max_area}
+                onChange={(e) => update("max_area", e.target.value)}
+              />
+            </label>
+          </div>
 
           <label htmlFor="f-districts">
             Dzielnice
             <div id="f-districts" className="multi-select-list">
-              {DISTRICTS.map((district) => (
+              {districtOptions.map((district) => (
                 <label key={district} className="multi-select-option">
                   <input
                     type="checkbox"
@@ -386,6 +422,16 @@ export function ListingsPage() {
                 </label>
               ))}
             </div>
+          </label>
+
+          <label htmlFor="f-text">
+            Search
+            <input
+              id="f-text"
+              value={form.text}
+              onChange={(e) => update("text", e.target.value)}
+              placeholder="nazwa, opis, tagi, adres"
+            />
           </label>
 
           {availableSources.length > 0 && (
@@ -416,9 +462,11 @@ export function ListingsPage() {
             />
           </label>
 
-          <button type="submit" className="filters__submit">
-            Szukaj
-          </button>
+          <div className="filters__submit-bar">
+            <button type="submit" className="filters__submit">
+              Szukaj
+            </button>
+          </div>
         </form>
 
         <div className="listings-content">

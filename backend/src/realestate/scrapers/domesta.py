@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.districts import district_from_investment
 from realestate.scrapers.helpers import fetch_json
 from realestate.scrapers.images import unique_listing_images
 
@@ -188,6 +189,7 @@ class DomestaScraper:
                     title=text or ext_id.replace("-", " ").title(),
                     price=price_per_m2,
                     city=city,
+                    district=district_from_investment(text) or district_from_investment(ext_id),
                     street=street,
                     market="primary",
                     images=unique_listing_images(images),
@@ -253,6 +255,7 @@ class DomestaScraper:
                     rooms=rooms,
                     floor=floor_val,
                     city=city,
+                    district=district_from_investment(ext_id) or district_from_investment(title),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={"investment": ext_id, "flat_id": flat_id},
@@ -313,6 +316,7 @@ class DomestaScraper:
                     rooms=int(item["num_rooms"]) if item.get("num_rooms") is not None else None,
                     floor=int(item["floor"]) if item.get("floor") is not None else None,
                     city=city,
+                    district=district_from_investment(investment_name),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={

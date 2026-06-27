@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.districts import district_from_investment
 from realestate.scrapers.helpers import fetch_json
 from realestate.scrapers.images import unique_listing_images
 
@@ -173,6 +174,9 @@ class DeveliaScraper:
 
             if self._last_city:
                 requested = _city_from_text(self._last_city) or self._last_city
+                haystack = f"{card_text} {url}".lower()
+                if requested.lower() not in haystack:
+                    continue
                 if city and requested.lower() not in city.lower():
                     continue
 
@@ -203,6 +207,7 @@ class DeveliaScraper:
                     area_m2=area_val,
                     rooms=rooms_val,
                     city=city,
+                    district=district_from_investment(text) or district_from_investment(ext_id),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes=attributes,
@@ -300,6 +305,7 @@ class DeveliaScraper:
                     floor=floor_val,
                     total_floors=total_floors_val,
                     city=city,
+                    district=district_from_investment(ext_id) or district_from_investment(title),
                     market="primary",
                     description=description,
                     images=unique_listing_images(images),
@@ -363,6 +369,7 @@ class DeveliaScraper:
                     rooms=int(item["num_rooms"]) if item.get("num_rooms") is not None else None,
                     floor=int(item["floor"]) if item.get("floor") is not None else None,
                     city=city,
+                    district=district_from_investment(investment_name),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={

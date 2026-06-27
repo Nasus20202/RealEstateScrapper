@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.helpers import looks_like_street_or_code
 from realestate.scrapers.images import unique_listing_images
 
 _BASE_URL = "https://www.morizon.pl"
@@ -20,6 +21,7 @@ _PARTRER_RE = re.compile(r"parter(?:/(\d+))?", re.IGNORECASE)
 _ROOMS_RE = re.compile(r"(\d+)\s*pok")
 _AREA_RE = re.compile(r"([\d\s\xa0]+(?:,\d+)?)\s*m")
 _PRICE_RE = re.compile(r"([\d\s\xa0]+)\s*zł")
+_CITY_SLUGS = ("gdansk", "gdynia", "sopot", "rumia", "reda", "wejherowo")
 
 
 def _money(text: str | None) -> Decimal | None:
@@ -159,10 +161,46 @@ def _split_location(text: str | None) -> tuple[str | None, str | None, str | Non
         district = parts[1]
         city = parts[2]
     elif len(parts) == 2:
-        district, city = parts
+        first, city = parts
+        if looks_like_street_or_code(first):
+            street = first
+        else:
+            district = first
     elif len(parts) == 1:
         city = parts[0]
+    if looks_like_street_or_code(district):
+        street = street or district
+        district = None
     return city, district, street
+
+
+def _street_from_morizon_url(url: str) -> str | None:
+    slug = url.rstrip("/").split("/")[-1]
+    if "-mzn" in slug:
+        slug = slug.rsplit("-mzn", 1)[0]
+    parts = [part for part in slug.split("-") if part]
+    for city in _CITY_SLUGS:
+        if city in parts:
+            idx = parts.index(city)
+            tail = parts[idx + 1 :]
+            while tail and re.fullmatch(r"\d+m2|\d+", tail[-1]):
+                tail = tail[:-1]
+            if tail:
+                return " ".join(word.capitalize() for word in tail)
+    return None
+
+
+def _fix_street_from_url(
+    url: str,
+    district: str | None,
+    street: str | None,
+) -> tuple[str | None, str | None]:
+    url_street = _street_from_morizon_url(url)
+    if not url_street:
+        return district, street
+    if district and district.casefold() == url_street.casefold():
+        return None, street or district
+    return district, street or url_street
 
 
 def _fix_gdansk_location(
@@ -210,6 +248,7 @@ def _parse_search_card(card) -> RawListing | None:
     loc_text = location_el.text() if location_el else None
     city_val, district_val, street_val = _split_location(loc_text)
     city_val, district_val = _fix_gdansk_location(title, city_val, district_val)
+    district_val, street_val = _fix_street_from_url(url, district_val, street_val)
 
     images: list[str] = []
     for img in card.css(".property-card__image img, .card-gallery img"):
@@ -332,6 +371,7 @@ class MorizonScraper:
         loc_text = location_el.text() if location_el else None
         city_val, district_val, street_val = _split_location(loc_text)
         city_val, district_val = _fix_gdansk_location(title, city_val, district_val)
+        district_val, street_val = _fix_street_from_url(url, district_val, street_val)
 
         area_el = tree.css_first('[data-cy="cardPropertyInfoArea"]')
         area_m2 = _area(area_el.text() if area_el else None)

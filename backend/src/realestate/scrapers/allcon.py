@@ -8,6 +8,7 @@ import re
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.districts import district_from_investment
 from realestate.scrapers.helpers import (
     absolute_url,
     add_query_params,
@@ -174,6 +175,7 @@ class AllconScraper:
                             rooms=int(apt["rooms"]) if apt.get("rooms") is not None else None,
                             floor=int(apt["floor"]) if apt.get("floor") is not None else None,
                             city=city,
+                            district=district_from_investment(inv_slug),
                             market="primary",
                             attributes={
                                 "investment": inv_slug,
@@ -237,6 +239,7 @@ class AllconScraper:
                     area_m2=parse_area(card_text),
                     rooms=parse_rooms(card_text),
                     city=city,
+                    district=district_from_investment(ext_id) or district_from_investment(text),
                     market="primary",
                     attributes={"investment": ext_id, "investment_url": url},
                 )
@@ -275,6 +278,9 @@ class AllconScraper:
                             url=api_url,
                             title=name,
                             city=_CITY_MAP.get(city_slug),
+                            district=(
+                                district_from_investment(inv_slug) or district_from_investment(name)
+                            ),
                             market="primary",
                             attributes={"investment": inv_slug, "investment_url": inv_url},
                         )
@@ -396,6 +402,10 @@ class AllconScraper:
                     rooms=rooms,
                     floor=floor_val,
                     city=city,
+                    district=(
+                        district_from_investment(ext_id)
+                        or district_from_investment(investment_name)
+                    ),
                     market="primary",
                     images=unique_listing_images(images),
                     description=item.get("description") or item.get("opis") or None,
@@ -443,6 +453,7 @@ class AllconScraper:
             description=description,
             images=images,
             city=city,
+            district=district_from_investment(ext_id) or district_from_investment(title),
             market="primary",
         )
 

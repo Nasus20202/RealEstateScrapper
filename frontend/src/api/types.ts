@@ -116,21 +116,30 @@ export interface StatsOut {
 }
 
 export interface ListingsQuery {
-  city?: string;
+  city?: string[];
   district?: string[];
   source_id?: string[];
   min_price?: number;
   max_price?: number;
+  min_price_per_m2?: number;
+  max_price_per_m2?: number;
   min_area?: number;
   max_area?: number;
   min_rooms?: number;
   max_rooms?: number;
   market?: string;
+  text?: string;
   q?: string;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
   limit?: number;
   offset?: number;
+}
+
+export interface ListingFilterOptionsOut {
+  cities: string[];
+  districts: string[];
+  districts_by_city: Record<string, string[]>;
 }
 
 export interface MapBoundsQuery {
@@ -141,7 +150,7 @@ export interface MapBoundsQuery {
 }
 
 export interface StatsQuery {
-  city?: string;
+  city?: string[];
   district?: string[];
   source_id?: string[];
   min_price?: number;

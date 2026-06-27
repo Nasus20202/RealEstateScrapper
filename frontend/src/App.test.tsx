@@ -17,8 +17,8 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Zapisane" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ulubione" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ustawienia" })).toBeInTheDocument();
-    // default route renders listings form (label "Miasto")
-    expect(await screen.findByLabelText("Miasto")).toBeInTheDocument();
+    // default route renders listings form (group "Miasto")
+    expect(await screen.findByRole("group", { name: "Miasto" })).toBeInTheDocument();
   });
 
   it("renders settings page at /settings", async () => {
@@ -36,6 +36,6 @@ describe("App", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByLabelText("Miasto")).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: "Miasto" })).toBeInTheDocument();
   });
 });

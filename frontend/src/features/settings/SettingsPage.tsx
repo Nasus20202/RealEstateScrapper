@@ -215,7 +215,7 @@ export function SettingsPage() {
                         id={`set-cron-${source}`}
                         value={sourceCrons[source] ?? ""}
                         onChange={(e) => updateSourceCron(source, e.target.value)}
-                        placeholder="puste = globalny"
+                        placeholder={cron}
                       />
                     </label>
                   </div>

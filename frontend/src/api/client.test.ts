@@ -21,19 +21,25 @@ describe("api client", () => {
       }),
     );
     await getListings({
-      city: "Gdansk",
+      city: ["Gdansk", "Gdynia"],
       district: ["Wrzeszcz", "Oliwa"],
       max_price: 500000,
+      min_price_per_m2: 7000,
+      max_price_per_m2: 9000,
       min_rooms: 2,
+      text: "balkon",
       q: "blisko morza",
       limit: 50,
       offset: 0,
     });
     const params = new URLSearchParams(captured);
     expect(params.getAll("district")).toEqual(["Wrzeszcz", "Oliwa"]);
-    expect(params.get("city")).toBe("Gdansk");
+    expect(params.getAll("city")).toEqual(["Gdansk", "Gdynia"]);
     expect(params.get("max_price")).toBe("500000");
+    expect(params.get("min_price_per_m2")).toBe("7000");
+    expect(params.get("max_price_per_m2")).toBe("9000");
     expect(params.get("min_rooms")).toBe("2");
+    expect(params.get("text")).toBe("balkon");
     expect(params.get("q")).toBe("blisko morza");
     expect(params.get("limit")).toBe("50");
     expect(params.get("offset")).toBe("0");

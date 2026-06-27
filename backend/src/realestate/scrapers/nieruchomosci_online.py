@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.helpers import looks_like_street_or_code
 from realestate.scrapers.images import looks_like_listing_image, unique_listing_images
 
 _BASE_URL = "https://www.nieruchomosci-online.pl"
@@ -118,6 +119,17 @@ def _split_address(text: str | None) -> tuple[str | None, str | None, str | None
             words = parts[0].split()
             city = words[-1] if words else None
             district = " ".join(words[:-1]) or None
+    return _sanitize_address(city, district, street)
+
+
+def _sanitize_address(
+    city: str | None,
+    district: str | None,
+    street: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    if looks_like_street_or_code(district):
+        street = street or district
+        district = None
     return city, district, street
 
 
@@ -143,7 +155,7 @@ def _json_ld_address(tree: HTMLParser) -> tuple[str | None, str | None, str | No
             city = _clean_text(address.get("addressLocality"))
             street = _clean_text(address.get("streetAddress"))
             district = _clean_text(address.get("addressRegion"))
-            return city, district, street
+            return _sanitize_address(city, district, street)
     return None, None, None
 
 

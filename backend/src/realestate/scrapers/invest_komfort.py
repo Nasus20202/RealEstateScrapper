@@ -7,6 +7,7 @@ import re
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.districts import district_from_investment
 from realestate.scrapers.helpers import (
     absolute_url,
     city_from_text,
@@ -126,6 +127,7 @@ class InvestKomfortScraper:
                     rooms=int(item["rooms"]) if item.get("rooms") is not None else None,
                     floor=int(item["floorLevel"]) if item.get("floorLevel") is not None else None,
                     city=city.get("name") or _CITY_MAP.get(city_slug),
+                    district=district_from_investment(investment_name),
                     market="primary",
                     images=unique_listing_images([str(photo)] if photo else []),
                     attributes={
@@ -198,6 +200,7 @@ class InvestKomfortScraper:
                     area_m2=parse_area(card_text),
                     rooms=parse_rooms(card_text),
                     city=city,
+                    district=district_from_investment(ext_id) or district_from_investment(text),
                     market="primary",
                     attributes={"investment": ext_id, "investment_url": url},
                 )
@@ -257,6 +260,7 @@ class InvestKomfortScraper:
                     rooms=rooms,
                     floor=floor_val,
                     city=city,
+                    district=district_from_investment(ext_id),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={"investment": ext_id, "flat_id": flat_id},
@@ -302,6 +306,7 @@ class InvestKomfortScraper:
             description=description,
             images=images,
             city=city,
+            district=district_from_investment(ext_id) or district_from_investment(title),
             market="primary",
         )
 

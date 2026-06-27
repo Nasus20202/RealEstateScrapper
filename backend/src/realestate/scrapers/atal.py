@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.districts import district_from_investment
 from realestate.scrapers.helpers import fetch_json
 from realestate.scrapers.images import unique_listing_images
 
@@ -195,6 +196,7 @@ class AtalScraper:
                     url=inv_url,
                     title=title,
                     city=city,
+                    district=district_from_investment(ext_id) or district_from_investment(title),
                     market="primary",
                     attributes={"investment": ext_id},
                 )
@@ -324,6 +326,7 @@ class AtalScraper:
             rooms=rooms,
             floor=floor_val,
             city=city,
+            district=district_from_investment(ext_id) or district_from_investment(title),
             street=street,
             description=item.get("opis") or item.get("description") or None,
             market="primary",
@@ -381,6 +384,7 @@ class AtalScraper:
             rooms=rooms,
             floor=floor_val,
             city=city,
+            district=district_from_investment(ext_id) or district_from_investment(title),
             street=street,
             market="primary",
             images=unique_listing_images(images),
@@ -516,6 +520,7 @@ class AtalScraper:
                     rooms=rooms,
                     floor=floor_val,
                     city=city,
+                    district=district_from_investment(ext_id) or district_from_investment(inv_name),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={
@@ -574,6 +579,7 @@ class AtalScraper:
             description=description,
             images=images,
             city=city,
+            district=district_from_investment(ext_id) or district_from_investment(title),
             street=street,
             market="primary",
         )

@@ -36,6 +36,21 @@ def clean_text(text: str | None) -> str | None:
     return cleaned or None
 
 
+def looks_like_street_or_code(text: str | None) -> bool:
+    value = clean_text(text)
+    if not value:
+        return False
+    lowered = value.lower()
+    if re.search(r"\d", lowered):
+        return True
+    return bool(
+        re.match(
+            r"^(?:ul\.|ulica|aleja|al\.|plac|pl\.|skwer|bulwar|rondo)\b",
+            lowered,
+        )
+    )
+
+
 def parse_money(text: str | None) -> Decimal | None:
     """Parse a Polish price string like '918 000 zł' or '500000' into Decimal."""
     if not text:

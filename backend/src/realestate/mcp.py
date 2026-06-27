@@ -54,7 +54,7 @@ def create_mcp_server() -> FastMCP:
         limit = max(1, min(limit, 50))
         offset = max(0, offset)
         filters = ListingFilters(
-            city=city,
+            cities=[city] if city else None,
             districts=[district] if district else None,
             min_price=min_price,
             max_price=max_price,

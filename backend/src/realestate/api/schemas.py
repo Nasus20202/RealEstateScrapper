@@ -130,6 +130,12 @@ class ListingsResponse(BaseModel):
     total: int
 
 
+class ListingFilterOptionsOut(BaseModel):
+    cities: list[str]
+    districts: list[str]
+    districts_by_city: dict[str, list[str]]
+
+
 class MapHexOut(BaseModel):
     id: str
     geometry: dict

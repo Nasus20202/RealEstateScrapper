@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from selectolax.parser import HTMLParser
 
 from realestate.scrapers.base import RawListing, SearchCriteria, register
+from realestate.scrapers.districts import district_from_investment
 from realestate.scrapers.images import unique_listing_images
 
 _BASE_URL = "https://www.robyg.pl"
@@ -164,6 +165,7 @@ class RobygScraper:
                     url=url,
                     title=slug,
                     city=city or _CITY_MAP.get(city_slug, city_slug),
+                    district=district_from_investment(slug),
                     market="primary",
                     attributes={"investment": slug},
                 )
@@ -241,6 +243,7 @@ class RobygScraper:
                     area_m2=area_val,
                     rooms=rooms_val,
                     city=city,
+                    district=district_from_investment(ext_id) or district_from_investment(text),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={"investment": ext_id},
@@ -309,6 +312,7 @@ class RobygScraper:
                     rooms=rooms,
                     floor=floor_val,
                     city=city,
+                    district=district_from_investment(ext_id),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={"investment": ext_id, "flat_id": flat_id},
@@ -399,6 +403,7 @@ class RobygScraper:
                     rooms=rooms,
                     floor=floor_val,
                     city=city,
+                    district=district_from_investment(ext_id),
                     market="primary",
                     images=unique_listing_images(images),
                     attributes={
@@ -455,6 +460,7 @@ class RobygScraper:
             description=description,
             images=images,
             city=city,
+            district=district_from_investment(ext_id) or district_from_investment(title),
             market="primary",
         )
 

@@ -5,6 +5,9 @@ const BASE = "/api";
 export const handlers = [
   http.get(`${BASE}/health`, () => HttpResponse.json({ status: "ok", database: "ok" })),
   http.get(`${BASE}/listings`, () => HttpResponse.json({ items: [], total: 0 })),
+  http.get(`${BASE}/listings/filter-options`, () =>
+    HttpResponse.json({ cities: [], districts: [], districts_by_city: {} }),
+  ),
   http.get(`${BASE}/stats`, () =>
     HttpResponse.json({
       overview: {

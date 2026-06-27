@@ -5,6 +5,7 @@ import type {
   FavoriteOut,
   HealthOut,
   ListingDetailOut,
+  ListingFilterOptionsOut,
   ListingOut,
   ListingsQuery,
   ListingsResponse,
@@ -55,16 +56,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 function buildListingsQuery(query: ListingsQuery & Partial<MapBoundsQuery>): string {
   const params = new URLSearchParams();
-  if (query.city) params.set("city", query.city);
+  for (const city of query.city ?? []) params.append("city", city);
   for (const d of query.district ?? []) params.append("district", d);
   for (const source of query.source_id ?? []) params.append("source_id", source);
   if (query.min_price != null) params.set("min_price", String(query.min_price));
   if (query.max_price != null) params.set("max_price", String(query.max_price));
+  if (query.min_price_per_m2 != null) {
+    params.set("min_price_per_m2", String(query.min_price_per_m2));
+  }
+  if (query.max_price_per_m2 != null) {
+    params.set("max_price_per_m2", String(query.max_price_per_m2));
+  }
   if (query.min_area != null) params.set("min_area", String(query.min_area));
   if (query.max_area != null) params.set("max_area", String(query.max_area));
   if (query.min_rooms != null) params.set("min_rooms", String(query.min_rooms));
   if (query.max_rooms != null) params.set("max_rooms", String(query.max_rooms));
   if (query.market) params.set("market", query.market);
+  if (query.text) params.set("text", query.text);
   if (query.q) params.set("q", query.q);
   if (query.sort_by) params.set("sort_by", query.sort_by);
   if (query.sort_dir) params.set("sort_dir", query.sort_dir);
@@ -101,9 +109,13 @@ export function getListing(id: number): Promise<ListingDetailOut> {
   return request<ListingDetailOut>(`/listings/${id}`);
 }
 
+export function getListingFilterOptions(): Promise<ListingFilterOptionsOut> {
+  return request<ListingFilterOptionsOut>("/listings/filter-options");
+}
+
 export function getStats(query?: StatsQuery): Promise<StatsOut> {
   const params = new URLSearchParams();
-  if (query?.city) params.set("city", query.city);
+  for (const city of query?.city ?? []) params.append("city", city);
   for (const d of query?.district ?? []) params.append("district", d);
   for (const s of query?.source_id ?? []) params.append("source_id", s);
   if (query?.min_price != null) params.set("min_price", String(query.min_price));
@@ -192,6 +204,7 @@ export type {
   FavoriteOut,
   HealthOut,
   ListingDetailOut,
+  ListingFilterOptionsOut,
   ListingOut,
   ListingsQuery,
   ListingsResponse,

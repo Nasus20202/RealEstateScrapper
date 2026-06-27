@@ -65,6 +65,13 @@ describe("ListingsPage", () => {
           source_crons: {},
         }),
       ),
+      http.get(`${BASE}/listings/filter-options`, () =>
+        HttpResponse.json({
+          cities: ["Gdańsk", "Gdynia", "Sopot"],
+          districts: ["Wrzeszcz", "Oliwa"],
+          districts_by_city: { Gdańsk: ["Wrzeszcz", "Oliwa"] },
+        }),
+      ),
     );
   }
 
@@ -94,8 +101,10 @@ describe("ListingsPage", () => {
     renderPage();
     await screen.findByText(/Znaleziono: 0/);
 
-    await userEvent.type(screen.getByLabelText("Miasto"), "Gdansk");
+    await userEvent.click(screen.getByLabelText("Gdańsk"));
     await userEvent.type(screen.getByLabelText("Cena maks."), "500000");
+    await userEvent.type(screen.getByLabelText("Cena/m² min."), "7000");
+    await userEvent.type(screen.getByLabelText("Search"), "balkon");
     await userEvent.type(screen.getByLabelText("Pokoje min."), "2");
 
     await userEvent.click(screen.getByLabelText("Wrzeszcz"));
@@ -106,9 +115,11 @@ describe("ListingsPage", () => {
 
     await waitFor(() => {
       const params = new URLSearchParams(captured);
-      expect(params.get("city")).toBe("Gdansk");
+      expect(params.getAll("city")).toEqual(["Gdańsk"]);
       expect(params.get("max_price")).toBe("500000");
+      expect(params.get("min_price_per_m2")).toBe("7000");
       expect(params.get("min_rooms")).toBe("2");
+      expect(params.get("text")).toBe("balkon");
       expect(params.getAll("district")).toEqual(["Wrzeszcz", "Oliwa"]);
       expect(params.getAll("source_id")).toEqual(["hossa"]);
       expect(params.get("q")).toBe("blisko morza");

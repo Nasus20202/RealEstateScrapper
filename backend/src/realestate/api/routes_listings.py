@@ -3,13 +3,15 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import String, and_, bindparam, case, cast, desc, func, select, text
+from sqlalchemy import String, and_, bindparam, case, cast, desc, func, select
+from sqlalchemy import text as sql_text
 from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from realestate.api.deps import get_llm_client_dep, get_session
 from realestate.api.schemas import (
     ListingDetailOut,
+    ListingFilterOptionsOut,
     ListingOut,
     ListingsResponse,
     MapHexOut,
@@ -43,18 +45,20 @@ def _filtered_count_when(conditions):
 
 def _stats_conditions(
     *,
-    city: str | None,
+    city: list[str] | None,
     district: list[str] | None,
     source_id: list[str] | None,
     min_price: int | None,
     max_price: int | None,
+    min_price_per_m2: int | None,
+    max_price_per_m2: int | None,
     min_rooms: int | None,
     max_rooms: int | None,
     market: str | None,
 ) -> list:
     conditions = [Listing.status == ListingStatus.ACTIVE]
     if city:
-        conditions.append(Listing.city == city)
+        conditions.append(Listing.city.in_(city))
     if district:
         conditions.append(Listing.district.in_(district))
     if source_id:
@@ -63,6 +67,10 @@ def _stats_conditions(
         conditions.append(Listing.price >= min_price)
     if max_price is not None:
         conditions.append(Listing.price <= max_price)
+    if min_price_per_m2 is not None:
+        conditions.append(Listing.price_per_m2 >= min_price_per_m2)
+    if max_price_per_m2 is not None:
+        conditions.append(Listing.price_per_m2 <= max_price_per_m2)
     if min_rooms is not None:
         conditions.append(Listing.rooms >= min_rooms)
     if max_rooms is not None:
@@ -112,11 +120,13 @@ async def _stats_groups(
 @router.get("/stats", response_model=StatsOut)
 async def stats(  # noqa: B008
     session: AsyncSession = Depends(get_session),  # noqa: B008
-    city: str | None = Query(default=None),  # noqa: B008
+    city: list[str] | None = Query(default=None),  # noqa: B008
     district: list[str] | None = Query(default=None),  # noqa: B008
     source_id: list[str] | None = Query(default=None),  # noqa: B008
     min_price: int | None = Query(default=None),  # noqa: B008
     max_price: int | None = Query(default=None),  # noqa: B008
+    min_price_per_m2: int | None = Query(default=None),  # noqa: B008
+    max_price_per_m2: int | None = Query(default=None),  # noqa: B008
     min_rooms: int | None = Query(default=None),  # noqa: B008
     max_rooms: int | None = Query(default=None),  # noqa: B008
     market: str | None = Query(default=None),  # noqa: B008
@@ -127,6 +137,8 @@ async def stats(  # noqa: B008
         source_id=source_id,
         min_price=min_price,
         max_price=max_price,
+        min_price_per_m2=min_price_per_m2,
+        max_price_per_m2=max_price_per_m2,
         min_rooms=min_rooms,
         max_rooms=max_rooms,
         market=market,
@@ -331,16 +343,19 @@ async def stats(  # noqa: B008
 
 def _map_filter_params(
     *,
-    city: str | None,
+    city: list[str] | None,
     district: list[str] | None,
     source_id: list[str] | None,
     min_price: int | None,
     max_price: int | None,
+    min_price_per_m2: int | None,
+    max_price_per_m2: int | None,
     min_area: float | None,
     max_area: float | None,
     min_rooms: int | None,
     max_rooms: int | None,
     market: str | None,
+    text_query: str | None = None,
     north: float | None = None,
     south: float | None = None,
     east: float | None = None,
@@ -349,8 +364,8 @@ def _map_filter_params(
     clauses = ["status = 'active'", "geom IS NOT NULL"]
     params: dict = {}
     if city:
-        clauses.append("city = :city")
-        params["city"] = city
+        clauses.append("city IN :cities")
+        params["cities"] = tuple(city)
     if district:
         clauses.append("district IN :districts")
         params["districts"] = tuple(district)
@@ -363,6 +378,12 @@ def _map_filter_params(
     if max_price is not None:
         clauses.append("price <= :max_price")
         params["max_price"] = max_price
+    if min_price_per_m2 is not None:
+        clauses.append("price_per_m2 >= :min_price_per_m2")
+        params["min_price_per_m2"] = min_price_per_m2
+    if max_price_per_m2 is not None:
+        clauses.append("price_per_m2 <= :max_price_per_m2")
+        params["max_price_per_m2"] = max_price_per_m2
     if min_area is not None:
         clauses.append("area_m2 >= :min_area")
         params["min_area"] = min_area
@@ -378,6 +399,16 @@ def _map_filter_params(
     if market:
         clauses.append("market = :market")
         params["market"] = market
+    if text_query:
+        clauses.append(
+            "(lower(title) LIKE :text_query "
+            "OR lower(coalesce(description, '')) LIKE :text_query "
+            "OR lower(coalesce(city, '')) LIKE :text_query "
+            "OR lower(coalesce(district, '')) LIKE :text_query "
+            "OR lower(coalesce(street, '')) LIKE :text_query "
+            "OR lower(attributes::text) LIKE :text_query)"
+        )
+        params["text_query"] = f"%{text_query.strip().lower()}%"
     if None not in (north, south, east, west):
         clauses.append("geom && ST_MakeEnvelope(:west, :south, :east, :north, 4326)")
         params.update({"north": north, "south": south, "east": east, "west": west})
@@ -386,16 +417,19 @@ def _map_filter_params(
 
 def _listing_map_conditions(
     *,
-    city: str | None,
+    city: list[str] | None,
     district: list[str] | None,
     source_id: list[str] | None,
     min_price: int | None,
     max_price: int | None,
+    min_price_per_m2: int | None,
+    max_price_per_m2: int | None,
     min_area: float | None,
     max_area: float | None,
     min_rooms: int | None,
     max_rooms: int | None,
     market: str | None,
+    text_query: str | None,
     north: float | None,
     south: float | None,
     east: float | None,
@@ -407,7 +441,7 @@ def _listing_map_conditions(
         Listing.lon.is_not(None),
     ]
     if city:
-        conditions.append(Listing.city == city)
+        conditions.append(Listing.city.in_(city))
     if district:
         conditions.append(Listing.district.in_(district))
     if source_id:
@@ -416,6 +450,10 @@ def _listing_map_conditions(
         conditions.append(Listing.price >= min_price)
     if max_price is not None:
         conditions.append(Listing.price <= max_price)
+    if min_price_per_m2 is not None:
+        conditions.append(Listing.price_per_m2 >= min_price_per_m2)
+    if max_price_per_m2 is not None:
+        conditions.append(Listing.price_per_m2 <= max_price_per_m2)
     if min_area is not None:
         conditions.append(Listing.area_m2 >= min_area)
     if max_area is not None:
@@ -426,6 +464,16 @@ def _listing_map_conditions(
         conditions.append(Listing.rooms <= max_rooms)
     if market:
         conditions.append(Listing.market == market)
+    if text_query:
+        pattern = f"%{text_query.strip().lower()}%"
+        conditions.append(
+            func.lower(Listing.title).like(pattern)
+            | func.lower(func.coalesce(Listing.description, "")).like(pattern)
+            | func.lower(func.coalesce(Listing.city, "")).like(pattern)
+            | func.lower(func.coalesce(Listing.district, "")).like(pattern)
+            | func.lower(func.coalesce(Listing.street, "")).like(pattern)
+            | func.lower(cast(Listing.attributes, String)).like(pattern)
+        )
     if None not in (north, south, east, west):
         conditions.extend(
             [
@@ -441,16 +489,19 @@ def _listing_map_conditions(
 @router.get("/listings/map/hexes", response_model=list[MapHexOut])
 async def listing_map_hexes(
     session: AsyncSession = Depends(get_session),  # noqa: B008
-    city: str | None = None,
+    city: list[str] | None = Query(default=None),  # noqa: B008
     district: list[str] | None = Query(default=None),  # noqa: B008
     source_id: list[str] | None = Query(default=None),  # noqa: B008
     min_price: int | None = None,
     max_price: int | None = None,
+    min_price_per_m2: int | None = None,
+    max_price_per_m2: int | None = None,
     min_area: float | None = None,
     max_area: float | None = None,
     min_rooms: int | None = None,
     max_rooms: int | None = None,
     market: str | None = None,
+    text: str | None = None,
     north: float | None = None,
     south: float | None = None,
     east: float | None = None,
@@ -463,11 +514,14 @@ async def listing_map_hexes(
         source_id=source_id,
         min_price=min_price,
         max_price=max_price,
+        min_price_per_m2=min_price_per_m2,
+        max_price_per_m2=max_price_per_m2,
         min_area=min_area,
         max_area=max_area,
         min_rooms=min_rooms,
         max_rooms=max_rooms,
         market=market,
+        text_query=text,
         north=north,
         south=south,
         east=east,
@@ -475,7 +529,7 @@ async def listing_map_hexes(
     )
     size_m = max(250, min(size_m, 3000))
     params["size_m"] = size_m
-    stmt = text(
+    stmt = sql_text(
         f"""
         WITH filtered AS (
             SELECT geom, price, price_per_m2
@@ -505,6 +559,8 @@ async def listing_map_hexes(
     )
     if district:
         stmt = stmt.bindparams(bindparam("districts", expanding=True))
+    if city:
+        stmt = stmt.bindparams(bindparam("cities", expanding=True))
     if source_id:
         stmt = stmt.bindparams(bindparam("source_ids", expanding=True))
     try:
@@ -529,16 +585,19 @@ async def listing_map_hexes(
 @router.get("/listings/map/points", response_model=ListingsResponse)
 async def listing_map_points(
     session: AsyncSession = Depends(get_session),  # noqa: B008
-    city: str | None = None,
+    city: list[str] | None = Query(default=None),  # noqa: B008
     district: list[str] | None = Query(default=None),  # noqa: B008
     source_id: list[str] | None = Query(default=None),  # noqa: B008
     min_price: int | None = None,
     max_price: int | None = None,
+    min_price_per_m2: int | None = None,
+    max_price_per_m2: int | None = None,
     min_area: float | None = None,
     max_area: float | None = None,
     min_rooms: int | None = None,
     max_rooms: int | None = None,
     market: str | None = None,
+    text: str | None = None,
     north: float | None = None,
     south: float | None = None,
     east: float | None = None,
@@ -551,11 +610,14 @@ async def listing_map_points(
         source_id=source_id,
         min_price=min_price,
         max_price=max_price,
+        min_price_per_m2=min_price_per_m2,
+        max_price_per_m2=max_price_per_m2,
         min_area=min_area,
         max_area=max_area,
         min_rooms=min_rooms,
         max_rooms=max_rooms,
         market=market,
+        text_query=text,
         north=north,
         south=south,
         east=east,
@@ -579,17 +641,20 @@ async def listing_map_points(
 async def list_listings(
     session: AsyncSession = Depends(get_session),  # noqa: B008
     client=Depends(get_llm_client_dep),  # noqa: B008
-    city: str | None = None,
+    city: list[str] | None = Query(default=None),  # noqa: B008
     district: list[str] | None = Query(default=None),  # noqa: B008
     source_id: list[str] | None = Query(default=None),  # noqa: B008
     min_price: int | None = None,
     max_price: int | None = None,
+    min_price_per_m2: int | None = None,
+    max_price_per_m2: int | None = None,
     min_area: float | None = None,
     max_area: float | None = None,
     min_rooms: int | None = None,
     max_rooms: int | None = None,
     market: str | None = None,
     q: str | None = None,
+    text: str | None = None,
     sort_by: str = "date",
     sort_dir: str = "desc",
     limit: int = 50,
@@ -608,16 +673,19 @@ async def list_listings(
         sort_dir,
     )
     filters = ListingFilters(
-        city=city,
+        cities=city,
         districts=district,
         min_price=min_price,
         max_price=max_price,
+        min_price_per_m2=min_price_per_m2,
+        max_price_per_m2=max_price_per_m2,
         source_ids=source_id,
         min_area=min_area,
         max_area=max_area,
         min_rooms=min_rooms,
         max_rooms=max_rooms,
         market=market,
+        text=text,
         nl_query=q,
         sort_by=sort_by,
         sort_dir=sort_dir,
@@ -635,6 +703,31 @@ async def list_listings(
     return ListingsResponse(
         items=[ListingOut.from_listing(r.listing, score=r.score, reason=r.reason) for r in items],
         total=total,
+    )
+
+
+@router.get("/listings/filter-options", response_model=ListingFilterOptionsOut)
+async def listing_filter_options(
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+) -> ListingFilterOptionsOut:
+    rows = (
+        await session.execute(
+            select(Listing.city, Listing.district)
+            .where(Listing.status == ListingStatus.ACTIVE)
+            .where(Listing.city.is_not(None))
+            .order_by(Listing.city, Listing.district)
+        )
+    ).all()
+    cities = sorted({city for city, _district in rows if city})
+    districts = sorted({district for _city, district in rows if district})
+    districts_by_city = {
+        city: sorted({district for row_city, district in rows if row_city == city and district})
+        for city in cities
+    }
+    return ListingFilterOptionsOut(
+        cities=cities,
+        districts=districts,
+        districts_by_city=districts_by_city,
     )
 
 
