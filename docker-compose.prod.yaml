@@ -9,11 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U realestate"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    restart: unless-stopped
 
   api:
     image: ghcr.io/${GHCR_OWNER:-nasus20202}/realestate-api:${TAG:-latest}
@@ -30,6 +26,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
 
   web:
     image: ghcr.io/${GHCR_OWNER:-nasus20202}/realestate-web:${TAG:-latest}
@@ -37,6 +34,7 @@ services:
       - "8080:80"
     depends_on:
       - api
+    restart: unless-stopped
 
 volumes:
   pgdata:
