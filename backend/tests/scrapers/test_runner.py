@@ -58,6 +58,25 @@ class _DetailFetcher:
         return "<html></html>"
 
 
+class _SinglePageScraper:
+    source_id = "single-page"
+    display_name = "Single page"
+
+    def build_search_url(self, criteria: SearchCriteria, page: int) -> str:
+        return "https://example.test/search"
+
+    def parse_search(self, html: str) -> list[RawListing]:
+        return [
+            RawListing(
+                source_id=self.source_id,
+                external_id="1",
+                url="https://example.test/detail/1",
+                title="Listing",
+                city="Gdańsk",
+            )
+        ]
+
+
 @pytest.mark.asyncio
 async def test_run_search_collects_and_dedups():
     scraper = OtodomScraper()
@@ -115,3 +134,15 @@ async def test_run_search_can_enrich_from_detail_pages():
     ]
     assert any("Pobieram stronę 1" in log for log in logs)
     assert any("Pobieram szczegóły" in log for log in logs)
+
+
+@pytest.mark.asyncio
+async def test_run_search_stops_when_pagination_repeats_url():
+    fetcher = _FakeFetcher({"https://example.test/search": "<html></html>"})
+
+    listings = await run_search(
+        _SinglePageScraper(), fetcher, SearchCriteria(city="Gdańsk"), max_pages=5
+    )
+
+    assert len(listings) == 1
+    assert fetcher.calls == ["https://example.test/search"]

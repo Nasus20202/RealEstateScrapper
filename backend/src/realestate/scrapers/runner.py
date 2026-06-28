@@ -64,9 +64,13 @@ async def run_search(
     on_log: Callable[[str], Awaitable[None]] | None = None,
 ) -> list[RawListing]:
     seen: set[tuple[str, str]] = set()
+    seen_urls: set[str] = set()
     results: list[RawListing] = []
     for page in range(1, max_pages + 1):
         url = scraper.build_search_url(criteria, page)
+        if url in seen_urls:
+            break
+        seen_urls.add(url)
         if on_log is not None:
             await on_log(f"Pobieram stronę {page}: {url}")
         html = await fetcher.fetch(url)
