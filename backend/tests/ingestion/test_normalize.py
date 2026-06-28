@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from realestate.ingestion.normalize import compute_raw_hash, to_listing
+from realestate.ingestion.normalize import compute_raw_hash, normalize_location, to_listing
 from realestate.models.enums import ListingStatus, MarketType
 from realestate.scrapers.base import RawListing
 
@@ -51,3 +51,19 @@ def test_raw_hash_stable_and_content_sensitive():
     h3 = compute_raw_hash(_raw(price=Decimal("700000")))
     assert h1 == h2  # image order irrelevant (sorted)
     assert h1 != h3  # zmiana ceny zmienia hash
+
+
+def test_normalize_location_generates_ascii_district_aliases():
+    city, district, street = normalize_location("gdansk", "orunia sw wojciech lipce", None)
+
+    assert city == "Gdańsk"
+    assert district == "Orunia-Św. Wojciech-Lipce"
+    assert street is None
+
+
+def test_normalize_location_does_not_split_unknown_multiword_city():
+    city, district, street = normalize_location("Pruszcz Gdański", None, None)
+
+    assert city == "Pruszcz Gdański"
+    assert district is None
+    assert street is None

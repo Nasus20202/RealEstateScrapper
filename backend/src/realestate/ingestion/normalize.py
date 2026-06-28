@@ -6,96 +6,14 @@ import re
 from datetime import datetime
 from decimal import Decimal
 
+from realestate.locations import CITY_BY_KEY, DISTRICT_BY_KEY, location_key
 from realestate.models.enums import ListingStatus, MarketType
 from realestate.models.listing import Listing
 from realestate.scrapers.base import RawListing
 
-KNOWN_CITIES = {
-    "gdansk": "Gdańsk",
-    "gdańsk": "Gdańsk",
-    "gdynia": "Gdynia",
-    "sopot": "Sopot",
-}
-
-KNOWN_DISTRICTS = {
-    "aniolki": "Aniołki",
-    "aniołki": "Aniołki",
-    "brzezno": "Brzeźno",
-    "brzeźno": "Brzeźno",
-    "chelm": "Chełm",
-    "chełm": "Chełm",
-    "dolny sopot": "Dolny Sopot",
-    "dzialki lesne": "Działki Leśne",
-    "działki leśne": "Działki Leśne",
-    "gorny sopot": "Górny Sopot",
-    "górny sopot": "Górny Sopot",
-    "jasien": "Jasień",
-    "jasień": "Jasień",
-    "karwiny": "Karwiny",
-    "letnica": "Letnica",
-    "maly kack": "Mały Kack",
-    "mały kack": "Mały Kack",
-    "morena": "Morena",
-    "oliwa": "Oliwa",
-    "orlowo": "Orłowo",
-    "orłowo": "Orłowo",
-    "osowa": "Osowa",
-    "piecki-migowo": "Piecki-Migowo",
-    "przymorze": "Przymorze",
-    "redlowo": "Redłowo",
-    "redłowo": "Redłowo",
-    "srodmiescie": "Śródmieście",
-    "śródmieście": "Śródmieście",
-    "ujeścisko": "Ujeścisko",
-    "ujescisko": "Ujeścisko",
-    "witomino": "Witomino",
-    "wrzeszcz": "Wrzeszcz",
-    "zaspa": "Zaspa",
-    "zabianka": "Żabianka",
-    "żabianka": "Żabianka",
-    "brętowo": "Brętowo",
-    "bretowo": "Brętowo",
-    "orunia-św. wojciech-lipce": "Orunia-Św. Wojciech-Lipce",
-    "orunia-sw. wojciech-lipce": "Orunia-Św. Wojciech-Lipce",
-    "ujeścisko-łostowice": "Ujeścisko-Łostowice",
-    "ujescisko-lostowice": "Ujeścisko-Łostowice",
-    "pustki cisowskie-demptowo": "Pustki Cisowskie-Demptowo",
-}
-
-DISTRICT_CITY = {
-    "Aniołki": "Gdańsk",
-    "Brzeźno": "Gdańsk",
-    "Brętowo": "Gdańsk",
-    "Chełm": "Gdańsk",
-    "Jasień": "Gdańsk",
-    "Letnica": "Gdańsk",
-    "Morena": "Gdańsk",
-    "Oliwa": "Gdańsk",
-    "Orunia": "Gdańsk",
-    "Orunia-Św. Wojciech-Lipce": "Gdańsk",
-    "Piecki-Migowo": "Gdańsk",
-    "Przymorze": "Gdańsk",
-    "Śródmieście": "Gdańsk",
-    "Ujeścisko": "Gdańsk",
-    "Ujeścisko-Łostowice": "Gdańsk",
-    "Wrzeszcz": "Gdańsk",
-    "Zaspa": "Gdańsk",
-    "Żabianka": "Gdańsk",
-    "Karwiny": "Gdynia",
-    "Mały Kack": "Gdynia",
-    "Orłowo": "Gdynia",
-    "Pustki Cisowskie-Demptowo": "Gdynia",
-    "Redłowo": "Gdynia",
-    "Witomino": "Gdynia",
-    "Dolny Sopot": "Sopot",
-    "Górny Sopot": "Sopot",
-}
-
 
 def _location_key(value: str | None) -> str:
-    if not value:
-        return ""
-    return re.sub(r"\s+", " ", value.strip().casefold()).strip(" ,")
+    return location_key(value)
 
 
 def normalize_location(
@@ -107,31 +25,35 @@ def normalize_location(
     district_key = _location_key(district)
     street_key = _location_key(street)
 
-    normalized_city = KNOWN_CITIES.get(city_key) or (city.strip(" ,") if city else None)
-    normalized_district = KNOWN_DISTRICTS.get(district_key) or (
-        district.strip(" ,") if district else None
+    city_match = CITY_BY_KEY.get(city_key)
+    district_match = DISTRICT_BY_KEY.get(district_key)
+    normalized_city = city_match or (city.strip(" ,") if city else None)
+    normalized_district = (
+        district_match.name if district_match else district.strip(" ,") if district else None
     )
     normalized_street = street.strip(" ,") if street else None
 
-    if city_key in KNOWN_DISTRICTS:
-        normalized_district = KNOWN_DISTRICTS[city_key]
-        normalized_city = DISTRICT_CITY.get(normalized_district, normalized_city)
-    if district_key in KNOWN_CITIES:
-        normalized_city = KNOWN_CITIES[district_key]
+    city_as_district = DISTRICT_BY_KEY.get(city_key)
+    if city_as_district:
+        normalized_district = city_as_district.name
+        normalized_city = city_as_district.city
+    if district_key in CITY_BY_KEY:
+        normalized_city = CITY_BY_KEY[district_key]
         normalized_district = None
-    if street_key in KNOWN_CITIES:
-        normalized_city = KNOWN_CITIES[street_key]
+    if street_key in CITY_BY_KEY:
+        normalized_city = CITY_BY_KEY[street_key]
         normalized_street = None
-    if street_key in KNOWN_DISTRICTS:
-        normalized_district = normalized_district or KNOWN_DISTRICTS[street_key]
+    street_as_district = DISTRICT_BY_KEY.get(street_key)
+    if street_as_district:
+        normalized_district = normalized_district or street_as_district.name
         normalized_street = None
 
-    if normalized_district in DISTRICT_CITY and normalized_city not in KNOWN_CITIES.values():
-        normalized_city = DISTRICT_CITY[normalized_district]
+    if district_match and normalized_city not in CITY_BY_KEY.values():
+        normalized_city = district_match.city
 
     if (
         district_key
-        and district_key not in KNOWN_DISTRICTS
+        and district_key not in DISTRICT_BY_KEY
         and re.search(r"\b(ul\.|ulica|aleja|al\.|plac|skwer)\b", district_key)
     ):
         normalized_street = normalized_street or normalized_district

@@ -14,6 +14,24 @@ from realestate.scrapers.images import looks_like_listing_image, unique_listing_
 
 _BASE_URL = "https://www.nieruchomosci-online.pl"
 _KNOWN_CITIES = ("Gdańsk", "Gdynia", "Sopot", "Rumia", "Reda", "Wejherowo")
+_PROVINCES = {
+    "dolnośląskie",
+    "kujawsko-pomorskie",
+    "lubelskie",
+    "lubuskie",
+    "łódzkie",
+    "małopolskie",
+    "mazowieckie",
+    "opolskie",
+    "podkarpackie",
+    "podlaskie",
+    "pomorskie",
+    "śląskie",
+    "świętokrzyskie",
+    "warmińsko-mazurskie",
+    "wielkopolskie",
+    "zachodniopomorskie",
+}
 
 # Tile container selector — every listing card has a data-id attribute
 _TILE_SEL = ".tile[data-id]"
@@ -104,7 +122,9 @@ def _split_address(text: str | None) -> tuple[str | None, str | None, str | None
         city = parts[-1]
     elif len(parts) == 2:
         first, second = parts
-        if any(second.lower() == city.lower() for city in _KNOWN_CITIES):
+        if second.casefold() in _PROVINCES:
+            city = first
+        elif any(second.lower() == city.lower() for city in _KNOWN_CITIES):
             district, city = first, second
         else:
             street, city = first, second
@@ -116,9 +136,7 @@ def _split_address(text: str | None) -> tuple[str | None, str | None, str | None
                 district = parts[0][: -len(known_city)].strip(" ,") or None
                 break
         if city is None:
-            words = parts[0].split()
-            city = words[-1] if words else None
-            district = " ".join(words[:-1]) or None
+            city = parts[0]
     return _sanitize_address(city, district, street)
 
 

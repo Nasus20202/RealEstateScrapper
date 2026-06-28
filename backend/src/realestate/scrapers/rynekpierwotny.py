@@ -27,6 +27,25 @@ _CITY_DISPLAY: dict[str, str] = {
     "sopot": "Sopot",
 }
 
+_VOIVODESHIPS = {
+    "dolnośląskie",
+    "kujawsko-pomorskie",
+    "lubelskie",
+    "lubuskie",
+    "łódzkie",
+    "małopolskie",
+    "mazowieckie",
+    "opolskie",
+    "podkarpackie",
+    "podlaskie",
+    "pomorskie",
+    "śląskie",
+    "świętokrzyskie",
+    "warmińsko-mazurskie",
+    "wielkopolskie",
+    "zachodniopomorskie",
+}
+
 
 def _slugify_city(city: str) -> str:
     city = city.strip().lower().replace("ł", "l")
@@ -50,6 +69,7 @@ def _district_from_address(address: str, city: str | None) -> str | None:
         if (
             district
             and district.lower() != city.lower()
+            and district.casefold() not in _VOIVODESHIPS
             and not looks_like_street_or_code(district)
         ):
             return district

@@ -107,3 +107,19 @@ def test_split_address_keeps_street_out_of_district():
     assert city == "Sopot"
     assert district is None
     assert street == "Aleja Niepodległości"
+
+
+def test_split_address_keeps_unknown_multiword_city_together():
+    city, district, street = _split_address("Pruszcz Gdański")
+
+    assert city == "Pruszcz Gdański"
+    assert district is None
+    assert street is None
+
+
+def test_split_address_treats_province_as_context_not_city():
+    city, district, street = _split_address("Gdańsk, pomorskie")
+
+    assert city == "Gdańsk"
+    assert district is None
+    assert street is None
