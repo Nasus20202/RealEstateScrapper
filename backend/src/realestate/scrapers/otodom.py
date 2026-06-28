@@ -62,6 +62,12 @@ _FLOOR_MAP: dict[str, int] = {
 }
 
 _BASE_URL = "https://www.otodom.pl"
+_LISTING_LINK_RE = re.compile(
+    r'<a[^>]+href="(?P<href>(?:https://www\.otodom\.pl)?/pl/oferta/(?P<slug>[^"?#]+))"[^>]*>(?P<body>.*?)</a>',
+    re.DOTALL,
+)
+_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 def _parse_dt(v: object) -> datetime | None:
@@ -185,6 +191,57 @@ def _build_url(item: dict) -> str:
     return urljoin(_BASE_URL, href)
 
 
+def _text_from_html(html: str) -> str:
+    text = _TAG_RE.sub(" ", html)
+    return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def _parse_listing_links(html: str) -> list[RawListing]:
+    """Fallback for rendered Otodom pages when structured JSON is missing."""
+    listings: list[RawListing] = []
+    seen: set[str] = set()
+    for match in _LISTING_LINK_RE.finditer(html):
+        slug = match.group("slug")
+        if slug in seen:
+            continue
+        seen.add(slug)
+        title = _text_from_html(match.group("body"))
+        listings.append(
+            RawListing(
+                source_id=OtodomScraper.source_id,
+                external_id=slug.rsplit("-", 1)[-1],
+                url=urljoin(_BASE_URL, match.group("href")),
+                title=title or slug.replace("-", " "),
+            )
+        )
+    return listings
+
+
+def _listing_from_item(source_id: str, item: dict) -> RawListing | None:
+    item_id = item.get("id")
+    if item_id is None:
+        return None
+
+    return RawListing(
+        source_id=source_id,
+        external_id=str(item_id),
+        url=_build_url(item),
+        title=item.get("title") or "",
+        price=_extract_price(item),
+        area_m2=item.get("areaInSquareMeters"),
+        rooms=_extract_rooms(item),
+        floor=_extract_floor(item),
+        city=((item.get("location") or {}).get("address", {}).get("city", {}).get("name")),
+        district=_extract_district(item),
+        market=_map_market(item),
+        description=item.get("shortDescription"),
+        attributes=_extract_attributes(item),
+        posted_at=_parse_dt(item.get("dateCreated")),
+        images=_extract_images(item),
+        raw=item,
+    )
+
+
 def _map_market(item: dict) -> str | None:
     """Map transaction/market to 'primary'/'secondary'; None if unknown.
 
@@ -247,36 +304,21 @@ class OtodomScraper:
             .get("items", [])
         )
 
+        if not items:
+            return _parse_listing_links(html)
+
         listings: list[RawListing] = []
         for item in items:
             if not isinstance(item, dict):
                 continue
-            item_id = item.get("id")
-            if item_id is None:
-                continue
-
-            listings.append(
-                RawListing(
-                    source_id=self.source_id,
-                    external_id=str(item_id),
-                    url=_build_url(item),
-                    title=item.get("title") or "",
-                    price=_extract_price(item),
-                    area_m2=item.get("areaInSquareMeters"),
-                    rooms=_extract_rooms(item),
-                    floor=_extract_floor(item),
-                    city=(
-                        (item.get("location") or {}).get("address", {}).get("city", {}).get("name")
-                    ),
-                    district=_extract_district(item),
-                    market=_map_market(item),
-                    description=item.get("shortDescription"),
-                    attributes=_extract_attributes(item),
-                    posted_at=_parse_dt(item.get("dateCreated")),
-                    images=_extract_images(item),
-                    raw=item,
-                )
-            )
+            related_ads = item.get("relatedAds") or []
+            item_group = related_ads if related_ads else [item]
+            for grouped_item in item_group:
+                if not isinstance(grouped_item, dict):
+                    continue
+                listing = _listing_from_item(self.source_id, grouped_item)
+                if listing is not None:
+                    listings.append(listing)
         return listings
 
     def parse_detail(self, html: str, url: str) -> RawListing:

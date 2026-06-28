@@ -27,6 +27,61 @@ def test_parse_search_extracts_numeric_fields():
     assert witharea and all(x.area_m2 > 0 for x in witharea)
 
 
+def test_parse_search_falls_back_to_listing_links():
+    html = """
+    <html><body>
+      <a href="/pl/oferta/2-pokojowe-mieszkanie-59m2-balkon-bezposrednio-ID4ynLg">
+        <article><h2>2-pokojowe mieszkanie 59m2 + balkon Bezpośrednio</h2></article>
+      </a>
+      <a href="https://www.otodom.pl/pl/oferta/przymorze-2-pokoje-ID4BG3e">
+        <article><h2>Przymorze | 2 pokoje</h2></article>
+      </a>
+    </body></html>
+    """
+
+    listings = OtodomScraper().parse_search(html)
+
+    assert [listing.external_id for listing in listings] == ["ID4ynLg", "ID4BG3e"]
+    assert listings[0].title == "2-pokojowe mieszkanie 59m2 + balkon Bezpośrednio"
+    assert listings[0].url == (
+        "https://www.otodom.pl/pl/oferta/2-pokojowe-mieszkanie-59m2-balkon-bezposrednio-ID4ynLg"
+    )
+
+
+def test_parse_search_expands_related_ads_instead_of_development_card():
+    html = """
+    <html><script id="__NEXT_DATA__" type="application/json">
+    {"props":{"pageProps":{"data":{"searchAds":{"items":[{
+      "id": 100,
+      "title": "Meri Apartamenty",
+      "slug": "meri-apartamenty-ID100",
+      "relatedAds": [{
+        "id": 101,
+        "title": "4-pokojowe mieszkanie 86m2 + balkon",
+        "slug": "4-pokojowe-mieszkanie-86m2-balkon-ID101",
+        "totalPrice": {"value": 1530978},
+        "areaInSquareMeters": 86.01,
+        "roomsNumber": "FOUR"
+      }, {
+        "id": 102,
+        "title": "3-pokojowe mieszkanie 56m2 + balkon",
+        "slug": "3-pokojowe-mieszkanie-56m2-balkon-ID102",
+        "totalPrice": {"value": 1023022},
+        "areaInSquareMeters": 56.21,
+        "roomsNumber": "THREE"
+      }]
+    }]}}}}}
+    </script></html>
+    """
+
+    listings = OtodomScraper().parse_search(html)
+
+    assert [listing.external_id for listing in listings] == ["101", "102"]
+    assert listings[0].title == "4-pokojowe mieszkanie 86m2 + balkon"
+    assert listings[0].price == Decimal("1530978")
+    assert listings[0].rooms == 4
+
+
 def test_build_search_url_contains_city():
     url = OtodomScraper().build_search_url(SearchCriteria(city="gdansk"), page=2)
     assert "gdansk" in url.lower()

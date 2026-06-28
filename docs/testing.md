@@ -12,7 +12,7 @@ uv run pytest
 ### Configuration
 
 - Framework: **pytest** with **pytest-asyncio** plugin (`auto` mode — all async tests run automatically).
-- Integration and E2E tests use **testcontainers** to run PostgreSQL 18 + pgvector in an isolated Docker container. **Docker required.** PostGIS is tested via conditional migration: in the test image without PostGIS, the spatial part is no-op, and the runtime compose uses its own image with PostGIS.
+- Integration and E2E tests use **testcontainers** to build and run the project PostgreSQL 18 image with pgvector + PostGIS in an isolated Docker container. **Docker required.**
 - pytest config: `pyproject.toml` (section `[tool.pytest.ini_options]`).
 
 ### Test Structure
@@ -48,12 +48,12 @@ uv run pytest -m live
 
 ### Testcontainers and Docker
 
-Integration tests start a `pgvector/pgvector:pg18` container via testcontainers. The container starts once per pytest session (session-scoped fixture). The runtime Docker Compose uses a separate `docker/db/Dockerfile` based on `postgres:18.4-trixie` with PostGIS and pgvector. Requirements:
+Integration tests build `docker/db/Dockerfile` as `realestate-db:test` via testcontainers, then start it once per pytest session (session-scoped fixture). This uses the same PostgreSQL image definition as runtime Docker Compose, with PostGIS and pgvector installed. Requirements:
 
 1. Running Docker daemon.
-2. Access to Docker Hub (or a local `pgvector/pgvector:pg18` image).
+2. Access to Docker Hub and Debian/PostgreSQL apt repositories for the first image build, unless the image layers are already cached locally.
 
-On first run, Docker pulls the image — this may take a while.
+On first run, Docker builds the image — this may take a while.
 
 ### Lint
 

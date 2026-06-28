@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+from testcontainers.core.image import DockerImage
 from testcontainers.postgres import PostgresContainer
 
 from realestate.config import get_settings
@@ -15,9 +16,15 @@ def _clear_settings_cache():
 
 @pytest.fixture(scope="session")
 def pg_url() -> str:
-    with PostgresContainer("pgvector/pgvector:pg18") as pg:
-        raw = pg.get_connection_url()  # postgresql+psycopg2://...
-        yield raw.replace("postgresql+psycopg2", "postgresql+asyncpg")
+    with DockerImage(
+        path="..",
+        dockerfile_path="docker/db/Dockerfile",
+        tag="realestate-db:test",
+        clean_up=False,
+    ):
+        with PostgresContainer("realestate-db:test") as pg:
+            raw = pg.get_connection_url()  # postgresql+psycopg2://...
+            yield raw.replace("postgresql+psycopg2", "postgresql+asyncpg")
 
 
 @pytest_asyncio.fixture

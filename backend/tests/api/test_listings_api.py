@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from realestate.api.app import create_app
@@ -9,6 +10,7 @@ from realestate.api.deps import get_llm_client_dep, get_session
 from realestate.db.engine import create_session_factory
 from realestate.models import Base, Listing, LLMAnalysis, PriceHistory, Source
 from realestate.models.enums import ListingStatus
+from tests.db.test_migrations import upgrade_to_head
 
 
 async def _seed(engine):
@@ -151,3 +153,173 @@ async def test_stats_with_filters(engine):
         resp4 = await client.get("/stats", params={"source_id": "otodom"})
         body4 = resp4.json()
         assert body4["overview"]["active_count"] == 1
+
+
+async def _seed_map_listings(engine):
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        now = datetime.now(UTC)
+        s.add(Source(source_id="otodom", display_name="Otodom", enabled=True, config={}))
+        s.add_all(
+            [
+                Listing(
+                    source_id="otodom",
+                    external_id="gda-1",
+                    url="http://gda-1",
+                    title="Wrzeszcz map listing",
+                    price=Decimal(600000),
+                    price_per_m2=Decimal(12000),
+                    area_m2=50,
+                    rooms=2,
+                    city="Gdansk",
+                    district="Wrzeszcz",
+                    lat=54.382,
+                    lon=18.604,
+                    raw_hash="map-1",
+                    status=ListingStatus.ACTIVE,
+                    first_seen=now,
+                    last_seen=now,
+                    images=[],
+                ),
+                Listing(
+                    source_id="otodom",
+                    external_id="gda-2",
+                    url="http://gda-2",
+                    title="Oliwa map listing",
+                    price=Decimal(900000),
+                    price_per_m2=Decimal(15000),
+                    area_m2=60,
+                    rooms=3,
+                    city="Gdansk",
+                    district="Oliwa",
+                    lat=54.411,
+                    lon=18.569,
+                    raw_hash="map-2",
+                    status=ListingStatus.ACTIVE,
+                    first_seen=now,
+                    last_seen=now,
+                    images=[],
+                ),
+                Listing(
+                    source_id="otodom",
+                    external_id="gdy-1",
+                    url="http://gdy-1",
+                    title="Gdynia map listing",
+                    price=Decimal(700000),
+                    price_per_m2=Decimal(14000),
+                    area_m2=50,
+                    rooms=2,
+                    city="Gdynia",
+                    district="Orlowo",
+                    lat=54.477,
+                    lon=18.552,
+                    raw_hash="map-3",
+                    status=ListingStatus.ACTIVE,
+                    first_seen=now,
+                    last_seen=now,
+                    images=[],
+                ),
+                Listing(
+                    source_id="otodom",
+                    external_id="missing-coordinates",
+                    url="http://missing-coordinates",
+                    title="No map listing",
+                    price=Decimal(300000),
+                    price_per_m2=Decimal(10000),
+                    city="Gdansk",
+                    district="Wrzeszcz",
+                    raw_hash="map-4",
+                    status=ListingStatus.ACTIVE,
+                    first_seen=now,
+                    last_seen=now,
+                    images=[],
+                ),
+            ]
+        )
+        await s.commit()
+
+
+async def test_map_points_filters_by_bbox_on_coordinates(engine, pg_url, monkeypatch):
+    await upgrade_to_head(pg_url, monkeypatch)
+    await _seed_map_listings(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get(
+            "/listings/map/points",
+            params={"south": 54.35, "north": 54.43, "west": 18.53, "east": 18.63, "limit": 50},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert {item["external_id"] for item in body["items"]} == {"gda-1", "gda-2"}
+
+
+async def test_map_hexes_uses_postgis_geom_and_filters(engine, pg_url, monkeypatch):
+    await upgrade_to_head(pg_url, monkeypatch)
+    await _seed_map_listings(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get(
+            "/listings/map/hexes",
+            params={"city": "Gdansk", "south": 54.35, "north": 54.43, "west": 18.53, "east": 18.63},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body
+    assert sum(hexagon["count"] for hexagon in body) == 2
+    assert {hexagon["geometry"]["type"] for hexagon in body} == {"Polygon"}
+    weighted_avg = (
+        sum(Decimal(str(hexagon["avg_price"])) * hexagon["count"] for hexagon in body) / 2
+    )
+    assert weighted_avg == Decimal("750000.0")
+
+
+async def test_postgis_trigger_syncs_geom_for_insert_and_coordinate_update(
+    engine, pg_url, monkeypatch
+):
+    await upgrade_to_head(pg_url, monkeypatch)
+    await _seed_map_listings(engine)
+    async with engine.begin() as conn:
+        inserted = await conn.execute(
+            text(
+                """
+                SELECT ST_AsText(geom)
+                FROM listings
+                WHERE external_id = 'gda-1'
+                """
+            )
+        )
+        assert inserted.scalar_one() == "POINT(18.604 54.382)"
+
+        await conn.execute(
+            text(
+                """
+                UPDATE listings
+                SET lat = 54.5, lon = 18.4
+                WHERE external_id = 'gda-1'
+                """
+            )
+        )
+        updated = await conn.execute(
+            text(
+                """
+                SELECT ST_AsText(geom)
+                FROM listings
+                WHERE external_id = 'gda-1'
+                """
+            )
+        )
+        assert updated.scalar_one() == "POINT(18.4 54.5)"
+
+        await conn.execute(
+            text(
+                """
+                UPDATE listings
+                SET lat = NULL, lon = 18.4
+                WHERE external_id = 'gda-1'
+                """
+            )
+        )
+        cleared = await conn.execute(text("SELECT geom FROM listings WHERE external_id = 'gda-1'"))
+        assert cleared.scalar_one() is None
