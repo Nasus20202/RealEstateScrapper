@@ -75,6 +75,11 @@ async def run_search(
             await on_log(f"Pobieram stronę {page}: {url}")
         html = await fetcher.fetch(url)
         page_listings = scraper.parse_search(html)
+        if not page_listings:
+            if on_log is not None:
+                await on_log(f"Strona {page}: 0 ofert, ponawiam pobieranie")
+            html = await fetcher.fetch(url)
+            page_listings = scraper.parse_search(html)
         if on_log is not None:
             await on_log(f"Strona {page}: znaleziono {len(page_listings)} ofert w {criteria.city}")
         if not page_listings:

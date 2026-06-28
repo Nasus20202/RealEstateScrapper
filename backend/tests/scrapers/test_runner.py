@@ -22,6 +22,24 @@ class _FakeFetcher:
         return self.pages.get(url, empty_page)
 
 
+class _FlakyEmptyFetcher:
+    def __init__(self, url: str, html: str):
+        self.url = url
+        self.html = html
+        self.calls = []
+
+    async def fetch(self, url: str) -> str:
+        self.calls.append(url)
+        empty_page = (
+            '<html><script id="__NEXT_DATA__" type="application/json">'
+            '{"props":{"pageProps":{"data":{"searchAds":{"items":[]}}}}}'
+            "</script></html>"
+        )
+        if url == self.url and self.calls.count(url) == 2:
+            return self.html
+        return empty_page
+
+
 class _DetailScraper:
     source_id = "detail-source"
     display_name = "Detail source"
@@ -94,8 +112,27 @@ async def test_run_search_stops_on_empty_page():
     fetcher = _FakeFetcher({})  # every page empty
     listings = await run_search(scraper, fetcher, SearchCriteria(city="gdansk"), max_pages=5)
     assert listings == []
-    # stopped after first empty page
-    assert len(fetcher.calls) == 1
+    # stopped after retrying the first empty page once
+    assert len(fetcher.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_run_search_retries_empty_page_once_before_stopping():
+    scraper = OtodomScraper()
+    url1 = scraper.build_search_url(SearchCriteria(city="gdansk"), 1)
+    fetcher = _FlakyEmptyFetcher(url1, load_fixture("otodom_search_gdansk"))
+    logs: list[str] = []
+
+    async def on_log(message: str) -> None:
+        logs.append(message)
+
+    listings = await run_search(
+        scraper, fetcher, SearchCriteria(city="gdansk"), max_pages=1, on_log=on_log
+    )
+
+    assert len(listings) >= 20
+    assert fetcher.calls == [url1, url1]
+    assert any("0 ofert, ponawiam pobieranie" in log for log in logs)
 
 
 class _BlockingFetcher:
