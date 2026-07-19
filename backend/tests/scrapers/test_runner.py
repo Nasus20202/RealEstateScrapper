@@ -1,6 +1,11 @@
 import pytest
 
-from realestate.scrapers.base import RawListing, ScraperBlocked, SearchCriteria
+from realestate.scrapers.base import (
+    RawListing,
+    ScraperBlocked,
+    ScraperBlockedPartial,
+    SearchCriteria,
+)
 from realestate.scrapers.otodom import OtodomScraper
 from realestate.scrapers.runner import run_search
 from tests.fixtures.loader import load_fixture
@@ -138,6 +143,28 @@ async def test_run_search_retries_empty_page_once_before_stopping():
 class _BlockingFetcher:
     async def fetch(self, url: str) -> str:
         raise ScraperBlocked(url)
+
+
+class _BlockOnDetailFetcher:
+    async def fetch(self, url: str) -> str:
+        if url == "https://example.test/detail/1":
+            raise ScraperBlocked(url)
+        return "<html></html>"
+
+
+@pytest.mark.asyncio
+async def test_run_search_blocked_on_detail_returns_partial():
+    with pytest.raises(ScraperBlocked) as exc_info:
+        await run_search(
+            _SinglePageScraper(),
+            _BlockOnDetailFetcher(),
+            SearchCriteria(city="Gdańsk"),
+            max_pages=1,
+            fetch_details=True,
+        )
+    assert isinstance(exc_info.value, ScraperBlockedPartial)
+    # Search listing was collected before the detail fetch blocked.
+    assert len(exc_info.value.partial) == 1
 
 
 @pytest.mark.asyncio

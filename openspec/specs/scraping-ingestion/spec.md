@@ -1,9 +1,7 @@
 ## Purpose
 
 Describe the implemented scraper, normalization, ingestion, and scrape-run behavior that keeps the listing catalog synchronized with upstream sources.
-
 ## Requirements
-
 ### Requirement: Scraper Plugin Registration
 The system SHALL discover scraper plugins through module import side effects and expose them through a shared registry keyed by `source_id`.
 
@@ -19,14 +17,18 @@ The system SHALL run scraper searches page by page, stop on the first empty page
 - **THEN** the collected scrape result contains at most one item for that `(source_id, external_id)` pair
 
 ### Requirement: Browser Fetch Throttling and Block Detection
-The scraper browser fetcher SHALL enforce a minimum delay between requests, use the configured navigation wait strategy and timeout, and raise a block condition when anti-bot pages are detected.
+The scraper browser fetcher SHALL enforce a minimum delay between requests, use the configured navigation wait strategy and timeout, retry transient block/error responses with exponential backoff, and raise a block condition when anti-bot pages are detected after retries are exhausted.
 
 #### Scenario: Anti-bot responses surface as blocked scrapes
 - **WHEN** fetched page content matches configured anti-bot markers without expected listing content markers
-- **THEN** the browser fetcher raises a scraper-blocked condition instead of returning the page as a normal scrape result
+- **THEN** the browser fetcher retries with exponential backoff and, if the block persists past `scraper_max_retries`, raises a scraper-blocked condition instead of returning the page as a normal scrape result
+
+#### Scenario: Rate-limited responses are retried with backoff
+- **WHEN** the response status is a retryable block status (`403`, `401`, `429`, or `5xx`)
+- **THEN** the browser fetcher waits an exponential backoff delay (honoring `Retry-After` when present) and retries before succeeding or raising as blocked
 
 ### Requirement: Normalization and Incremental Sync
-The system SHALL normalize raw scraper records into canonical listings, compute a `raw_hash` for change detection, best-effort geocode missing coordinates, and incrementally sync each source into the database.
+The system SHALL normalize raw scraper records into canonical listings, compute a `raw_hash` for change detection, best-effort geocode missing coordinates, and incrementally sync each source into the database. Geocoding failures are best-effort: the geocoder retries transient HTTP and transport errors with exponential backoff, and on exhaustion (or a permanent error) returns no coordinates for that listing instead of failing the scrape.
 
 #### Scenario: Changed listing updates reset derived data
 - **WHEN** an incoming listing matches an existing record but its `raw_hash` changes
@@ -35,6 +37,10 @@ The system SHALL normalize raw scraper records into canonical listings, compute 
 #### Scenario: Geocoding failures do not abort ingestion
 - **WHEN** the configured geocoder returns no result or encounters HTTP or parse errors for an address query
 - **THEN** ingestion continues without coordinates for that listing instead of failing the scrape
+
+#### Scenario: Geocoding retries transient errors
+- **WHEN** the configured geocoder hits a transient error (e.g. `429`/`5xx`/transport) for an address query within the retry budget
+- **THEN** it retries with exponential backoff (honoring `Retry-After`) before returning no result, and ingestion continues without coordinates only if retries are exhausted
 
 #### Scenario: Geocoding uses throttled cached address lookup
 - **WHEN** geocoding is enabled and multiple listings resolve the same address query during a process lifetime
@@ -64,3 +70,15 @@ The system SHALL expose `POST /scrape`, `GET /scrape/runs`, and `GET /scrape/run
 #### Scenario: Manual scrape merges persisted and request-scoped source page limits
 - **WHEN** a client submits `POST /scrape` with optional `source_max_pages`
 - **THEN** the backend merges those values with persisted per-source page settings before invoking ingestion
+
+### Requirement: Plain-HTTP Fetch Resilience
+The plain-HTTP fetch helpers (`fetch_text`, `fetch_json`) SHALL retry transient HTTP errors with the same backoff policy as the browser fetcher, while rejecting non-retryable client errors without retry.
+
+#### Scenario: Transient upstream error recovers
+- **WHEN** a plain-HTTP fetch raises a transport or non-permanent HTTP error
+- **THEN** the helper retries with exponential backoff up to `scraper_max_retries` before propagating the error
+
+#### Scenario: Permanent client errors are not retried
+- **WHEN** a plain-HTTP fetch returns a non-retryable status (e.g. `404`)
+- **THEN** the helper does not retry and propagates the error immediately
+

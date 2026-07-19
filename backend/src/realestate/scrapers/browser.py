@@ -3,38 +3,24 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING
 
 from playwright.async_api import async_playwright
 
 from realestate.config import get_settings
 from realestate.scrapers.base import ScraperBlocked
+from realestate.scrapers.helpers import (
+    _backoff_delay,
+    _is_retryable_status,
+    _retry_after_seconds,
+)
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, Playwright
 
 _BLOCK_MARKERS = ("captcha", "datadome", "access denied", "verify you are a human")
 _CONTENT_MARKERS = ("listing", "oferta", "__next_data__")
-_RATE_LIMIT_STATUS = 429
-_RATE_LIMIT_RETRIES = 3
-_RATE_LIMIT_BACKOFF_SECONDS = 10.0
-
 logger = logging.getLogger(__name__)
-
-
-def _retry_after_seconds(value: str | None) -> float | None:
-    if not value:
-        return None
-    try:
-        seconds = float(value.strip())
-    except ValueError:
-        try:
-            retry_at = parsedate_to_datetime(value)
-        except TypeError, ValueError:
-            return None
-        seconds = retry_at.timestamp() - time.time()
-    return max(seconds, 0.0)
 
 
 def is_blocked(html: str) -> bool:
@@ -98,39 +84,58 @@ class BrowserFetcher:
         # domcontentloaded is the reliable default; JS-SPA pages needing full
         # render can set scraper_wait_until="networkidle" or use a per-scraper
         # wait-for-selector afterwards.
-        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+        max_attempts = max(1, self._settings.scraper_max_retries)
+        for attempt in range(max_attempts):
             page = await self._context.new_page()
+            retry_after: float | None = None
             try:
                 response = await page.goto(
                     url,
                     wait_until=self._settings.scraper_wait_until,
                     timeout=self._settings.scraper_nav_timeout_ms,
                 )
-                if response is not None and response.status == _RATE_LIMIT_STATUS:
-                    if attempt == _RATE_LIMIT_RETRIES:
-                        logger.warning(
-                            "Rate limit retry exhausted status=429 attempts=%s url=%s",
-                            attempt + 1,
-                            url,
-                        )
-                        raise ScraperBlocked(f"429 Too Many Requests: {url}")
-                    retry_after = _retry_after_seconds(await response.header_value("retry-after"))
-                    delay = retry_after or _RATE_LIMIT_BACKOFF_SECONDS * (attempt + 1)
-                    logger.warning(
-                        "Rate limited status=429 attempt=%s next_attempt=%s "
-                        "delay_seconds=%.2f retry_after=%s url=%s",
-                        attempt + 1,
-                        attempt + 2,
-                        delay,
-                        retry_after is not None,
-                        url,
-                    )
-                    await asyncio.sleep(delay)
-                    continue
+                status = response.status if response is not None else None
+                # Read Retry-After while the response is still live; Playwright
+                # invalidates the response channel after the page is used, so
+                # guard against TargetClosedError and fall back to backoff only.
+                if response is not None and status is not None and _is_retryable_status(status):
+                    try:
+                        raw = await response.header_value("retry-after")
+                        retry_after = _retry_after_seconds(raw)
+                    except Exception:  # noqa: BLE001 - header is an optional hint
+                        retry_after = None
                 html = await page.content()
             finally:
                 await page.close()
-            break
-        if is_blocked(html):
-            raise ScraperBlocked(url)
-        return html
+
+            blocked = is_blocked(html)
+            retryable = (status is not None and _is_retryable_status(status)) or blocked
+            if not retryable:
+                return html
+
+            if attempt == max_attempts - 1:
+                logger.warning(
+                    "Fetch retry exhausted status=%s blocked=%s attempts=%s url=%s",
+                    status,
+                    blocked,
+                    max_attempts,
+                    url,
+                )
+                if status == 429:
+                    raise ScraperBlocked(f"429 Too Many Requests: {url}")
+                raise ScraperBlocked(f"Blocked (status={status}): {url}")
+
+            delay = _backoff_delay(attempt, retry_after, self._settings)
+            logger.warning(
+                "Fetch retryable status=%s blocked=%s attempt=%s next_attempt=%s "
+                "delay_seconds=%.2f retry_after=%s url=%s",
+                status,
+                blocked,
+                attempt + 1,
+                attempt + 2,
+                delay,
+                retry_after is not None,
+                url,
+            )
+            await asyncio.sleep(delay)
+        raise ScraperBlocked(url)

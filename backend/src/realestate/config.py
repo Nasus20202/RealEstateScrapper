@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     scraper_min_delay_seconds: float = 1.5
     scraper_nav_timeout_ms: int = 30000
     scraper_wait_until: str = "domcontentloaded"
+    # --- Fetcher retry / backoff (transient block & error recovery) ---
+    scraper_max_retries: int = 10
+    scraper_backoff_base_seconds: float = 1.0
+    scraper_backoff_max_seconds: float = 300.0
     structured_logging: bool = True
 
     # --- LLM (konfigurowalny dostawca, OpenAI-compatible). Nic nie hardcodowane. ---
@@ -84,7 +88,7 @@ class Settings(BaseSettings):
     # ingestion to fill listings.lat/lon for the map. Disable to skip map pins.
     geocoding_enabled: bool = True
     geocoding_base_url: str = "https://nominatim.openstreetmap.org"
-    geocoding_user_agent: str = "RealEstateAggregator/1.0 (local tool)"
+    geocoding_user_agent: str = "RealEstateScrapper/1.0 (local tool)"
     geocoding_min_delay_seconds: float = 1.0
     geocoding_timeout_seconds: float = 10.0
 

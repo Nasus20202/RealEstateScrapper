@@ -18,6 +18,9 @@ jobs:
 
     env:
       EMBEDDING_DIM: "2048"
+      # Required by Settings (validated by get_settings()); geocode unit tests
+      # build a Settings instance but never open a connection.
+      DATABASE_URL: "sqlite+aiosqlite://"
 
     steps:
       - name: Checkout repository

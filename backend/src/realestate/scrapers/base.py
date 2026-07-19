@@ -45,6 +45,18 @@ class ScraperBlocked(Exception):
     """Wykryto blokadę anty-bot / wymóg captcha."""
 
 
+class ScraperBlockedPartial(ScraperBlocked):
+    """Blokada w trakcie scrapingu, ale część ofert została już pobrana.
+
+    Niesie ze sobą listę listingów zebranych przed wystąpieniem blokady, aby
+    warstwa ingestii mogła je zapisać mimo zaklasyfikowania przebiegu jako blocked.
+    """
+
+    def __init__(self, message: str, partial: list[RawListing]) -> None:
+        super().__init__(message)
+        self.partial = partial
+
+
 @runtime_checkable
 class Scraper(Protocol):
     source_id: str

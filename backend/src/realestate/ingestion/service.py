@@ -170,38 +170,53 @@ class IngestionService:
                 status=ScrapeRunStatus.SUCCESS,
             )
             async with self.session_factory() as session:
+                raws: list = []
+                blocked_err: str | None = None
+                failed_err: str | None = None
                 try:
-                    raws = await run_search(
-                        scraper,
-                        fetcher,
-                        criteria,
-                        max_pages=max_pages,
-                        fetch_details=source_id in _DETAIL_SOURCES,
-                        on_log=emit,
-                    )
-                    logger.info("Parsed %s raw listings source=%s", len(raws), source_id)
-                    await emit(f"Normalizuję {len(raws)} ofert")
-                    listings = [to_listing(r, now=now) for r in raws]
-                    await emit("Geokoduję adresy")
-                    await self._geocode(listings)
-                    await emit("Zapisuję do bazy")
-                    stats = await IncrementalEngine(session).sync_source(
-                        source_id, listings, now=now, mark_missing_gone=mark_missing_gone
-                    )
-                    run.new_count = stats.new
-                    run.updated_count = stats.updated
-                    run.gone_count = stats.gone
-                    run.unchanged_count = stats.unchanged
-                except ScraperBlocked as e:
-                    run.status = ScrapeRunStatus.BLOCKED
-                    run.error_message = str(e)
-                    logger.warning("Scraper blocked source=%s error=%s", source_id, e)
-                    await emit(f"Blokada scrapera: {e}")
-                except Exception as e:
-                    run.status = ScrapeRunStatus.FAILED
-                    run.error_message = str(e)
-                    logger.exception("Scrape failed source=%s", source_id)
-                    await emit(f"Błąd: {e}")
+                    try:
+                        raws = await run_search(
+                            scraper,
+                            fetcher,
+                            criteria,
+                            max_pages=max_pages,
+                            fetch_details=source_id in _DETAIL_SOURCES,
+                            on_log=emit,
+                        )
+                    except ScraperBlocked as e:
+                        # Block can carry partial results scraped before the
+                        # block; we still persist them so a transient block
+                        # doesn't discard an otherwise good batch.
+                        blocked_err = str(e)
+                        raws = getattr(e, "partial", []) or []
+                        logger.warning("Scraper blocked source=%s error=%s", source_id, e)
+                        await emit(f"Blokada scrapera: {e}")
+                    except Exception as e:
+                        failed_err = str(e)
+                        logger.exception("Scrape failed source=%s", source_id)
+                        await emit(f"Błąd: {e}")
+
+                    if raws:
+                        logger.info("Parsed %s raw listings source=%s", len(raws), source_id)
+                        await emit(f"Normalizuję {len(raws)} ofert")
+                        listings = [to_listing(r, now=now) for r in raws]
+                        await emit("Geokoduję adresy")
+                        await self._geocode(listings)
+                        await emit("Zapisuję do bazy")
+                        stats = await IncrementalEngine(session).sync_source(
+                            source_id, listings, now=now, mark_missing_gone=mark_missing_gone
+                        )
+                        run.new_count = stats.new
+                        run.updated_count = stats.updated
+                        run.gone_count = stats.gone
+                        run.unchanged_count = stats.unchanged
+
+                    if blocked_err is not None:
+                        run.status = ScrapeRunStatus.BLOCKED
+                        run.error_message = blocked_err
+                    elif failed_err is not None:
+                        run.status = ScrapeRunStatus.FAILED
+                        run.error_message = failed_err
                 finally:
                     run.finished_at = datetime.now(UTC)
                     await ScrapeRunRepository(session).add(run)

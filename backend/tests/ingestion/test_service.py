@@ -72,3 +72,30 @@ async def test_ingest_records_blocked_without_crashing(engine):
     assert runs[0].error_message
     async with factory() as s:
         assert await ListingRepository(s).count_active() == 0
+
+
+class _BlockedDetailFetcher:
+    """Returns the search fixture once, then blocks on the first detail fetch."""
+
+    def __init__(self):
+        self.first = True
+
+    async def fetch(self, url: str) -> str:
+        if self.first:
+            self.first = False
+            return load_fixture("otodom_search_gdansk")
+        raise ScraperBlocked(url)
+
+
+async def test_ingest_saves_partial_results_when_blocked_on_detail(engine):
+    await _schema(engine)
+    factory = create_session_factory(engine)
+    svc = IngestionService(factory, _BlockedDetailFetcher())
+    runs = await svc.ingest(SearchCriteria(city="gdansk"), source_ids=["otodom"], max_pages=1)
+    run = runs[0]
+    assert run.status == ScrapeRunStatus.BLOCKED
+    assert run.error_message
+    # Listings scraped before the block are still persisted, not discarded.
+    async with factory() as s:
+        assert await ListingRepository(s).count_active() >= 20
+        assert run.new_count >= 20

@@ -122,7 +122,7 @@ async def test_fetch_retries_429_before_returning(monkeypatch, caplog):
     assert "OK LISTING" in html
     assert calls == ["https://example.test/page", "https://example.test/page"]
     assert sleeps == [7.0]
-    assert "Rate limited status=429" in caplog.text
+    assert "Fetch retryable status=429" in caplog.text
     assert "delay_seconds=7.00" in caplog.text
 
 
@@ -131,6 +131,8 @@ async def test_fetch_raises_blocked_after_repeated_429(monkeypatch, caplog):
     calls: list[str] = []
     fetcher = BrowserFetcher()
     fetcher._context = _FakeContext([429, 429, 429, 429], calls)  # noqa: SLF001
+    fetcher._settings = _fake_settings(scraper_max_retries=4)  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
 
     async def no_sleep(_seconds: float) -> None:
         return None
@@ -142,4 +144,237 @@ async def test_fetch_raises_blocked_after_repeated_429(monkeypatch, caplog):
             await fetcher.fetch("https://example.test/page")
 
     assert len(calls) == 4
-    assert "Rate limit retry exhausted status=429" in caplog.text
+    assert "Fetch retry exhausted status=429" in caplog.text
+
+
+class _FakeBlockPage:
+    def __init__(self, status: int, calls: list[str], blocked: bool) -> None:
+        self._status = status
+        self._calls = calls
+        self._blocked = blocked
+
+    async def goto(self, url: str, **_kwargs):
+        self._calls.append(url)
+        return SimpleNamespace(status=self._status, header_value=self.header_value)
+
+    async def header_value(self, _name: str):
+        return None
+
+    async def content(self) -> str:
+        if self._blocked:
+            return "<html><head><title>Access Denied</title></head><body>captcha</body></html>"
+        return "<html>OK LISTING</html>"
+
+    async def close(self) -> None:
+        return None
+
+
+class _FakeBlockContext:
+    def __init__(self, statuses: list[int], calls: list[str]) -> None:
+        self._statuses = statuses
+        self._calls = calls
+        self._pages = 0
+
+    async def new_page(self) -> _FakeBlockPage:
+        blocked = self._pages == 0
+        self._pages += 1
+        return _FakeBlockPage(self._statuses.pop(0), self._calls, blocked)
+
+
+def _make_sleeper(sleeps: list[float]):
+    async def _sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    return _sleep
+
+
+def _fake_settings(**overrides):
+    from types import SimpleNamespace
+
+    base = dict(
+        scraper_max_retries=4,
+        scraper_backoff_base_seconds=1.0,
+        scraper_backoff_max_seconds=30.0,
+        scraper_min_delay_seconds=0.0,
+        scraper_wait_until="domcontentloaded",
+        scraper_nav_timeout_ms=30000,
+    )
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+@pytest.mark.asyncio
+async def test_fetch_retries_403_before_returning(monkeypatch, caplog):
+    calls: list[str] = []
+    sleeps: list[float] = []
+    fetcher = BrowserFetcher()
+    fetcher._context = _FakeContext([403, 200], calls)  # noqa: SLF001
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+    monkeypatch.setattr(
+        "realestate.scrapers.browser.asyncio.sleep",
+        _make_sleeper(sleeps),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="realestate.scrapers.browser"):
+        html = await fetcher.fetch("https://example.test/page")
+
+    assert "OK LISTING" in html
+    assert calls == ["https://example.test/page", "https://example.test/page"]
+    assert sleeps == [1.0]
+    assert "Fetch retryable status=403" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_fetch_retries_5xx_before_returning(monkeypatch):
+    calls: list[str] = []
+    sleeps: list[float] = []
+    fetcher = BrowserFetcher()
+    fetcher._context = _FakeContext([503, 200], calls)  # noqa: SLF001
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+    monkeypatch.setattr(
+        "realestate.scrapers.browser.asyncio.sleep",
+        _make_sleeper(sleeps),
+    )
+
+    html = await fetcher.fetch("https://example.test/page")
+
+    assert "OK LISTING" in html
+    assert calls == ["https://example.test/page", "https://example.test/page"]
+    assert sleeps == [1.0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_retries_blocked_page_before_returning(monkeypatch):
+    calls: list[str] = []
+    sleeps: list[float] = []
+    fetcher = BrowserFetcher()
+    # 200 but anti-bot content, then a clean 200 page.
+    fetcher._context = _FakeBlockContext([200, 200], calls)  # noqa: SLF001
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+    monkeypatch.setattr(
+        "realestate.scrapers.browser.asyncio.sleep",
+        _make_sleeper(sleeps),
+    )
+
+    html = await fetcher.fetch("https://example.test/page")
+
+    assert "OK LISTING" in html
+    assert len(calls) == 2
+    assert sleeps == [1.0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_honors_retry_after_on_429(monkeypatch):
+    calls: list[str] = []
+    sleeps: list[float] = []
+    fetcher = BrowserFetcher()
+    fetcher._context = _FakeContext([429, 200], calls, ["5", None])  # noqa: SLF001
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+    monkeypatch.setattr(
+        "realestate.scrapers.browser.asyncio.sleep",
+        _make_sleeper(sleeps),
+    )
+
+    html = await fetcher.fetch("https://example.test/page")
+
+    assert "OK LISTING" in html
+    assert sleeps == [5.0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_does_not_retry_404(monkeypatch):
+    calls: list[str] = []
+    sleeps: list[float] = []
+    fetcher = BrowserFetcher()
+    # content with "listing" marker so it is not flagged as blocked
+    fetcher._context = _FakeContext([404, 200], calls)  # noqa: SLF001
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+    monkeypatch.setattr(
+        "realestate.scrapers.browser.asyncio.sleep",
+        _make_sleeper(sleeps),
+    )
+
+    html = await fetcher.fetch("https://example.test/page")
+
+    assert "OK LISTING" in html
+    assert len(calls) == 1
+    assert sleeps == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_raises_blocked_after_repeated_403(monkeypatch, caplog):
+    calls: list[str] = []
+    fetcher = BrowserFetcher()
+    fetcher._context = _FakeContext([403, 403, 403, 403], calls)  # noqa: SLF001
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("realestate.scrapers.browser.asyncio.sleep", no_sleep)
+
+    with caplog.at_level(logging.WARNING, logger="realestate.scrapers.browser"):
+        with pytest.raises(ScraperBlocked, match="Blocked"):
+            await fetcher.fetch("https://example.test/page")
+
+    assert len(calls) == 4
+    assert "Fetch retry exhausted status=403" in caplog.text
+
+
+class _FakeClosedHeaderPage:
+    def __init__(self, statuses: list[int], calls: list[str]) -> None:
+        self._statuses = statuses
+        self._calls = calls
+
+    async def goto(self, url: str, **_kwargs):
+        self._calls.append(url)
+        return SimpleNamespace(
+            status=self._statuses.pop(0),
+            header_value=self.header_value,
+        )
+
+    async def header_value(self, _name: str):
+        # Simulate Playwright's TargetClosedError when headers are read late.
+        raise RuntimeError("Target page, context or browser has been closed")
+
+    async def content(self) -> str:
+        return "<html>OK LISTING</html>"
+
+    async def close(self) -> None:
+        return None
+
+
+class _FakeClosedHeaderContext:
+    def __init__(self, statuses: list[int], calls: list[str]) -> None:
+        self._statuses = statuses
+        self._calls = calls
+
+    async def new_page(self) -> _FakeClosedHeaderPage:
+        return _FakeClosedHeaderPage(self._statuses, self._calls)
+
+
+@pytest.mark.asyncio
+async def test_fetch_tolerates_header_read_failure(monkeypatch):
+    calls: list[str] = []
+    sleeps: list[float] = []
+    fetcher = BrowserFetcher()
+    fetcher._context = _FakeClosedHeaderContext([429, 200], calls)  # noqa: SLF001
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+    monkeypatch.setattr(
+        "realestate.scrapers.browser.asyncio.sleep",
+        _make_sleeper(sleeps),
+    )
+
+    html = await fetcher.fetch("https://example.test/page")
+
+    assert "OK LISTING" in html
+    assert len(calls) == 2
+    # No Retry-After read -> exponential backoff (1.0s) instead of crashing.
+    assert sleeps == [1.0]

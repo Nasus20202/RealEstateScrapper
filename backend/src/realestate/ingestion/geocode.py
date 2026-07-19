@@ -17,6 +17,11 @@ from typing import Protocol, runtime_checkable
 import httpx
 
 from realestate.config import get_settings
+from realestate.scrapers.helpers import (
+    _backoff_delay,
+    _is_retryable_status,
+    _retry_after_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,30 +92,68 @@ class NominatimGeocoder:
             if query in self._cache:
                 logger.info("Geocoding cache hit query=%s", query)
                 return self._cache[query]
+            settings = get_settings()
             client = self._client or httpx.AsyncClient(timeout=self._timeout)
+            result: tuple[float, float] | None = None
+            max_attempts = max(1, settings.scraper_max_retries)
             try:
-                logger.info("Geocoding request query=%s", query)
-                await self._throttle()
-                resp = await client.get(
-                    f"{self._base_url}/search",
-                    params={"q": query, "format": "jsonv2", "limit": 1},
-                    headers={"User-Agent": self._user_agent},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                result: tuple[float, float] | None = None
-                if isinstance(data, list) and data:
-                    first = data[0]
-                    result = (float(first["lat"]), float(first["lon"]))
-                    logger.info("Geocoding matched query=%s", query)
-                else:
-                    logger.info("Geocoding no result query=%s", query)
-            except httpx.HTTPError as exc:
-                logger.warning("Geocoding HTTP error query=%s error=%s", query, exc)
-                result = None
-            except (KeyError, ValueError, TypeError) as exc:
-                logger.warning("Geocoding parse error query=%s error=%s", query, exc)
-                result = None
+                for attempt in range(max_attempts):
+                    logger.info("Geocoding request query=%s attempt=%s", query, attempt + 1)
+                    await self._throttle()
+                    try:
+                        resp = await client.get(
+                            f"{self._base_url}/search",
+                            params={"q": query, "format": "jsonv2", "limit": 1},
+                            headers={"User-Agent": self._user_agent},
+                        )
+                        resp.raise_for_status()
+                        data = resp.json()
+                        if isinstance(data, list) and data:
+                            first = data[0]
+                            result = (float(first["lat"]), float(first["lon"]))
+                            logger.info("Geocoding matched query=%s", query)
+                        else:
+                            logger.info("Geocoding no result query=%s", query)
+                        break
+                    except httpx.HTTPStatusError as exc:
+                        status = exc.response.status_code
+                        retry_after = _retry_after_seconds(exc.response.headers.get("retry-after"))
+                        if attempt < max_attempts - 1 and _is_retryable_status(status):
+                            delay = _backoff_delay(attempt, retry_after, settings)
+                            logger.warning(
+                                "Geocoding HTTP %s transient, retrying attempt=%s "
+                                "delay_seconds=%.2f query=%s",
+                                status,
+                                attempt + 1,
+                                delay,
+                                query,
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+                        logger.warning(
+                            "Geocoding HTTP error query=%s status=%s error=%s",
+                            query,
+                            status,
+                            exc,
+                        )
+                        break
+                    except httpx.TransportError as exc:
+                        if attempt < max_attempts - 1:
+                            delay = _backoff_delay(attempt, None, settings)
+                            logger.warning(
+                                "Geocoding transport error transient, retrying "
+                                "attempt=%s delay_seconds=%.2f query=%s",
+                                attempt + 1,
+                                delay,
+                                query,
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+                        logger.warning("Geocoding HTTP error query=%s error=%s", query, exc)
+                        break
+                    except (KeyError, ValueError, TypeError) as exc:
+                        logger.warning("Geocoding parse error query=%s error=%s", query, exc)
+                        break
             finally:
                 if self._owns_client:
                     await client.aclose()
