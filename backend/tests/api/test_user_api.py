@@ -109,3 +109,18 @@ async def test_settings_get_and_put_masks_secret(engine):
         assert updated["scheduler_enabled"] is True
         assert updated["scheduler_cron"] == "15 */6 * * *"
         assert updated["default_cities"] == ["Gdańsk", "Gdynia"]
+        assert updated.get("default_max_pages") is None
+
+        put2 = await client.put(
+            "/settings",
+            json={"default_max_pages": 100},
+        )
+        assert put2.status_code == 200
+        assert put2.json()["default_max_pages"] == 100
+
+        cleared = await client.put(
+            "/settings",
+            json={"default_max_pages": 0},
+        )
+        assert cleared.status_code == 200
+        assert cleared.json()["default_max_pages"] is None

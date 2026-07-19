@@ -232,6 +232,7 @@ export interface SettingsOut {
   scheduler_cron: string | null;
   default_cities: string[];
   sources: string[];
+  default_max_pages: number | null;
   source_max_pages: Record<string, number>;
   source_crons: Record<string, string>;
 }
@@ -241,6 +242,7 @@ export interface SettingsUpdate {
   scheduler_enabled?: boolean;
   scheduler_cron?: string | null;
   default_cities?: string[];
+  default_max_pages?: number;
   enabled_source_ids?: string[];
   source_max_pages?: Record<string, number>;
   source_crons?: Record<string, string>;

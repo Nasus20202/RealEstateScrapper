@@ -62,6 +62,7 @@ describe("SettingsPage", () => {
         scheduler_enabled: false,
         scheduler_cron: null,
         default_cities: ["Gdańsk", "Gdynia", "Sopot"],
+        default_max_pages: 0,
         enabled_source_ids: ["otodom"],
         source_max_pages: {},
         source_crons: {},

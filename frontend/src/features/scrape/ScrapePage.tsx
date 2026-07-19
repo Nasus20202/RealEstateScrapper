@@ -58,14 +58,12 @@ export function ScrapePage() {
       const [initialRuns, initialSettings] = await Promise.all([getRuns(), getSettings()]);
       setRuns(initialRuns);
       setSettings(initialSettings);
-      setSourcePages(
-        Object.fromEntries(
-          initialSettings.sources.map((source) => [
-            source,
-            String(initialSettings.source_max_pages?.[source] ?? ""),
-          ]),
-        ),
+      setMaxPages(
+        initialSettings.default_max_pages != null
+          ? String(initialSettings.default_max_pages)
+          : "10",
       );
+      setSourcePages(Object.fromEntries(initialSettings.sources.map((source) => [source, ""])));
     });
   }, []);
 

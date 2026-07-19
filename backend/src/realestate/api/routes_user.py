@@ -116,6 +116,7 @@ async def _build_settings_out(session: AsyncSession) -> SettingsOut:
     enabled = await app_repo.get("scheduler_enabled")
     cron = await app_repo.get("scheduler_cron")
     cities = await app_repo.get("default_cities")
+    default_pages = await app_repo.get("default_max_pages")
     source_max_pages = await app_repo.get("source_max_pages")
     source_crons = await app_repo.get("source_crons")
     return SettingsOut(
@@ -129,6 +130,7 @@ async def _build_settings_out(session: AsyncSession) -> SettingsOut:
         scheduler_cron=cron["v"] if cron else settings.scheduler_cron,
         default_cities=cities["v"] if cities else settings.scraper_default_cities,
         sources=list(get_scrapers().keys()),
+        default_max_pages=int(default_pages["v"]) if default_pages else None,
         source_max_pages=source_max_pages["v"] if source_max_pages else {},
         source_crons=source_crons["v"] if source_crons else {},
     )
@@ -155,6 +157,11 @@ async def update_settings(
     if body.default_cities is not None:
         cities = [city.strip() for city in body.default_cities if city.strip()]
         await app_repo.set("default_cities", {"v": cities})
+    if body.default_max_pages is not None:
+        if body.default_max_pages > 0:
+            await app_repo.set("default_max_pages", {"v": body.default_max_pages})
+        else:
+            await app_repo.delete("default_max_pages")
     if body.enabled_source_ids is not None:
         await app_repo.set("enabled_source_ids", {"v": body.enabled_source_ids})
     if body.source_max_pages is not None:

@@ -27,7 +27,6 @@ from realestate.ingestion.service import IngestionService
 from realestate.models.enums import ListingStatus
 from realestate.models.listing import Listing
 from realestate.repositories.scrape_runs import ScrapeRunRepository
-from realestate.repositories.user_data import AppSettingRepository
 from realestate.scrapers.base import SearchCriteria
 
 logger = logging.getLogger(__name__)
@@ -133,12 +132,7 @@ async def trigger_scrape(
         else get_settings().scraper_default_cities
     )
 
-    async with session_factory() as session:
-        source_pages_setting = await AppSettingRepository(session).get("source_max_pages")
-    source_max_pages = {
-        **(source_pages_setting["v"] if source_pages_setting else {}),
-        **(body.source_max_pages or {}),
-    }
+    source_max_pages = dict(body.source_max_pages or {})
 
     background_tasks.add_task(
         _background_scrape,

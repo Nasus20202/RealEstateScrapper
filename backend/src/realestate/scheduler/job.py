@@ -38,11 +38,21 @@ async def run_scheduled_scrape(
         source_setting = await settings_repo.get("enabled_source_ids")
         cities_setting = await settings_repo.get("default_cities")
         source_pages_setting = await settings_repo.get("source_max_pages")
+        default_pages_setting = await settings_repo.get("default_max_pages")
     source_ids = source_ids or (source_setting["v"] if source_setting else None)
     source_max_pages = source_pages_setting["v"] if source_pages_setting else {}
     default_cities = (
         cities_setting["v"] if cities_setting else get_settings().scraper_default_cities
     )
+    if default_pages_setting:
+        try:
+            default_max_pages = int(default_pages_setting["v"])
+        except TypeError, ValueError:
+            default_max_pages = None
+    else:
+        default_max_pages = None
+    if default_max_pages and default_max_pages > 0:
+        max_pages = max(max_pages, default_max_pages)
 
     async def on_run(run) -> None:
         bus.publish(

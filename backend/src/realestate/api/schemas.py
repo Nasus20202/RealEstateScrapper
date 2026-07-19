@@ -43,6 +43,7 @@ class SettingsOut(BaseModel):
     scheduler_cron: str | None
     default_cities: list[str]
     sources: list[str]
+    default_max_pages: int | None = None
     source_max_pages: dict[str, int] = {}
     source_crons: dict[str, str] = {}
 
@@ -52,6 +53,7 @@ class SettingsUpdate(BaseModel):
     scheduler_enabled: bool | None = None
     scheduler_cron: str | None = None
     default_cities: list[str] | None = None
+    default_max_pages: int | None = None
     enabled_source_ids: list[str] | None = None
     source_max_pages: dict[str, int] | None = None
     source_crons: dict[str, str] | None = None

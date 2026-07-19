@@ -81,3 +81,33 @@ async def test_job_uses_default_cities_without_saved_searches(engine):
     factory = create_session_factory(engine)
     bus = EventBus()
     assert await run_scheduled_scrape(factory, _OneSourceFetcher(), bus) == 3
+
+
+async def test_job_uses_persisted_default_max_pages(engine):
+    from realestate.repositories.user_data import AppSettingRepository
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = create_session_factory(engine)
+    async with factory() as session:
+        await AppSettingRepository(session).set("default_max_pages", {"v": 100})
+        await session.commit()
+    bus = EventBus()
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        s.add(
+            SavedSearch(
+                name="gda",
+                filters={"city": "gdansk"},
+                nl_query=None,
+                created_at=datetime.now(UTC),
+            )
+        )
+        await s.commit()
+    async with bus.subscribe() as queue:
+        await run_scheduled_scrape(factory, _OneSourceFetcher(), bus)
+    messages = [
+        e.get("message", "")
+        for e in [queue.get_nowait() for _ in range(queue.qsize())]
+        if e.get("type") == "scrape_log"
+    ]
+    assert any("maks. stron: 100" in m for m in messages)

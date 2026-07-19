@@ -86,6 +86,12 @@ class AppSettingRepository:
         obj = await self.session.get(AppSetting, key)
         return obj.value if obj is not None else None
 
+    async def delete(self, key: str) -> None:
+        obj = await self.session.get(AppSetting, key)
+        if obj is not None:
+            await self.session.delete(obj)
+            await self.session.flush()
+
     async def set(self, key: str, value: dict) -> None:
         stmt = pg_insert(AppSetting).values(key=key, value=value)
         stmt = stmt.on_conflict_do_update(index_elements=["key"], set_={"value": value})

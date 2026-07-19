@@ -10,6 +10,7 @@ export function SettingsPage() {
   const [schedulerEnabled, setSchedulerEnabled] = useState(false);
   const [cron, setCron] = useState("");
   const [defaultCities, setDefaultCities] = useState("");
+  const [defaultMaxPages, setDefaultMaxPages] = useState("");
   const [enabled, setEnabled] = useState<string[]>([]);
   const [sourcePages, setSourcePages] = useState<Record<string, string>>({});
   const [sourceCrons, setSourceCrons] = useState<Record<string, string>>({});
@@ -27,6 +28,7 @@ export function SettingsPage() {
       setSchedulerEnabled(data.scheduler_enabled ?? false);
       setCron(data.scheduler_cron ?? "");
       setDefaultCities((data.default_cities ?? []).join(", "));
+      setDefaultMaxPages(data.default_max_pages == null ? "" : String(data.default_max_pages));
       setEnabled(data.sources);
       setSourcePages(
         Object.fromEntries(
@@ -71,6 +73,7 @@ export function SettingsPage() {
         .split(",")
         .map((city) => city.trim())
         .filter(Boolean),
+      default_max_pages: defaultMaxPages.trim() === "" ? 0 : Number(defaultMaxPages.trim()) || 0,
       enabled_source_ids: enabled,
       source_max_pages: Object.fromEntries(
         Object.entries(sourcePages)
@@ -85,6 +88,7 @@ export function SettingsPage() {
     setSchedulerEnabled(updated.scheduler_enabled ?? false);
     setCron(updated.scheduler_cron ?? "");
     setDefaultCities((updated.default_cities ?? []).join(", "));
+    setDefaultMaxPages(updated.default_max_pages == null ? "" : String(updated.default_max_pages));
     setSourcePages(
       Object.fromEntries(
         updated.sources.map((source) => [source, String(updated.source_max_pages?.[source] ?? "")]),
@@ -184,6 +188,15 @@ export function SettingsPage() {
               value={defaultCities}
               onChange={(e) => setDefaultCities(e.target.value)}
               placeholder="Gdańsk, Gdynia, Sopot"
+            />
+
+            <label htmlFor="set-default-max-pages">Maks. stron (domyślnie)</label>
+            <input
+              id="set-default-max-pages"
+              inputMode="numeric"
+              value={defaultMaxPages}
+              onChange={(e) => setDefaultMaxPages(e.target.value)}
+              placeholder="puste = 1 strona"
             />
 
             <fieldset>
