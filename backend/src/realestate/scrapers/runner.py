@@ -12,7 +12,13 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from realestate.scrapers.base import RawListing, Scraper, SearchCriteria
+from realestate.scrapers.base import (
+    RawListing,
+    Scraper,
+    ScraperBlocked,
+    ScraperBlockedPartial,
+    SearchCriteria,
+)
 
 
 def _merge_detail(search: RawListing, detail: RawListing) -> RawListing:
@@ -73,30 +79,49 @@ async def run_search(
         seen_urls.add(url)
         if on_log is not None:
             await on_log(f"Pobieram stronę {page}: {url}")
-        html = await fetcher.fetch(url)
+        try:
+            html = await fetcher.fetch(url)
+        except ScraperBlocked as exc:
+            raise ScraperBlockedPartial(str(exc), list(results)) from exc
         page_listings = scraper.parse_search(html)
         if not page_listings:
             if on_log is not None:
                 await on_log(f"Strona {page}: 0 ofert, ponawiam pobieranie")
-            html = await fetcher.fetch(url)
+            try:
+                html = await fetcher.fetch(url)
+            except ScraperBlocked as exc:
+                raise ScraperBlockedPartial(str(exc), list(results)) from exc
             page_listings = scraper.parse_search(html)
         if on_log is not None:
             await on_log(f"Strona {page}: znaleziono {len(page_listings)} ofert w {criteria.city}")
         if not page_listings:
             break
+        page_start = len(results)
         for listing in page_listings:
             key = (listing.source_id, listing.external_id)
             if key in seen:
                 continue
             seen.add(key)
-            if fetch_details:
+            results.append(listing)
+        if fetch_details:
+            # Fetch details in a second pass so a block mid-detail-fetch still
+            # preserves every search listing gathered on this page (not just the
+            # ones processed before the block).
+            for i in range(page_start, len(results)):
+                listing = results[i]
                 if on_log is not None:
                     await on_log(f"Pobieram szczegóły: {listing.url}")
-                detail_html = await fetcher.fetch(listing.url)
+                try:
+                    detail_html = await fetcher.fetch(listing.url)
+                except ScraperBlocked as exc:
+                    raise ScraperBlockedPartial(str(exc), list(results)) from exc
                 detail = scraper.parse_detail(detail_html, listing.url)
                 if isinstance(detail, list):
-                    results.extend(_with_search_context(listing, item) for item in detail)
-                    continue
-                listing = _merge_detail(listing, detail)
-            results.append(listing)
+                    if detail:
+                        results[i : i + 1] = [
+                            _with_search_context(listing, item) for item in detail
+                        ]
+                    # else: keep the search listing already in results
+                else:
+                    results[i] = _merge_detail(listing, detail)
     return results

@@ -1,11 +1,54 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+import time
 import unicodedata
 from decimal import Decimal, InvalidOperation
+from email.utils import parsedate_to_datetime
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from realestate.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
+
+# Statuses worth retrying: auth/block challenges, rate limit, and server errors.
+_RETRYABLE_STATUS = frozenset({401, 403, 429})
+
+
+def _is_retryable_status(status: int) -> bool:
+    return status in _RETRYABLE_STATUS or status >= 500
+
+
+def _retry_after_seconds(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        seconds = float(value.strip())
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(value)
+        except TypeError, ValueError:
+            return None
+        seconds = retry_at.timestamp() - time.time()
+    # A zero/negative Retry-After is meaningless; treat it as no hint so the
+    # exponential backoff (or throttle) provides a real delay instead of 0.
+    if seconds <= 0:
+        return None
+    return seconds
+
+
+def _backoff_delay(attempt: int, retry_after: float | None, settings: Settings) -> float:
+    if retry_after is not None:
+        delay = retry_after
+    else:
+        delay = settings.scraper_backoff_base_seconds * (2**attempt)
+    # Never back off by zero — an instantaneous retry just hammers the server.
+    delay = max(delay, settings.scraper_backoff_base_seconds)
+    return min(delay, settings.scraper_backoff_max_seconds)
 
 
 def absolute_url(href: str, base_url: str = "") -> str:
@@ -200,6 +243,49 @@ def city_from_url(url: str, city_map: dict[str, str]) -> str | None:
     return None
 
 
+def _fetch_bytes(req: Request, *, timeout: float, settings: Settings) -> bytes:
+    """Fetch with retry/backoff on transient HTTP and transport errors.
+
+    Permanent client errors (4xx except 401/403) and exhaustion after
+    ``scraper_max_retries`` attempts propagate the last error unchanged.
+    """
+    max_attempts = max(1, settings.scraper_max_retries)
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        try:
+            with urlopen(req, timeout=timeout) as response:  # noqa: S310 - public scraper sources
+                return response.read()
+        except HTTPError as exc:
+            last_exc = exc
+            if _is_retryable_status(exc.code) and attempt < max_attempts - 1:
+                delay = _backoff_delay(attempt, None, settings)
+                logger.warning(
+                    "HTTP %s transient, retrying attempt=%s delay_seconds=%.2f url=%s",
+                    exc.code,
+                    attempt + 1,
+                    delay,
+                    req.full_url,
+                )
+                time.sleep(delay)
+                continue
+            raise
+        except (URLError, TimeoutError, ConnectionError, OSError) as exc:
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                delay = _backoff_delay(attempt, None, settings)
+                logger.warning(
+                    "Transport error transient, retrying attempt=%s delay_seconds=%.2f url=%s",
+                    attempt + 1,
+                    delay,
+                    req.full_url,
+                )
+                time.sleep(delay)
+                continue
+            raise
+    assert last_exc is not None
+    raise last_exc
+
+
 def fetch_json(
     url: str,
     *,
@@ -225,8 +311,8 @@ def fetch_json(
     else:
         request_headers["Accept"] = "application/json"
     req = Request(url, data=body, headers=request_headers, method=method)
-    with urlopen(req, timeout=timeout) as response:  # noqa: S310 - public scraper sources
-        return json.loads(response.read().decode("utf-8"))
+    data = _fetch_bytes(req, timeout=timeout, settings=get_settings())
+    return json.loads(data.decode("utf-8"))
 
 
 def fetch_text(url: str, *, headers: dict[str, str] | None = None, timeout: float = 20.0) -> str:
@@ -236,8 +322,8 @@ def fetch_text(url: str, *, headers: dict[str, str] | None = None, timeout: floa
         **(headers or {}),
     }
     req = Request(url, headers=request_headers, method="GET")
-    with urlopen(req, timeout=timeout) as response:  # noqa: S310 - public scraper sources
-        return response.read().decode("utf-8", errors="replace")
+    data = _fetch_bytes(req, timeout=timeout, settings=get_settings())
+    return data.decode("utf-8", errors="replace")
 
 
 def add_query_params(url: str, params: dict[str, str]) -> str:
