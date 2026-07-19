@@ -117,7 +117,7 @@ export function SettingsPage() {
       <header className="settings-header">
         <div>
           <h2>Ustawienia</h2>
-          <p>Konfiguracja LLM, schedulera i providerów scrapingu.</p>
+          <p>Konfiguracja LLM, schedulera i źródeł scrapingu.</p>
         </div>
         <div className="settings-actions">
           <button type="submit" form="settings-form">

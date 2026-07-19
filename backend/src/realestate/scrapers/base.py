@@ -39,6 +39,11 @@ class RawListing(BaseModel):
     images: list[str] = Field(default_factory=list)
     posted_at: datetime | None = None
     raw: dict = Field(default_factory=dict)
+    # True when this listing is a placeholder that must be expanded via a
+    # detail fetch (e.g. a developer "investment" whose apartments live behind
+    # a separate URL). If the detail fetch yields nothing, the container is
+    # dropped instead of being persisted as a data-less stub.
+    is_container: bool = False
 
 
 class ScraperBlocked(Exception):

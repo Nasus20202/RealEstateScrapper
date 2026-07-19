@@ -107,21 +107,37 @@ async def run_search(
             # Fetch details in a second pass so a block mid-detail-fetch still
             # preserves every search listing gathered on this page (not just the
             # ones processed before the block).
-            for i in range(page_start, len(results)):
-                listing = results[i]
+            #
+            # We iterate over a snapshot of the page's listings rather than a
+            # live index into ``results``: expanding a container replaces one
+            # element with many apartments, which shifts every later listing
+            # past a fixed ``range()`` and would skip their detail fetches,
+            # leaving them as data-less stubs.
+            page_listings = results[page_start:]
+            expanded: list[RawListing] = []
+            for idx, listing in enumerate(page_listings):
                 if on_log is not None:
                     await on_log(f"Pobieram szczegóły: {listing.url}")
                 try:
                     detail_html = await fetcher.fetch(listing.url)
                 except ScraperBlocked as exc:
+                    # Persist already-expanded listings; drop the unexpanded
+                    # containers (they carry no usable data on their own) so they
+                    # don't surface as empty stubs.
+                    results[page_start:] = expanded + [
+                        item for item in page_listings[idx:] if not item.is_container
+                    ]
                     raise ScraperBlockedPartial(str(exc), list(results)) from exc
                 detail = scraper.parse_detail(detail_html, listing.url)
                 if isinstance(detail, list):
                     if detail:
-                        results[i : i + 1] = [
-                            _with_search_context(listing, item) for item in detail
-                        ]
-                    # else: keep the search listing already in results
+                        expanded.extend(_with_search_context(listing, item) for item in detail)
+                    elif not listing.is_container:
+                        # A non-container listing whose detail expanded to
+                        # nothing keeps its own search-page data.
+                        expanded.append(listing)
+                    # else: container with no details -> drop it.
                 else:
-                    results[i] = _merge_detail(listing, detail)
+                    expanded.append(_merge_detail(listing, detail))
+            results[page_start:] = expanded
     return results

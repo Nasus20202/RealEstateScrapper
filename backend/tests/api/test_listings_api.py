@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from realestate.api.app import create_app
 from realestate.api.deps import get_llm_client_dep, get_session
 from realestate.db.engine import create_session_factory
-from realestate.models import Base, Listing, LLMAnalysis, PriceHistory, Source
+from realestate.models import Base, Listing, LLMAnalysis, PriceHistory
 from realestate.models.enums import ListingStatus
+from realestate.scrapers import get_scrapers  # noqa: F401  (populates registry)
 from tests.db.test_migrations import upgrade_to_head
 
 
@@ -18,8 +19,6 @@ async def _seed(engine):
         await conn.run_sync(Base.metadata.create_all)
     async with AsyncSession(engine, expire_on_commit=False) as s:
         now = datetime.now(UTC)
-        source = Source(source_id="otodom", display_name="Otodom", enabled=True, config={})
-        s.add(source)
         listing = Listing(
             source_id="otodom",
             external_id="x1",
@@ -158,7 +157,6 @@ async def test_stats_with_filters(engine):
 async def _seed_map_listings(engine):
     async with AsyncSession(engine, expire_on_commit=False) as s:
         now = datetime.now(UTC)
-        s.add(Source(source_id="otodom", display_name="Otodom", enabled=True, config={}))
         s.add_all(
             [
                 Listing(

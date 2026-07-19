@@ -27,7 +27,8 @@ from realestate.models.enums import ListingStatus
 from realestate.models.listing import Listing, PriceHistory
 from realestate.models.llm_analysis import LLMAnalysis
 from realestate.models.scrape_run import ScrapeRun
-from realestate.models.source import Source
+from realestate.repositories.user_data import AppSettingRepository
+from realestate.scrapers import get_scrapers
 from realestate.search.filters import ListingFilters
 from realestate.search.service import SearchService
 
@@ -259,8 +260,6 @@ async def stats(  # noqa: B008
             await session.execute(
                 select(
                     Listing.source_id.label("listing_source_id"),
-                    Source.display_name,
-                    Source.enabled,
                     func.count(Listing.id).label("count"),
                     _count_when(Listing.price.is_not(None)).label("priced_count"),
                     _count_when(Listing.lat.is_not(None) & Listing.lon.is_not(None)).label(
@@ -275,7 +274,6 @@ async def stats(  # noqa: B008
                     latest_run_detail.c.last_run_at,
                     latest_run_detail.c.last_run_status,
                 )
-                .outerjoin(Source, Source.source_id == Listing.source_id)
                 .outerjoin(
                     latest_run_detail,
                     latest_run_detail.c.source_id == Listing.source_id,
@@ -283,8 +281,6 @@ async def stats(  # noqa: B008
                 .where(*conditions)
                 .group_by(
                     Listing.source_id,
-                    Source.display_name,
-                    Source.enabled,
                     latest_run_detail.c.last_run_at,
                     latest_run_detail.c.last_run_status,
                 )
@@ -293,11 +289,18 @@ async def stats(  # noqa: B008
         .mappings()
         .all()
     )
+    scrapers = get_scrapers()
+    source_setting = await AppSettingRepository(session).get("enabled_source_ids")
+    enabled_ids = source_setting["v"] if source_setting else None
     providers = [
         StatsProviderOut(
             source_id=row["listing_source_id"],
-            display_name=row["display_name"] or row["listing_source_id"],
-            enabled=row["enabled"] if row["enabled"] is not None else True,
+            display_name=(
+                scrapers[row["listing_source_id"]].display_name
+                if row["listing_source_id"] in scrapers
+                else row["listing_source_id"]
+            ),
+            enabled=(True if enabled_ids is None else row["listing_source_id"] in enabled_ids),
             count=row["count"],
             priced_count=row["priced_count"],
             located_count=row["located_count"],

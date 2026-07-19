@@ -330,6 +330,7 @@ class HossaScraper:
                     lat=lat,
                     lon=lon,
                     market="primary",
+                    is_container=True,
                     images=unique_listing_images(images),
                     attributes={
                         "investment": ext_id,

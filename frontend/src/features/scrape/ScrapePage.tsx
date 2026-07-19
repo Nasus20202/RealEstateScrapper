@@ -159,7 +159,7 @@ export function ScrapePage() {
     <section className="scrape-page">
       <section className="scrape-control-panel">
         <div>
-          <h2 className="scrape-section-title">Providery</h2>
+          <h2 className="scrape-section-title">Źródła</h2>
           <p className="scrape-panel-copy">
             Najpierw wybierz źródła i limit stron. Każdy provider ma własny przełącznik i własny
             limit pobieranych stron.
@@ -240,8 +240,8 @@ export function ScrapePage() {
 
             <p className="sources-hint">
               {selectedSources.length === 0
-                ? "Bez zaznaczenia uruchomią się wszystkie providery z ustawionymi limitami stron."
-                : `Wybrano ${selectedSources.length} providery do tego przebiegu.`}
+                ? "Bez zaznaczenia uruchomią się wszystkie źródła z ustawionymi limitami stron."
+                : `Wybrano ${selectedSources.length} źródła do tego przebiegu.`}
             </p>
 
             <button type="submit" disabled={busy}>

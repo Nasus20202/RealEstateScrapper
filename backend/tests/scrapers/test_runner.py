@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from realestate.scrapers.base import (
@@ -210,3 +212,117 @@ async def test_run_search_stops_when_pagination_repeats_url():
 
     assert len(listings) == 1
     assert fetcher.calls == ["https://example.test/search"]
+
+
+class _ContainerScraper:
+    """Investment-style scraper: search yields containers expanded into apartments."""
+
+    source_id = "container-source"
+    display_name = "Container source"
+
+    def build_search_url(self, criteria: SearchCriteria, page: int) -> str:
+        return "https://example.test/search"
+
+    def parse_search(self, html: str) -> list[RawListing]:
+        return [
+            RawListing(
+                source_id=self.source_id,
+                external_id="inv-a",
+                url="https://example.test/inv-a",
+                title="Inv A",
+                city="Gdańsk",
+                is_container=True,
+            ),
+            RawListing(
+                source_id=self.source_id,
+                external_id="inv-b",
+                url="https://example.test/inv-b",
+                title="Inv B",
+                city="Gdańsk",
+                is_container=True,
+            ),
+        ]
+
+    def parse_detail(self, html: str, url: str) -> RawListing | list[RawListing]:
+        inv = url.rstrip("/").split("/")[-1]
+        return [
+            RawListing(
+                source_id=self.source_id,
+                external_id=f"{inv}-apt-1",
+                url=f"{url}#1",
+                title=f"{inv} apt1",
+                price=Decimal("100"),
+                area_m2=50.0,
+                rooms=2,
+                city="Gdańsk",
+            ),
+            RawListing(
+                source_id=self.source_id,
+                external_id=f"{inv}-apt-2",
+                url=f"{url}#2",
+                title=f"{inv} apt2",
+                price=Decimal("200"),
+                area_m2=60.0,
+                rooms=3,
+                city="Gdańsk",
+            ),
+        ]
+
+
+class _EmptyContainerScraper(_ContainerScraper):
+    def parse_detail(self, html: str, url: str) -> RawListing | list[RawListing]:
+        return []
+
+
+@pytest.mark.asyncio
+async def test_run_search_expands_every_container_not_just_first():
+    listings = await run_search(
+        _ContainerScraper(),
+        _DetailFetcher(),
+        SearchCriteria(city="Gdańsk"),
+        max_pages=1,
+        fetch_details=True,
+    )
+    exts = {item.external_id for item in listings}
+    # Both investments must be expanded into their apartments; neither the
+    # containers nor any data-less stub should survive.
+    assert len(listings) == 4
+    assert {"inv-a-apt-1", "inv-a-apt-2", "inv-b-apt-1", "inv-b-apt-2"} <= exts
+    assert "inv-a" not in exts
+    assert "inv-b" not in exts
+
+
+@pytest.mark.asyncio
+async def test_run_search_drops_empty_containers():
+    listings = await run_search(
+        _EmptyContainerScraper(),
+        _DetailFetcher(),
+        SearchCriteria(city="Gdańsk"),
+        max_pages=1,
+        fetch_details=True,
+    )
+    assert listings == []
+
+
+class _BlockOnSecondContainerFetcher:
+    async def fetch(self, url: str) -> str:
+        if url == "https://example.test/inv-b":
+            raise ScraperBlocked(url)
+        return "<html></html>"
+
+
+@pytest.mark.asyncio
+async def test_run_search_block_mid_containers_excludes_unexpanded():
+    with pytest.raises(ScraperBlocked) as exc_info:
+        await run_search(
+            _ContainerScraper(),
+            _BlockOnSecondContainerFetcher(),
+            SearchCriteria(city="Gdańsk"),
+            max_pages=1,
+            fetch_details=True,
+        )
+    exts = {item.external_id for item in exc_info.value.partial}
+    # Already-expanded investment survives; the unexpanded container does not
+    # leak into the partial as a data-less stub.
+    assert "inv-a-apt-1" in exts
+    assert "inv-b" not in exts
