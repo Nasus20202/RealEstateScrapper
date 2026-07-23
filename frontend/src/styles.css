@@ -40,6 +40,7 @@ body {
     -apple-system,
     sans-serif;
   background: radial-gradient(1200px 600px at 80% -10%, #14313050, transparent), var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
