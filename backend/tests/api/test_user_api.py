@@ -91,7 +91,7 @@ async def test_settings_get_and_put_masks_secret(engine):
         assert "llm_api_key" not in body
         assert "llm_api_key_set" in body
         assert body["scheduler_interval_minutes"] is None
-        assert body["scheduler_enabled"] is False
+        assert body["scheduler_enabled"] is True
         assert body["scheduler_cron"] is None
         assert body["default_cities"] == ["Gdańsk", "Gdynia", "Sopot"]
         put = await client.put(

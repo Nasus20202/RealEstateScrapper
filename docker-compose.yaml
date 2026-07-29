@@ -22,7 +22,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://realestate:realestate@db:5432/realestate
       API_ROOT_PATH: /api
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-*}"
-      SCHEDULER_ENABLED: "${SCHEDULER_ENABLED:-false}"
+      SCHEDULER_ENABLED: "${SCHEDULER_ENABLED:-true}"
       SCHEDULER_DEFAULT_INTERVAL_MINUTES: "${SCHEDULER_DEFAULT_INTERVAL_MINUTES:-360}"
     env_file:
       - path: backend/.env

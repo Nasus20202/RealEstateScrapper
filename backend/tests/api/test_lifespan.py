@@ -1,17 +1,17 @@
 from realestate.api.app import create_app
 
 
-async def test_lifespan_sets_state_without_scheduler_by_default(pg_url, monkeypatch):
+async def test_lifespan_sets_state_without_scheduler(pg_url, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", pg_url)
     monkeypatch.setenv("DB_MIGRATE_ON_STARTUP", "false")
-    monkeypatch.delenv("SCHEDULER_ENABLED", raising=False)
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
     app = create_app()
     async with app.router.lifespan_context(app):
         assert app.state.engine is not None
         assert app.state.session_factory is not None
         assert app.state.event_bus is not None
         assert app.state.scheduler is not None
-        assert app.state.scheduler.jobs() == []  # no active job by default
+        assert app.state.scheduler.jobs() == []  # no active job when disabled
 
 
 async def test_lifespan_shares_state_with_mcp_mount(pg_url, monkeypatch):

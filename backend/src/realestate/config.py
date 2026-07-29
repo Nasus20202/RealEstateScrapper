@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 30.0
     llm_max_retries: int = 2
 
-    scheduler_enabled: bool = False
+    scheduler_enabled: bool = True
     scheduler_default_interval_minutes: int = 360
     scheduler_cron: str | None = None
     scraper_default_cities: list[str] = DEFAULT_CITIES
