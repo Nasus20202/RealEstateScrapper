@@ -83,7 +83,11 @@ async def _background_scrape(
                 source_ids=body.source_ids,
                 max_pages=body.max_pages,
                 source_max_pages=source_max_pages,
-                mark_missing_gone=len(cities) == 1,
+                mark_missing_gone=(
+                    body.mark_missing_gone
+                    if body.mark_missing_gone is not None
+                    else len(cities) == 1
+                ),
                 on_run=on_run,
                 on_log=on_log,
             )

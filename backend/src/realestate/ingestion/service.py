@@ -35,6 +35,24 @@ _DETAIL_SOURCES = {
     "ekolan",
 }
 
+# Per-source ingestion locks. Concurrent scrapes (scheduler + manual triggers,
+# or several city scrapes fired back-to-back) each run the same sources in
+# parallel; without a lock, two sessions upsert the same rows at once and
+# PostgreSQL aborts one with DeadlockDetectedError, killing the whole batch.
+# Serializing per source_id keeps cross-source parallelism while making
+# same-source overlap impossible.
+_SOURCE_LOCKS: dict[str, asyncio.Lock] = {}
+_SOURCE_LOCKS_GUARD = asyncio.Lock()
+
+
+async def _get_source_lock(source_id: str) -> asyncio.Lock:
+    async with _SOURCE_LOCKS_GUARD:
+        lock = _SOURCE_LOCKS.get(source_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            _SOURCE_LOCKS[source_id] = lock
+        return lock
+
 
 class IngestionService:
     def __init__(self, session_factory: async_sessionmaker, fetcher, geocoder=None) -> None:
@@ -102,7 +120,7 @@ class IngestionService:
             scrapers = get_scrapers()
 
         tasks = [
-            self._ingest_source(
+            self._run_source_locked(
                 source_id,
                 scraper,
                 criteria,
@@ -117,6 +135,34 @@ class IngestionService:
         ]
         results = await asyncio.gather(*tasks)
         return [run for source_runs in results for run in source_runs]
+
+    async def _run_source_locked(
+        self,
+        source_id: str,
+        scraper,
+        criteria: SearchCriteria,
+        now: datetime,
+        *,
+        max_pages: int,
+        source_max_pages: dict[str, int] | None,
+        mark_missing_gone: bool,
+        on_run: Callable[[ScrapeRun], Awaitable[None]] | None,
+        on_log: Callable[[str, str], Awaitable[None]] | None,
+    ) -> list[ScrapeRun]:
+        """Ingest one source under its per-source lock (deadlock protection)."""
+        lock = await _get_source_lock(source_id)
+        async with lock:
+            return await self._ingest_source(
+                source_id,
+                scraper,
+                criteria,
+                now,
+                max_pages=max_pages,
+                source_max_pages=source_max_pages,
+                mark_missing_gone=mark_missing_gone,
+                on_run=on_run,
+                on_log=on_log,
+            )
 
     def _new_fetcher(self):
         from realestate.scrapers.browser import BrowserFetcher

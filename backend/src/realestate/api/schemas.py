@@ -248,6 +248,11 @@ class ScrapeRequest(BaseModel):
     source_ids: list[str] | None = None
     max_pages: int = 1
     source_max_pages: dict[str, int] | None = None
+    # Explicit control over GONE-marking. Default (None) keeps the current
+    # heuristic (mark missing as gone only for single-city scrapes); set False
+    # to never mark listings GONE (useful for filtered/partial scrapes where
+    # out-of-filter listings would otherwise be culled from the DB).
+    mark_missing_gone: bool | None = None
 
 
 class ScrapeResponse(BaseModel):

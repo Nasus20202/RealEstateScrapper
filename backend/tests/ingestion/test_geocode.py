@@ -183,3 +183,26 @@ async def test_geocode_malformed_payload_not_retried(monkeypatch):
     assert await geo.geocode("X, Polska") is None
     assert calls["n"] == 1
     assert sleeps == []
+
+
+async def test_geocode_global_lock_serializes_across_instances():
+    """Two geocoder instances (e.g. from concurrent scrapes) must not overlap
+    HTTP requests: the process-global lock paces them to one request at a time."""
+    state = {"in_flight": 0, "max": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        state["in_flight"] += 1
+        state["max"] = max(state["max"], state["in_flight"])
+        await asyncio.sleep(0.02)
+        state["in_flight"] -= 1
+        return httpx.Response(200, json=[{"lat": "54.35", "lon": "18.65"}])
+
+    g1 = _geocoder(handler)
+    g2 = _geocoder(handler)
+    queries = [f"Polska, Gdańsk, ul. Testowa {i}" for i in range(8)]
+    results = await asyncio.gather(
+        *(g1.geocode(q) for q in queries[:4]),
+        *(g2.geocode(q) for q in queries[4:]),
+    )
+    assert all(r == (54.35, 18.65) for r in results)
+    assert state["max"] == 1
