@@ -56,4 +56,23 @@ describe("ListingCard", () => {
     expect(event.defaultPrevented).toBe(true);
     expect(open).toHaveBeenCalledWith("/listings/1", "_blank", "noopener");
   });
+
+  it("shows archived badge for gone listings", () => {
+    render(
+      <MemoryRouter>
+        <ListingCard listing={listing({ status: "gone" })} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("zarchiwizowana")).toBeInTheDocument();
+    expect(screen.getByText("zarchiwizowana").className).toContain("badge--archived");
+  });
+
+  it("does not show archived badge for active listings", () => {
+    render(
+      <MemoryRouter>
+        <ListingCard listing={listing()} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText("zarchiwizowana")).not.toBeInTheDocument();
+  });
 });

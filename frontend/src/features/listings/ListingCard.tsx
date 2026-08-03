@@ -110,6 +110,9 @@ export function ListingCard({
               {listing.market === "primary" ? "nowe" : "wtórny"}
             </span>
           )}
+          {listing.status === "gone" && (
+            <span className="badge badge--archived">zarchiwizowana</span>
+          )}
         </div>
 
         <div className="listing-card__price-row">

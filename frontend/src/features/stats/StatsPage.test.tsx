@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
@@ -79,5 +80,66 @@ describe("StatsPage", () => {
     expect(screen.getByText("765 432 zł")).toBeInTheDocument();
     expect(screen.getByText("Wrzeszcz")).toBeInTheDocument();
     expect(screen.getByText("600k-800k")).toBeInTheDocument();
+  });
+
+  it("sends status=all to /stats when archived option enabled", async () => {
+    const statuses: string[] = [];
+    server.use(
+      http.get(`${BASE}/stats`, ({ request }) => {
+        statuses.push(new URL(request.url).searchParams.get("status") ?? "");
+        return HttpResponse.json({
+          overview: {
+            active_count: 1,
+            total_count: 2,
+            priced_count: 1,
+            located_count: 1,
+            with_images_count: 1,
+            with_description_count: 1,
+            avg_price: 100000,
+            avg_price_per_m2: 5000,
+            avg_area_m2: 50,
+            avg_rooms: 2,
+            min_price: 100000,
+            max_price: 100000,
+            latest_seen: null,
+          },
+          by_district: [],
+          by_source: [],
+          by_city: [],
+          by_market: [],
+          by_rooms: [],
+          price_buckets: [],
+          by_provider: [],
+        });
+      }),
+      http.get(`${BASE}/settings`, () =>
+        HttpResponse.json({
+          llm_enabled: false,
+          llm_base_url: "",
+          llm_model: null,
+          llm_embedding_model: null,
+          llm_api_key_set: false,
+          scheduler_interval_minutes: null,
+          scheduler_enabled: false,
+          scheduler_cron: null,
+          default_cities: [],
+          sources: ["otodom"],
+          source_max_pages: {},
+          source_crons: {},
+        }),
+      ),
+    );
+
+    render(
+      <MemoryRouter>
+        <StatsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Statystyki rynku");
+    await waitFor(() => expect(statuses).toContain(""));
+
+    await userEvent.click(screen.getByLabelText("Pokaż zarchiwizowane"));
+    await waitFor(() => expect(statuses).toContain("all"));
+    expect(screen.getByText(/uwzględnia oferty zarchiwizowane/)).toBeInTheDocument();
   });
 });

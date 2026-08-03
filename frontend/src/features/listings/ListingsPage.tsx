@@ -30,6 +30,7 @@ interface FormState {
   source_ids: string[];
   text: string;
   q: string;
+  status: "active" | "all";
 }
 
 const SORT_OPTIONS = [
@@ -72,6 +73,7 @@ function buildQuery(
     market: form.market.trim() || undefined,
     text: form.text.trim() || undefined,
     q: form.q.trim() || undefined,
+    status: form.status === "all" ? "all" : undefined,
     sort_by,
     sort_dir,
     limit: pageSize,
@@ -95,6 +97,7 @@ function formFromParams(params: URLSearchParams): FormState {
     source_ids: params.getAll("source_id"),
     text: params.get("text") ?? "",
     q: params.get("q") ?? "",
+    status: params.get("status") === "all" ? "all" : "active",
   };
 }
 
@@ -147,6 +150,7 @@ function paramsFromState(
   for (const source of form.source_ids) params.append("source_id", source);
   if (form.text.trim()) params.set("text", form.text.trim());
   if (form.q.trim()) params.set("q", form.q.trim());
+  if (form.status === "all") params.set("status", "all");
   const [sort_by, sort_dir] = sort.split("-");
   params.set("sort_by", sort_by);
   params.set("sort_dir", sort_dir);
@@ -460,6 +464,15 @@ export function ListingsPage() {
               onChange={(e) => update("q", e.target.value)}
               placeholder="np. blisko morza z balkonem"
             />
+          </label>
+
+          <label className="filter-checkbox">
+            <input
+              type="checkbox"
+              checked={form.status === "all"}
+              onChange={(e) => update("status", e.target.checked ? "all" : "active")}
+            />
+            Pokaż zarchiwizowane
           </label>
 
           <div className="filters__submit-bar">

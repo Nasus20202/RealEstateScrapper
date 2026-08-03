@@ -31,6 +31,7 @@ function queryFromParams(params: URLSearchParams): ListingsQuery {
     market: params.get("market") ?? undefined,
     text: params.get("text") ?? undefined,
     q: params.get("q") ?? undefined,
+    status: params.get("status") === "all" ? "all" : undefined,
     sort_by: "date",
     sort_dir: "desc",
     limit: MAP_LIMIT,
@@ -61,6 +62,7 @@ function paramsFromFilters(form: MapFilterState, current: URLSearchParams): URLS
     "text",
     "district",
     "source_id",
+    "status",
   ]) {
     params.delete(key);
   }
@@ -79,6 +81,7 @@ function paramsFromFilters(form: MapFilterState, current: URLSearchParams): URLS
   if (form.text.trim()) params.set("text", form.text.trim());
   for (const district of form.districts) params.append("district", district);
   for (const source of form.source_ids) params.append("source_id", source);
+  if (form.status === "all") params.set("status", "all");
   return params;
 }
 
@@ -95,6 +98,7 @@ function filtersFromParams(params: URLSearchParams): MapFilterState {
     text: params.get("text") ?? "",
     districts: params.getAll("district"),
     source_ids: params.getAll("source_id"),
+    status: params.get("status") === "all" ? "all" : "active",
   };
 }
 
@@ -110,6 +114,7 @@ interface MapFilterState {
   text: string;
   districts: string[];
   source_ids: string[];
+  status: "active" | "all";
 }
 
 export function ListingsMapPage() {
@@ -181,7 +186,7 @@ export function ListingsMapPage() {
       .catch(() => {});
   }, []);
 
-  function update(field: keyof MapFilterState, value: string) {
+  function update(field: Exclude<keyof MapFilterState, "status">, value: string) {
     const next = { ...filters, [field]: value };
     setSearchParams(paramsFromFilters(next, searchParams));
   }
@@ -207,6 +212,14 @@ export function ListingsMapPage() {
       ? filters.source_ids.filter((s) => s !== source)
       : [...filters.source_ids, source];
     const next = { ...filters, source_ids: nextIds };
+    setSearchParams(paramsFromFilters(next, searchParams));
+  }
+
+  function toggleStatus() {
+    const next: MapFilterState = {
+      ...filters,
+      status: filters.status === "all" ? "active" : "all",
+    };
     setSearchParams(paramsFromFilters(next, searchParams));
   }
 
@@ -411,6 +424,14 @@ export function ListingsMapPage() {
               ))}
             </div>
           )}
+          <label className="filter-checkbox">
+            <input
+              type="checkbox"
+              checked={filters.status === "all"}
+              onChange={() => toggleStatus()}
+            />
+            Pokaż zarchiwizowane
+          </label>
           <button type="submit">Filtruj mapę</button>
         </div>
       </form>

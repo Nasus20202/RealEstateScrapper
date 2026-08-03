@@ -19,33 +19,33 @@
 
 ## 4. Frontend: types and API client
 
-- [ ] 4.1 Add `status?: "active" | "gone" | "all"` to `ListingsQuery` and `StatsQuery` in `frontend/src/api/types.ts`.
-- [ ] 4.2 Serialize `status` in `buildListingsQuery` and `getStats` in `frontend/src/api/client.ts` (only when set, so default URLs are unchanged).
-- [ ] 4.3 Update `frontend/src/api/client.test.ts` to assert the `status` param round-trips (test first).
+- [x] 4.1 Add `status?: "active" | "gone" | "all"` to `ListingsQuery` and `StatsQuery` in `frontend/src/api/types.ts`.
+- [x] 4.2 Serialize `status` in `buildListingsQuery` and `getStats` in `frontend/src/api/client.ts` (only when set, so default URLs are unchanged).
+- [x] 4.3 Update `frontend/src/api/client.test.ts` to assert the `status` param round-trips (test first).
 
 ## 5. Frontend: archived option on listings view
 
-- [ ] 5.1 Add a "Pokaż zarchiwizowane" control to `ListingsPage` (`frontend/src/features/listings/ListingsPage.tsx`) wired into `FormState`, `buildQuery`, `formFromParams`, and `paramsFromState` via the `status` URL param.
-- [ ] 5.2 Update `frontend/src/features/listings/ListingsPage.test.tsx` to cover toggling the option, its URL persistence, and archived items being returned (test first).
+- [x] 5.1 Add a "Pokaż zarchiwizowane" control to `ListingsPage` (`frontend/src/features/listings/ListingsPage.tsx`) wired into `FormState`, `buildQuery`, `formFromParams`, and `paramsFromState` via the `status` URL param.
+- [x] 5.2 Update `frontend/src/features/listings/ListingsPage.test.tsx` to cover toggling the option, its URL persistence, and archived items being returned (test first).
 
 ## 6. Frontend: archived option on map view
 
-- [ ] 6.1 Add the archived-listings option to `ListingsMapPage` (`frontend/src/features/listings/ListingsMapPage.tsx`): extend `MapFilterState`/`filtersFromParams`/`queryFromParams`, ensure `paramsFromFilters` preserves the `status` key, and render the control.
-- [ ] 6.2 Update `frontend/src/features/listings/ListingsMapPage.test.tsx` to cover the toggle carrying `status` into map points/hex requests (test first).
+- [x] 6.1 Add the archived-listings option to `ListingsMapPage` (`frontend/src/features/listings/ListingsMapPage.tsx`): extend `MapFilterState`/`filtersFromParams`/`queryFromParams`, ensure `paramsFromFilters` preserves the `status` key, and render the control.
+- [x] 6.2 Update `frontend/src/features/listings/ListingsMapPage.test.tsx` to cover the toggle carrying `status` into map points/hex requests (test first).
 
 ## 7. Frontend: archived option on stats view
 
-- [ ] 7.1 Add the archived-listings option to `StatsPage` (`frontend/src/features/stats/StatsPage.tsx`): extend `FilterState`, `filtersFromParams`, `paramsFromFilters`, `queryFromFilters`, and render the control with an indication that archived listings are included.
-- [ ] 7.2 Update `frontend/src/features/stats/StatsPage.test.tsx` to cover the toggle sending `status` to `/stats` (test first).
+- [x] 7.1 Add the archived-listings option to `StatsPage` (`frontend/src/features/stats/StatsPage.tsx`): extend `FilterState`, `filtersFromParams`, `paramsFromFilters`, `queryFromFilters`, and render the control with an indication that archived listings are included.
+- [x] 7.2 Update `frontend/src/features/stats/StatsPage.test.tsx` to cover the toggle sending `status` to `/stats` (test first).
 
 ## 8. Frontend: visual distinction for archived cards
 
-- [ ] 8.1 Add an archived badge/label to `ListingCard` (`frontend/src/features/listings/ListingCard.tsx`) shown when `listing.status === "gone"`.
-- [ ] 8.2 Update `frontend/src/features/listings/ListingCard.test.tsx` and add any needed styles in `frontend/src/styles.css` (test first).
+- [x] 8.1 Add an archived badge/label to `ListingCard` (`frontend/src/features/listings/ListingCard.tsx`) shown when `listing.status === "gone"`.
+- [x] 8.2 Update `frontend/src/features/listings/ListingCard.test.tsx` and add any needed styles in `frontend/src/styles.css` (test first).
 
 ## 9. Frontend: verify and commit
 
-- [ ] 9.1 Run `pnpm exec vitest run`, `pnpm lint`, `pnpm format`, and `pnpm build` from `frontend/`; fix any failures.
+- [x] 9.1 Run `pnpm exec vitest run`, `pnpm lint`, `pnpm format`, and `pnpm build` from `frontend/`; fix any failures.
 - [ ] 9.2 Commit frontend changes (test → implementation → commit).
 
 ## 10. Final verification

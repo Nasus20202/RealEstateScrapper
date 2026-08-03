@@ -197,6 +197,7 @@ interface FilterState {
   max_rooms: string;
   market: string;
   source_ids: string[];
+  status: "active" | "all";
 }
 
 function filtersFromParams(params: URLSearchParams): FilterState {
@@ -209,6 +210,7 @@ function filtersFromParams(params: URLSearchParams): FilterState {
     max_rooms: params.get("max_rooms") ?? "",
     market: params.get("market") ?? "",
     source_ids: params.getAll("source_id"),
+    status: params.get("status") === "all" ? "all" : "active",
   };
 }
 
@@ -223,6 +225,7 @@ function paramsFromFilters(form: FilterState, current: URLSearchParams): URLSear
     "max_rooms",
     "market",
     "source_id",
+    "status",
   ]) {
     params.delete(key);
   }
@@ -234,6 +237,7 @@ function paramsFromFilters(form: FilterState, current: URLSearchParams): URLSear
   if (form.max_rooms.trim()) params.set("max_rooms", form.max_rooms.trim());
   if (form.market) params.set("market", form.market);
   for (const source of form.source_ids) params.append("source_id", source);
+  if (form.status === "all") params.set("status", "all");
   return params;
 }
 
@@ -247,6 +251,7 @@ function queryFromFilters(filters: FilterState): StatsQuery {
     min_rooms: Number(filters.min_rooms) || undefined,
     max_rooms: Number(filters.max_rooms) || undefined,
     market: filters.market || undefined,
+    status: filters.status === "all" ? "all" : undefined,
   };
 }
 
@@ -313,7 +318,7 @@ export function StatsPage() {
       .catch(() => {});
   }, []);
 
-  function update(field: keyof FilterState, value: string) {
+  function update(field: Exclude<keyof FilterState, "status">, value: string) {
     const next = { ...filters, [field]: value };
     setSearchParams(paramsFromFilters(next, searchParams));
   }
@@ -332,6 +337,14 @@ export function StatsPage() {
 
   function toggleSource(source: string) {
     toggleMulti("source_ids", source);
+  }
+
+  function toggleStatus() {
+    const next: FilterState = {
+      ...filters,
+      status: filters.status === "all" ? "active" : "all",
+    };
+    setSearchParams(paramsFromFilters(next, searchParams));
   }
 
   function applyFilters(event: React.FormEvent) {
@@ -356,6 +369,9 @@ export function StatsPage() {
         <div>
           <h2>Statystyki rynku</h2>
           <p>Przekrój aktywnych ofert według lokalizacji, źródeł, cen i kompletności danych.</p>
+          {filters.status === "all" && (
+            <p className="stats-note">Widok uwzględnia oferty zarchiwizowane.</p>
+          )}
         </div>
         {overview.latest_seen && (
           <span>Ostatnia obserwacja: {overview.latest_seen.slice(0, 16).replace("T", " ")}</span>
@@ -456,6 +472,14 @@ export function StatsPage() {
               ))}
             </div>
           )}
+          <label className="filter-checkbox">
+            <input
+              type="checkbox"
+              checked={filters.status === "all"}
+              onChange={() => toggleStatus()}
+            />
+            Pokaż zarchiwizowane
+          </label>
           <button type="submit">Filtruj</button>
         </div>
       </form>

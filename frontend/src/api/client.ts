@@ -74,6 +74,7 @@ function buildListingsQuery(query: ListingsQuery & Partial<MapBoundsQuery>): str
   if (query.market) params.set("market", query.market);
   if (query.text) params.set("text", query.text);
   if (query.q) params.set("q", query.q);
+  if (query.status) params.set("status", query.status);
   if (query.sort_by) params.set("sort_by", query.sort_by);
   if (query.sort_dir) params.set("sort_dir", query.sort_dir);
   if (query.north != null) params.set("north", String(query.north));
@@ -123,6 +124,7 @@ export function getStats(query?: StatsQuery): Promise<StatsOut> {
   if (query?.min_rooms != null) params.set("min_rooms", String(query.min_rooms));
   if (query?.max_rooms != null) params.set("max_rooms", String(query.max_rooms));
   if (query?.market) params.set("market", query.market);
+  if (query?.status) params.set("status", query.status);
   const qs = params.toString();
   return request<StatsOut>(`/stats${qs ? `?${qs}` : ""}`);
 }

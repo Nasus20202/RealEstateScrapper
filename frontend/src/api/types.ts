@@ -130,6 +130,7 @@ export interface ListingsQuery {
   market?: string;
   text?: string;
   q?: string;
+  status?: "active" | "gone" | "all";
   sort_by?: string;
   sort_dir?: "asc" | "desc";
   limit?: number;
@@ -158,6 +159,7 @@ export interface StatsQuery {
   min_rooms?: number;
   max_rooms?: number;
   market?: string;
+  status?: "active" | "gone" | "all";
 }
 
 export interface ScrapeRunOut {

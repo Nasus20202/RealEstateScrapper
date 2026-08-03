@@ -6,6 +6,7 @@ import {
   ApiError,
   getListing,
   getListings,
+  getStats,
   postEnrichment,
   postScrape,
 } from "./client";
@@ -43,6 +44,45 @@ describe("api client", () => {
     expect(params.get("q")).toBe("blisko morza");
     expect(params.get("limit")).toBe("50");
     expect(params.get("offset")).toBe("0");
+  });
+
+  it("serializes status param for listings", async () => {
+    let captured = "";
+    server.use(
+      http.get("/api/listings", ({ request }) => {
+        captured = new URL(request.url).search;
+        return HttpResponse.json({ items: [], total: 0 });
+      }),
+    );
+    await getListings({ status: "all", limit: 50, offset: 0 });
+    const params = new URLSearchParams(captured);
+    expect(params.get("status")).toBe("all");
+  });
+
+  it("omits status param when not set", async () => {
+    let captured = "";
+    server.use(
+      http.get("/api/listings", ({ request }) => {
+        captured = new URL(request.url).search;
+        return HttpResponse.json({ items: [], total: 0 });
+      }),
+    );
+    await getListings({ limit: 50, offset: 0 });
+    const params = new URLSearchParams(captured);
+    expect(params.get("status")).toBeNull();
+  });
+
+  it("serializes status param for stats", async () => {
+    let captured = "";
+    server.use(
+      http.get("/api/stats", ({ request }) => {
+        captured = new URL(request.url).search;
+        return HttpResponse.json({} as never);
+      }),
+    );
+    await getStats({ status: "gone" });
+    const params = new URLSearchParams(captured);
+    expect(params.get("status")).toBe("gone");
   });
 
   it("getListings parses response", async () => {

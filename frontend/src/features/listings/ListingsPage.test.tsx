@@ -182,4 +182,27 @@ describe("ListingsPage", () => {
       expect(document.querySelector(".listing-card--compact")).toBeInTheDocument();
     });
   });
+
+  it("shows archived listings only when the option is enabled", async () => {
+    setupSettings();
+    const statuses: string[] = [];
+    server.use(
+      http.get(`${BASE}/listings`, ({ request }) => {
+        const status = new URL(request.url).searchParams.get("status") ?? "";
+        statuses.push(status);
+        return HttpResponse.json({ items: [listing()], total: 1 });
+      }),
+    );
+    renderPage();
+    await screen.findByText("Ładne 2pok");
+    await waitFor(() => expect(statuses).toContain(""));
+
+    await userEvent.click(screen.getByLabelText("Pokaż zarchiwizowane"));
+    await userEvent.click(screen.getByRole("button", { name: "Szukaj" }));
+
+    await waitFor(() => expect(statuses).toContain("all"));
+    const params = new URLSearchParams();
+    params.set("status", "all");
+    expect(screen.getByLabelText("Pokaż zarchiwizowane")).toBeChecked();
+  });
 });
