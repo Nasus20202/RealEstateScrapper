@@ -46,7 +46,7 @@
 ## 9. Frontend: verify and commit
 
 - [x] 9.1 Run `pnpm exec vitest run`, `pnpm lint`, `pnpm format`, and `pnpm build` from `frontend/`; fix any failures.
-- [ ] 9.2 Commit frontend changes (test → implementation → commit).
+- [x] 9.2 Commit frontend changes (test → implementation → commit).
 
 ## 10. Final verification
 
