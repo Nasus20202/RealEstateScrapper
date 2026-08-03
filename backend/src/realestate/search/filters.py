@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel
 from sqlalchemy import Select, String, cast, func, or_
 
-from realestate.models.enums import MarketType
+from realestate.models.enums import ListingStatus, MarketType
 from realestate.models.listing import Listing
 
 
@@ -22,11 +24,21 @@ class ListingFilters(BaseModel):
     market: str | None = None
     text: str | None = None
     nl_query: str | None = None
+    status: Literal["active", "gone", "all"] = "active"
     sort_by: str = "date"
     sort_dir: str = "desc"
 
 
+def _status_predicate(status: str):
+    if status == "gone":
+        return Listing.status == ListingStatus.GONE
+    if status == "all":
+        return Listing.status.in_([ListingStatus.ACTIVE, ListingStatus.GONE])
+    return Listing.status == ListingStatus.ACTIVE
+
+
 def apply_filters(stmt: Select, filters: ListingFilters) -> Select:
+    stmt = stmt.where(_status_predicate(filters.status))
     if filters.cities:
         stmt = stmt.where(Listing.city.in_(filters.cities))
     if filters.districts:

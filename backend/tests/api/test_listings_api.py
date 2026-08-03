@@ -68,6 +68,52 @@ def _app(engine):
     return app
 
 
+async def _seed_with_archived(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        now = datetime.now(UTC)
+        s.add_all(
+            [
+                Listing(
+                    source_id="otodom",
+                    external_id="active-1",
+                    url="http://active-1",
+                    title="Aktywna oferta",
+                    price=Decimal(400000),
+                    price_per_m2=Decimal(8000),
+                    area_m2=50.0,
+                    rooms=2,
+                    city="Gdansk",
+                    district="Wrzeszcz",
+                    raw_hash="ah1",
+                    status=ListingStatus.ACTIVE,
+                    first_seen=now,
+                    last_seen=now,
+                    images=[],
+                ),
+                Listing(
+                    source_id="otodom",
+                    external_id="gone-1",
+                    url="http://gone-1",
+                    title="Zarchiwizowana oferta",
+                    price=Decimal(300000),
+                    price_per_m2=Decimal(6000),
+                    area_m2=50.0,
+                    rooms=2,
+                    city="Gdansk",
+                    district="Wrzeszcz",
+                    raw_hash="gh1",
+                    status=ListingStatus.GONE,
+                    first_seen=now,
+                    last_seen=now,
+                    images=[],
+                ),
+            ]
+        )
+        await s.commit()
+
+
 async def test_list_listings_with_filter(engine):
     await _seed(engine)
     app = _app(engine)
@@ -107,6 +153,72 @@ async def test_list_listings_with_source_filter(engine):
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 0
+
+
+async def test_listings_default_excludes_archived(engine):
+    await _seed_with_archived(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get("/listings")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert {item["external_id"] for item in body["items"]} == {"active-1"}
+    assert body["items"][0]["status"] == "active"
+
+
+async def test_listings_status_all_includes_archived(engine):
+    await _seed_with_archived(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get("/listings", params={"status": "all"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert {item["external_id"] for item in body["items"]} == {"active-1", "gone-1"}
+    statuses = {item["external_id"]: item["status"] for item in body["items"]}
+    assert statuses["gone-1"] == "gone"
+
+
+async def test_listings_status_gone_returns_only_archived(engine):
+    await _seed_with_archived(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get("/listings", params={"status": "gone"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert {item["external_id"] for item in body["items"]} == {"gone-1"}
+
+
+async def test_listings_status_all_respects_other_filters(engine):
+    await _seed_with_archived(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get("/listings", params={"status": "all", "min_price": 350000})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert {item["external_id"] for item in body["items"]} == {"active-1"}
+
+
+async def test_stats_status_all_includes_archived(engine):
+    await _seed_with_archived(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get("/stats")
+        resp_all = await client.get("/stats", params={"status": "all"})
+    assert resp.status_code == 200
+    assert resp_all.status_code == 200
+    assert resp.json()["overview"]["active_count"] == 1
+    all_body = resp_all.json()
+    assert all_body["overview"]["active_count"] == 2
+    assert all_body["by_source"][0]["count"] == 2
 
 
 async def test_stats_summary(engine):
@@ -236,6 +348,54 @@ async def _seed_map_listings(engine):
         await s.commit()
 
 
+async def _seed_map_listings_with_archived(engine):
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        now = datetime.now(UTC)
+        s.add_all(
+            [
+                Listing(
+                    source_id="otodom",
+                    external_id="gda-1",
+                    url="http://gda-1",
+                    title="Wrzeszcz map listing",
+                    price=Decimal(600000),
+                    price_per_m2=Decimal(12000),
+                    area_m2=50,
+                    rooms=2,
+                    city="Gdansk",
+                    district="Wrzeszcz",
+                    lat=54.382,
+                    lon=18.604,
+                    raw_hash="map-1",
+                    status=ListingStatus.ACTIVE,
+                    first_seen=now,
+                    last_seen=now,
+                    images=[],
+                ),
+                Listing(
+                    source_id="otodom",
+                    external_id="gda-gone",
+                    url="http://gda-gone",
+                    title="Archived map listing",
+                    price=Decimal(300000),
+                    price_per_m2=Decimal(10000),
+                    area_m2=30,
+                    rooms=1,
+                    city="Gdansk",
+                    district="Wrzeszcz",
+                    lat=54.395,
+                    lon=18.610,
+                    raw_hash="map-5",
+                    status=ListingStatus.GONE,
+                    first_seen=now,
+                    last_seen=now,
+                    images=[],
+                ),
+            ]
+        )
+        await s.commit()
+
+
 async def test_map_points_filters_by_bbox_on_coordinates(engine, pg_url, monkeypatch):
     await upgrade_to_head(pg_url, monkeypatch)
     await _seed_map_listings(engine)
@@ -250,6 +410,68 @@ async def test_map_points_filters_by_bbox_on_coordinates(engine, pg_url, monkeyp
     body = resp.json()
     assert body["total"] == 2
     assert {item["external_id"] for item in body["items"]} == {"gda-1", "gda-2"}
+
+
+async def test_map_points_status_all_includes_archived(engine, pg_url, monkeypatch):
+    await upgrade_to_head(pg_url, monkeypatch)
+    await _seed_map_listings_with_archived(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get(
+            "/listings/map/points",
+            params={
+                "south": 54.35,
+                "north": 54.43,
+                "west": 18.53,
+                "east": 18.63,
+                "limit": 50,
+                "status": "all",
+            },
+        )
+        resp_active = await client.get(
+            "/listings/map/points",
+            params={
+                "south": 54.35,
+                "north": 54.43,
+                "west": 18.53,
+                "east": 18.63,
+                "limit": 50,
+            },
+        )
+    assert resp.status_code == 200
+    assert resp_active.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert {item["external_id"] for item in body["items"]} == {"gda-1", "gda-gone"}
+    assert resp_active.json()["total"] == 1
+
+
+async def test_map_hexes_status_all_includes_archived(engine, pg_url, monkeypatch):
+    await upgrade_to_head(pg_url, monkeypatch)
+    await _seed_map_listings_with_archived(engine)
+    app = _app(engine)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.get(
+            "/listings/map/hexes",
+            params={
+                "city": "Gdansk",
+                "south": 54.35,
+                "north": 54.43,
+                "west": 18.53,
+                "east": 18.63,
+                "status": "all",
+            },
+        )
+        resp_active = await client.get(
+            "/listings/map/hexes",
+            params={"city": "Gdansk", "south": 54.35, "north": 54.43, "west": 18.53, "east": 18.63},
+        )
+    assert resp.status_code == 200
+    assert resp_active.status_code == 200
+    assert sum(h["count"] for h in resp.json()) == 2
+    assert sum(h["count"] for h in resp_active.json()) == 1
 
 
 async def test_map_hexes_uses_postgis_geom_and_filters(engine, pg_url, monkeypatch):

@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from realestate.models.enums import ListingStatus
 from realestate.models.listing import Listing
 from realestate.search.filters import ListingFilters, apply_filters
 from realestate.search.llm_search import match_and_rank
@@ -49,7 +48,7 @@ class SearchService:
             limit,
             offset,
         )
-        base = apply_filters(select(Listing).where(Listing.status == ListingStatus.ACTIVE), filters)
+        base = apply_filters(select(Listing), filters)
         total = (
             await self.session.execute(select(func.count()).select_from(base.subquery()))
         ).scalar_one()
@@ -87,7 +86,7 @@ class SearchService:
             logger.exception("Hybrid search embedding failed; falling back to filtered search")
             return await self.search(filters, limit=limit, offset=offset)
         logger.info("Hybrid search query embedding generated dim=%s", len(qvec))
-        base = apply_filters(select(Listing).where(Listing.status == ListingStatus.ACTIVE), filters)
+        base = apply_filters(select(Listing), filters)
         total = (
             await self.session.execute(select(func.count()).select_from(base.subquery()))
         ).scalar_one()

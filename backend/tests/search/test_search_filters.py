@@ -139,3 +139,96 @@ async def test_text_and_price_per_m2_filters(engine):
         )
         assert total == 1
         assert items[0].listing.external_id == "balcony"
+
+
+async def test_status_default_excludes_gone(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        await _listing(s, ext="active", price=400000, area=50, rooms=2, district="Wrzeszcz")
+        await _listing(
+            s,
+            ext="gone",
+            price=350000,
+            area=50,
+            rooms=2,
+            district="Wrzeszcz",
+            status=ListingStatus.GONE,
+        )
+        svc = SearchService(s)
+        items, total = await svc.search(ListingFilters(), limit=10, offset=0)
+        assert total == 1
+        assert [r.listing.external_id for r in items] == ["active"]
+
+
+async def test_status_gone_returns_only_archived(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        await _listing(s, ext="active", price=400000, area=50, rooms=2, district="Wrzeszcz")
+        await _listing(
+            s,
+            ext="gone",
+            price=350000,
+            area=50,
+            rooms=2,
+            district="Wrzeszcz",
+            status=ListingStatus.GONE,
+        )
+        svc = SearchService(s)
+        items, total = await svc.search(ListingFilters(status="gone"), limit=10, offset=0)
+        assert total == 1
+        assert [r.listing.external_id for r in items] == ["gone"]
+
+
+async def test_status_all_includes_active_and_gone(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        await _listing(s, ext="active", price=400000, area=50, rooms=2, district="Wrzeszcz")
+        await _listing(
+            s,
+            ext="gone",
+            price=350000,
+            area=50,
+            rooms=2,
+            district="Wrzeszcz",
+            status=ListingStatus.GONE,
+        )
+        svc = SearchService(s)
+        items, total = await svc.search(ListingFilters(status="all"), limit=10, offset=0)
+        assert total == 2
+        assert {r.listing.external_id for r in items} == {"active", "gone"}
+
+
+async def test_status_combines_with_other_filters(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        await _listing(s, ext="match", price=400000, area=50, rooms=2, district="Wrzeszcz")
+        await _listing(
+            s,
+            ext="gone-match",
+            price=350000,
+            area=50,
+            rooms=2,
+            district="Wrzeszcz",
+            status=ListingStatus.GONE,
+        )
+        await _listing(
+            s,
+            ext="gone-other",
+            price=900000,
+            area=50,
+            rooms=3,
+            district="Oliwa",
+            status=ListingStatus.GONE,
+        )
+        svc = SearchService(s)
+        items, total = await svc.search(
+            ListingFilters(status="all", max_price=500000, districts=["Wrzeszcz"]),
+            limit=10,
+            offset=0,
+        )
+        assert total == 2
+        assert {r.listing.external_id for r in items} == {"match", "gone-match"}

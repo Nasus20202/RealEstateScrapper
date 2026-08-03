@@ -108,3 +108,31 @@ async def test_hybrid_uses_llm_rerank(engine):
         assert items[0].listing.id == l2.id and items[0].score == 90
         assert items[0].reason == "blisko"
         assert items[1].listing.id == l1.id
+
+
+async def test_hybrid_status_all_includes_gone_listings(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        dim = get_embedding_dim()
+        active = await _listing(s, ext="a", vec=[0.0] * dim)
+        active.status = ListingStatus.GONE
+        await s.flush()
+        svc = SearchService(s, client=_HybridClient('{"matches": []}'))
+        items, total = await svc.search_hybrid(
+            ListingFilters(nl_query="dom", status="all"),
+        )
+        assert total == 1
+        assert items[0].listing.id == active.id
+
+
+async def test_hybrid_default_excludes_gone_listings(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        dim = get_embedding_dim()
+        await _listing(s, ext="a", vec=[0.0] * dim)
+        svc = SearchService(s, client=_HybridClient('{"matches": []}'))
+        items, total = await svc.search_hybrid(ListingFilters(nl_query="dom"))
+        assert total == 1
+        assert items[0].listing.status == ListingStatus.ACTIVE

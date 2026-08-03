@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import String, and_, bindparam, case, cast, desc, func, select
@@ -35,6 +36,16 @@ from realestate.search.service import SearchService
 router = APIRouter(tags=["Listings"])
 logger = logging.getLogger(__name__)
 
+StatusFilter = Literal["active", "gone", "all"]
+
+
+def _status_predicate(status: StatusFilter):
+    if status == "gone":
+        return Listing.status == ListingStatus.GONE
+    if status == "all":
+        return Listing.status.in_([ListingStatus.ACTIVE, ListingStatus.GONE])
+    return Listing.status == ListingStatus.ACTIVE
+
 
 def _count_when(condition, *extra):
     return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
@@ -56,8 +67,9 @@ def _stats_conditions(
     min_rooms: int | None,
     max_rooms: int | None,
     market: str | None,
+    status: StatusFilter = "active",
 ) -> list:
-    conditions = [Listing.status == ListingStatus.ACTIVE]
+    conditions = [_status_predicate(status)]
     if city:
         conditions.append(Listing.city.in_(city))
     if district:
@@ -131,6 +143,7 @@ async def stats(  # noqa: B008
     min_rooms: int | None = Query(default=None),  # noqa: B008
     max_rooms: int | None = Query(default=None),  # noqa: B008
     market: str | None = Query(default=None),  # noqa: B008
+    status: StatusFilter = Query(default="active"),  # noqa: B008
 ) -> StatsOut:
     conditions = _stats_conditions(
         city=city,
@@ -143,6 +156,7 @@ async def stats(  # noqa: B008
         min_rooms=min_rooms,
         max_rooms=max_rooms,
         market=market,
+        status=status,
     )
 
     overview_row = (
@@ -363,8 +377,15 @@ def _map_filter_params(
     south: float | None = None,
     east: float | None = None,
     west: float | None = None,
+    status: StatusFilter = "active",
 ) -> tuple[list[str], dict]:
-    clauses = ["status = 'active'", "geom IS NOT NULL"]
+    if status == "gone":
+        status_clause = "status = 'gone'"
+    elif status == "all":
+        status_clause = "status IN ('active', 'gone')"
+    else:
+        status_clause = "status = 'active'"
+    clauses = [status_clause, "geom IS NOT NULL"]
     params: dict = {}
     if city:
         clauses.append("city IN :cities")
@@ -437,9 +458,10 @@ def _listing_map_conditions(
     south: float | None,
     east: float | None,
     west: float | None,
+    status: StatusFilter = "active",
 ):
     conditions = [
-        Listing.status == ListingStatus.ACTIVE,
+        _status_predicate(status),
         Listing.lat.is_not(None),
         Listing.lon.is_not(None),
     ]
@@ -510,6 +532,7 @@ async def listing_map_hexes(
     east: float | None = None,
     west: float | None = None,
     size_m: int = 850,
+    status: StatusFilter = "active",
 ) -> list[MapHexOut]:
     clauses, params = _map_filter_params(
         city=city,
@@ -529,6 +552,7 @@ async def listing_map_hexes(
         south=south,
         east=east,
         west=west,
+        status=status,
     )
     size_m = max(250, min(size_m, 3000))
     params["size_m"] = size_m
@@ -606,6 +630,7 @@ async def listing_map_points(
     east: float | None = None,
     west: float | None = None,
     limit: int = 400,
+    status: StatusFilter = "active",
 ) -> ListingsResponse:
     conditions = _listing_map_conditions(
         city=city,
@@ -625,6 +650,7 @@ async def listing_map_points(
         south=south,
         east=east,
         west=west,
+        status=status,
     )
     limit = max(50, min(limit, 1500))
     total = (await session.execute(select(func.count(Listing.id)).where(*conditions))).scalar_one()
@@ -662,14 +688,16 @@ async def list_listings(
     sort_dir: str = "desc",
     limit: int = 50,
     offset: int = 0,
+    status: StatusFilter = "active",
 ) -> ListingsResponse:
     logger.info(
-        "Listing search requested q=%s city=%s districts=%s sources=%s "
+        "Listing search requested q=%s city=%s districts=%s sources=%s status=%s "
         "limit=%s offset=%s sort=%s:%s",
         bool(q),
         city,
         district,
         source_id,
+        status,
         limit,
         offset,
         sort_by,
@@ -690,6 +718,7 @@ async def list_listings(
         market=market,
         text=text,
         nl_query=q,
+        status=status,
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
