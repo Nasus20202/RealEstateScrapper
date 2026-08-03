@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from decimal import Decimal, InvalidOperation
 
 from selectolax.parser import HTMLParser
@@ -75,7 +76,8 @@ def _money_range(text: str | None) -> tuple[Decimal | None, Decimal | None]:
 def _area(text: str | None) -> float | None:
     if not text:
         return None
-    match = re.search(r"(\d+(?:[,.]\d+)?)\s*(?:m2|m²)", text, flags=re.IGNORECASE)
+    # Accepts "93 m²", "93 m2" and "93,06 m 2" (rendered <sup>2</sup> text).
+    match = re.search(r"(\d+(?:[,.]\d+)?)\s*m\s*[²2]", text, flags=re.IGNORECASE)
     if not match:
         return None
     cleaned = match.group(1).replace("\xa0", "").replace(" ", "")
@@ -118,6 +120,13 @@ def _city_from_text(text: str) -> str | None:
         if name.lower() in text.lower():
             return name
     return None
+
+
+def _fold(text: str) -> str:
+    """ASCII-fold a city name so 'Gdańsk' matches 'gdansk'/'Gdansk'."""
+    text = text.lower().replace("ł", "l")
+    folded = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in folded if not unicodedata.combining(ch))
 
 
 def _investment_from_url(url: str) -> str | None:
@@ -213,7 +222,7 @@ class EkolanScraper:
             city = parsed["city"]
             if self._last_city:
                 requested = _city_from_text(self._last_city) or self._last_city
-                if city and requested.lower() not in city.lower():
+                if city and _fold(requested) not in _fold(city):
                     continue
 
             attributes: dict = {"investment": ext_id}
@@ -241,6 +250,7 @@ class EkolanScraper:
                     market="primary",
                     images=unique_listing_images(images),
                     attributes=attributes,
+                    is_container=True,
                 )
             )
 
@@ -273,11 +283,16 @@ class EkolanScraper:
             flat_id = card.attributes.get("data-id") or card.attributes.get("data-flat-id")
             if not flat_id:
                 id_match = re.search(r"(\d+)\s*(?:m²|m2|zł)", card_text[:50])
-                flat_id = id_match.group(1) if id_match else str(abs(hash(card_text)) % 100000)
+                if not id_match:
+                    # No stable identifier -> cannot dedupe across runs; skip.
+                    continue
+                flat_id = id_match.group(1)
 
             price = _money(card_text)
             area_m2 = _area(card_text)
-            if price is None and area_m2 is None:
+            # A real flat card always carries both a price and a metraż; anything
+            # else is site chrome (menus, marketing blocks) and must not surface.
+            if price is None or area_m2 is None:
                 continue
 
             title_el = card.css_first("h2, h3, h4, [class*=title], [class*=name]")
@@ -337,12 +352,17 @@ class EkolanScraper:
         if table_rows:
             return self._parse_ekolan_table(table_rows, slug, api_html)
 
-        # Card format: split by <div class="b-flat-box" (NAVIGARE style)
-        card_parts = re.split(r'<div class="b-flat-box\s*"[^>]*>', api_html)
-        if len(card_parts) > 1:
-            return self._parse_ekolan_cards(card_parts[1:], slug, api_html)
+        # Card format: b-flat-box (NAVIGARE) or house-item (KRZYWOUSTEGO)
+        card_parts = self._card_parts(api_html)
+        if card_parts:
+            return self._parse_ekolan_cards(card_parts, slug, api_html)
 
         return None
+
+    @staticmethod
+    def _card_parts(html: str) -> list[str]:
+        parts = re.split(r'<div class="(?:b-flat-box|house-item)[^"]*"[^>]*>', html)
+        return parts[1:]
 
     def _parse_ekolan_table(
         self, rows: list[str], ext_id: str, api_html: str
@@ -408,7 +428,8 @@ class EkolanScraper:
         city = _city_from_text(api_html)
         listings: list[RawListing] = []
         for card_html in cards:
-            eid_m = re.search(r"/apartamenty/apartament/\?eid=(\d+)", card_html)
+            card_html = card_html.replace("&nbsp;", " ")
+            eid_m = re.search(r"/apartament(?:y/)?(?:apartament/)?/?\?eid=(\d+)", card_html)
             if not eid_m:
                 continue
             eid = eid_m.group(1)
@@ -424,7 +445,7 @@ class EkolanScraper:
                 a_m = re.search(r"(\d+(?:[,.]\d+)?)", area_raw)
                 area_m2 = _float(a_m.group(1)) if a_m else None
 
-            rooms_m = re.search(r"<span>pokoje</span>\s*<p>\s*(\d+)\s", card_html)
+            rooms_m = re.search(r"<span>pokoje</span>\s*<p>\s*(\d+)", card_html)
             rooms = _int(rooms_m.group(1)) if rooms_m else None
 
             floor_m = re.search(r"<span>piętro</span>\s*<p>(.*?)</p>", card_html, re.DOTALL)
@@ -484,44 +505,22 @@ class EkolanScraper:
         if apartments:
             return apartments
 
+        # Some investments (e.g. KRZYWOUSTEGO) expose their flat list directly
+        # on the subdomain main page instead of getApartments.htm.
+        card_parts = self._card_parts(html)
+        if card_parts:
+            slug = ext_id.replace(".ekolan.pl", "")
+            apartments = self._parse_ekolan_cards(card_parts, slug, html)
+            if apartments:
+                return apartments
+
         apartments = self._parse_individual_apartments(html, url, ext_id)
         if apartments:
             return apartments
 
-        tree = HTMLParser(html)
-
-        h1 = tree.css_first("h1")
-        title = h1.text(strip=True) if h1 else ""
-        if not title:
-            t = tree.css_first("title")
-            title = t.text(strip=True) if t else ext_id
-
-        desc_el = tree.css_first(
-            ".description, .content, article, [class*=description], [class*=Description]"
-        )
-        description: str | None = None
-        if desc_el:
-            raw = desc_el.text(strip=True)
-            description = raw if raw else None
-
-        images: list[str] = []
-        for img in tree.css("img[src]"):
-            src = _image_url(img)
-            if src and src not in images and not src.endswith(".svg"):
-                images.append(src)
-
-        city = _city_from_text(title) or _city_from_text(url)
-
-        return RawListing(
-            source_id=self.source_id,
-            external_id=ext_id,
-            url=url,
-            title=title,
-            description=description,
-            images=images,
-            city=city,
-            market="primary",
-        )
+        # No scrapeable flats on this page (marketing/landing site, sold-out
+        # investment): emit nothing rather than a data-less stub.
+        return []
 
 
 register(EkolanScraper())
