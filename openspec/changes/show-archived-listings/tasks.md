@@ -15,7 +15,7 @@
 ## 3. Backend: verify and commit
 
 - [x] 3.1 Run `uv run pytest`, `uv run ruff check .`, and `uv run ruff format .` from `backend/`; fix any failures.
-- [ ] 3.2 Commit backend changes (test → implementation → commit).
+- [x] 3.2 Commit backend changes (test → implementation → commit).
 
 ## 4. Frontend: types and API client
 
@@ -50,4 +50,4 @@
 
 ## 10. Final verification
 
-- [ ] 10.1 Run the full backend and frontend suites plus `openspec validate --changes` to confirm the change matches the delta specs.
+- [x] 10.1 Run the full backend and frontend suites plus `openspec validate --changes` to confirm the change matches the delta specs.
