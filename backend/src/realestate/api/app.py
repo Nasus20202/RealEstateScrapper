@@ -27,6 +27,16 @@ async def get_db_health() -> bool:
         await engine.dispose()
 
 
+async def _load_scheduler_settings(session_factory) -> dict:
+    from realestate.repositories.user_data import AppSettingRepository
+
+    async with session_factory() as session:
+        try:
+            return await AppSettingRepository(session).all()
+        except SQLAlchemyError:
+            return {}
+
+
 class NormalizeMountPath:
     def __init__(self, app: ASGIApp, mount_path: str) -> None:
         self.app = app
@@ -87,26 +97,19 @@ def create_app() -> FastAPI:
             mcp_app.state.session_factory = app.state.session_factory
             mcp_app.state.event_bus = app.state.event_bus
             mcp_app.state.scheduler = app.state.scheduler
-            if settings.scheduler_enabled:
-                source_crons = {}
-                async with app.state.session_factory() as session:
-                    from realestate.repositories.user_data import AppSettingRepository
-
-                    try:
-                        source_crons_setting = await AppSettingRepository(session).get(
-                            "source_crons"
-                        )
-                    except SQLAlchemyError:
-                        source_crons_setting = None
-                    if source_crons_setting:
-                        source_crons = source_crons_setting.get("v", {})
-                if settings.scheduler_cron:
-                    scheduler.start(cron=settings.scheduler_cron, source_crons=source_crons)
+            # DB-stored settings (UI) win over env defaults; env is the fallback.
+            scheduler_db = await _load_scheduler_settings(app.state.session_factory)
+            source_crons = scheduler_db.get("source_crons", {}).get("v") or {}
+            enabled = scheduler_db.get("scheduler_enabled", {}).get("v", settings.scheduler_enabled)
+            if enabled:
+                cron = scheduler_db.get("scheduler_cron", {}).get("v", settings.scheduler_cron)
+                if cron:
+                    scheduler.start(cron=cron, source_crons=source_crons)
                 else:
-                    scheduler.start(
-                        interval_minutes=settings.scheduler_default_interval_minutes,
-                        source_crons=source_crons,
+                    interval = scheduler_db.get("scheduler_interval_minutes", {}).get(
+                        "v", settings.scheduler_default_interval_minutes
                     )
+                    scheduler.start(interval_minutes=interval, source_crons=source_crons)
             try:
                 yield
             finally:

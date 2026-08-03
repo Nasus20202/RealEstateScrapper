@@ -46,10 +46,13 @@ class ScrapeScheduler:
             trigger = CronTrigger.from_crontab(cron)
             self._scheduler.add_job(self._job, trigger, id="scrape", replace_existing=True)
         else:
+            interval_minutes = (
+                interval_minutes if interval_minutes and interval_minutes > 0 else 360
+            )
             self._scheduler.add_job(
                 self._job,
                 "interval",
-                minutes=interval_minutes or 360,
+                minutes=interval_minutes,
                 id="scrape",
                 replace_existing=True,
             )
