@@ -321,6 +321,21 @@ class RobygScraper:
 
         return apartments if apartments else None
 
+    def _investment_gallery_images(self, tree) -> list[str]:
+        """Real-estate photos shown on the investment page (hero + gallery)."""
+        images: list[str] = []
+        for img in tree.css(
+            ".slider-investment-primary img, #galeria img, "
+            "[class*=investment-gallery] img, .module-text-slider img"
+        ):
+            src = _image_url(img)
+            if src and not src.endswith(".svg") and src not in images:
+                images.append(src)
+        return unique_listing_images(images)
+
+    def _floor_plan_url(self, flat_id: str) -> str:
+        return f"https://robyg.onebutton.pl/images/property-floor-plan/{flat_id}-large-1.png"
+
     def _parse_apartments_api(self, html: str, ext_id: str) -> list[RawListing] | None:
         """Parse individual flats from the SSR-rendered page HTML."""
         tree = HTMLParser(html)
@@ -328,6 +343,7 @@ class RobygScraper:
         if not items:
             return None
 
+        investment_images = self._investment_gallery_images(tree)
         city = _city_from_text(html)
 
         listings: list[RawListing] = []
@@ -383,11 +399,14 @@ class RobygScraper:
                     price = None
 
             images: list[str] = []
-            img_el = item.css_first("img")
-            if img_el:
-                src = _image_url(img_el)
-                if src and not src.endswith(".svg"):
-                    images = [src]
+            plan_el = item.css_first("[data-plan-thumb]")
+            if plan_el:
+                thumb = plan_el.attributes.get("data-plan-thumb", "")
+                if thumb and not thumb.endswith(".svg"):
+                    images.append(_absolute_url(thumb))
+            if flat_id:
+                images.append(self._floor_plan_url(flat_id))
+            images.extend(investment_images)
 
             title = f"{ext_id} {unit_name}" if unit_name else f"{ext_id} {flat_id}"
             status = "available" if status_code in ("3", "4") else "unknown"

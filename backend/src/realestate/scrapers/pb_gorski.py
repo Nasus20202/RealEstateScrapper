@@ -108,7 +108,27 @@ def _rooms(text: str | None) -> int | None:
     if not text:
         return None
     match = re.search(r"(\d+)\s*(?:pok|poko)", text, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"(?:pok|poko)\w*\s*[:]?\s*(\d+)", text, flags=re.IGNORECASE)
     return int(match.group(1)) if match else None
+
+
+_FLAT_STATUS_MAP = {
+    "wolne": "available",
+    "dostepne": "available",
+    "dostępne": "available",
+    "zarezerwowane": "reserved",
+    "sprzedane": "sold",
+}
+
+
+def _flat_status(text: str) -> str:
+    lowered = text.lower()
+    for key, status in _FLAT_STATUS_MAP.items():
+        if key in lowered:
+            return status
+    return ""
 
 
 def _int(text: str | None) -> int | None:
@@ -203,7 +223,7 @@ class PBGorskiScraper:
             if not _is_investment_link(href):
                 continue
 
-            url = _absolute_url(href.split("#")[0])
+            url = _absolute_url(href.split("#")[0].split("?")[0])
             if not url:
                 continue
 
@@ -261,57 +281,76 @@ class PBGorskiScraper:
         tree = HTMLParser(html)
         page_text = tree.body.text(strip=True) if tree.body else ""
         city = _city_from_url(url) or _city_from_text(page_text)
+
+        cards = tree.css(".apartment-box")
+
+        # Investment pages that only advertise per-m² pricing (or are plain
+        # descriptions) carry no apartment cards — skip them.
+        if not cards:
+            if re.search(r"zł/m[²2]|cena.*od.*zł/m", page_text[:5000], re.IGNORECASE):
+                return None
+            keywords = r"(?:mieszkanie|apartament|flat|oferta|pokoje|metra)"
+            if not re.search(keywords, page_text[:5000], re.IGNORECASE):
+                return None
+            return None
+
         apartments: list[RawListing] = []
+        seen_ids: set[str] = set()
 
-        # Skip per-m² pricing pages (investment descriptions, not individual flats)
-        if re.search(r"zł/m[²2]|cena.*od.*zł/m", page_text[:5000], re.IGNORECASE):
-            return None
-        keywords = r"(?:mieszkanie|apartament|flat|oferta|pokoje|metra)"
-        if not re.search(keywords, page_text[:5000], re.IGNORECASE):
-            return None
-
-        for card in tree.css(
-            "[class*=-flat], [class*=-apartment], [class*=offer-card], "
-            "[class*=mieszkanie-card], [class*=property-card], "
-            "[class*=listing-item], [data-id]"
-        ):
+        for card in cards:
             card_text = card.text(separator=" ", strip=True)
             if len(card_text) < 10:
                 continue
 
-            price = _money(card_text)
+            price_el = card.css_first("[class*=price]")
+            price = _money(price_el.text(strip=True)) if price_el else _money(card_text)
             area_m2 = _area(card_text)
             if price is None and area_m2 is None:
                 continue
 
-            flat_id = card.attributes.get("data-id") or card.attributes.get("data-flat-id")
-            title_el = card.css_first("h2, h3, h4, [class*=title], [class*=name]")
+            title_el = card.css_first("h2, h3, h4, [class~='h4'], [class*=title], [class*=name]")
             title = title_el.text(strip=True) if title_el else ""
+            if not title:
+                title_match = re.search(r"Mieszkanie\s+\S+", card_text, re.IGNORECASE)
+                title = title_match.group(0) if title_match else ""
 
-            label_rows = card.css("tr, .row, [class*=row]")
-            if not label_rows:
-                label_rows = [card]
+            flat_id = card.attributes.get("data-id") or card.attributes.get("data-flat-id")
+            if not flat_id:
+                link = card.css_first("a[href*='mieszkanie-']")
+                if link:
+                    flat_id = _slug(link.attributes.get("href", ""))
+            if not flat_id:
+                id_match = re.search(r"Mieszkanie\s+([A-Za-z]?\d+)", title, re.IGNORECASE)
+                flat_id = f"mieszkanie-{id_match.group(1).lower()}" if id_match else None
+            if not flat_id:
+                continue
+
+            ext_id_full = f"{ext_id}-{flat_id}"
+            if ext_id_full in seen_ids:
+                continue
+            seen_ids.add(ext_id_full)
+
+            rows = card.css(".apartment-box-list > div")
+            if not rows:
+                rows = [card]
 
             rooms = None
             floor_val = None
             status = ""
-            for row in label_rows:
+            for row in rows:
                 row_text = row.text(separator=" ", strip=True)
-                if _rooms(row_text) is not None:
-                    rooms = _rooms(row_text)
-                floor_m = re.search(r"pi[eę]tro\s*(\d+)", row_text)
+                rooms_val = _rooms(row_text)
+                if rooms_val is not None:
+                    rooms = rooms_val
+                floor_m = re.search(r"pi[eę]tro\s*[:]?\s*(\d+)", row_text, re.IGNORECASE)
                 if floor_m:
                     floor_val = _int(floor_m.group(1))
-                if "wolne" in row_text.lower() or "dost" in row_text.lower():
-                    status = "available"
-                elif "sprzedane" in row_text.lower():
-                    status = "sold"
-
-            if not flat_id and title:
-                id_match = re.search(r"(\d+)$", title)
-                flat_id = id_match.group(1) if id_match else str(hash(card_text))
-            if not flat_id:
-                continue
+                elif re.search(r"pi[eę]tro\s*[:]?\s*parter", row_text, re.IGNORECASE):
+                    floor_val = 0
+                if not status:
+                    status = _flat_status(row_text)
+            if not status:
+                status = _flat_status(card_text)
 
             images: list[str] = []
             for img in card.css("img"):
@@ -322,7 +361,7 @@ class PBGorskiScraper:
             apartments.append(
                 RawListing(
                     source_id=self.source_id,
-                    external_id=f"{ext_id}-{flat_id}",
+                    external_id=ext_id_full,
                     url=url,
                     title=title or f"Mieszkanie {flat_id}",
                     price=price,
@@ -339,45 +378,6 @@ class PBGorskiScraper:
                     },
                 )
             )
-
-        # Also try table-based layout
-        if not apartments:
-            for table_row in tree.css("table tr, .table tr, [class*=table] tr"):
-                cells = table_row.css("td, th")
-                if len(cells) < 3:
-                    continue
-                row_text = table_row.text(separator=" ", strip=True)
-                cell_texts = [c.text(strip=True) for c in cells]
-
-                price = _money(row_text)
-                area_m2 = _area(row_text)
-                if price is None and area_m2 is None:
-                    continue
-                rooms = _rooms(row_text)
-                flat_id = _slug(url) + "-" + str(abs(hash(row_text)) % 10000)
-
-                floor_val = None
-                for ct in cell_texts:
-                    fm = re.search(r"pi[eę]tro\s*(\d+)", ct)
-                    if fm:
-                        floor_val = _int(fm.group(1))
-                        break
-
-                apartments.append(
-                    RawListing(
-                        source_id=self.source_id,
-                        external_id=f"{ext_id}-{flat_id}",
-                        url=url,
-                        title=f"Mieszkanie {flat_id}",
-                        price=price,
-                        area_m2=area_m2,
-                        rooms=rooms,
-                        floor=floor_val,
-                        city=city,
-                        market="primary",
-                        attributes={"investment": ext_id, "flat_id": flat_id},
-                    )
-                )
 
         return apartments if apartments else None
 

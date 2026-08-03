@@ -1,7 +1,10 @@
 """Euro Styl scraper — Tricity developer (part of Dom Development Group).
 
 Uses the /iapi/search/search API which returns all flats inline across
-all investments (no pagination).  No per‑flat prices are exposed.
+all investments (no pagination).  No per‑flat prices are exposed.  The API
+only exposes floor plans ("Rzut 3D" PNGs) and UI icons (SVGs) instead of
+real listing photos — the floor plans are kept as images, the SVG icons are
+filtered out.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from realestate.scrapers.helpers import (
     parse_area,
     parse_rooms,
 )
+from realestate.scrapers.images import unique_listing_images
 
 _BASE_URL = "https://www.eurostyl.com.pl"
 
@@ -135,8 +139,8 @@ class EuroStylScraper:
 
                 title = f"{inv_name} {number}".strip()
 
-                img_url = ""
                 picture = flat.get("picture", {}) or {}
+                img_url = ""
                 if isinstance(picture, dict):
                     img_url = picture.get("img", "") or ""
 
@@ -154,7 +158,11 @@ class EuroStylScraper:
                         district=district or None,
                         street=street or None,
                         market="primary",
-                        images=[absolute_url(img_url, _BASE_URL)] if img_url else [],
+                        images=(
+                            unique_listing_images([absolute_url(img_url, _BASE_URL)])
+                            if img_url
+                            else []
+                        ),
                         attributes={
                             "investment": inv_name,
                             "flat_id": flat_id,
