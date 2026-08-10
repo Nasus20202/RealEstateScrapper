@@ -378,3 +378,78 @@ async def test_fetch_tolerates_header_read_failure(monkeypatch):
     assert len(calls) == 2
     # No Retry-After read -> exponential backoff (1.0s) instead of crashing.
     assert sleeps == [1.0]
+
+
+class _FakeNavErrorPage:
+    def __init__(self, errors: list[Exception], calls: list[str]) -> None:
+        self._errors = errors
+        self._calls = calls
+
+    async def goto(self, url: str, **_kwargs):
+        self._calls.append(url)
+        if self._errors:
+            raise self._errors.pop(0)
+        return SimpleNamespace(status=200, header_value=lambda _n: None)
+
+    async def content(self) -> str:
+        return "<html>OK LISTING</html>"
+
+    async def close(self) -> None:
+        return None
+
+
+class _FakeNavErrorContext:
+    def __init__(self, errors: list[Exception], calls: list[str]) -> None:
+        self._errors = errors
+        self._calls = calls
+
+    async def new_page(self) -> _FakeNavErrorPage:
+        return _FakeNavErrorPage(self._errors, self._calls)
+
+
+@pytest.mark.asyncio
+async def test_fetch_retries_transient_navigation_error(monkeypatch, caplog):
+    calls: list[str] = []
+    sleeps: list[float] = []
+    fetcher = BrowserFetcher()
+    fetcher._context = _FakeNavErrorContext([TimeoutError("navigation timeout")], calls)  # noqa: SLF001
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+    monkeypatch.setattr(
+        "realestate.scrapers.browser.asyncio.sleep",
+        _make_sleeper(sleeps),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="realestate.scrapers.browser"):
+        html = await fetcher.fetch("https://example.test/page")
+
+    assert "OK LISTING" in html
+    assert calls == ["https://example.test/page", "https://example.test/page"]
+    assert sleeps == [1.0]
+    assert "Fetch retryable status=None" in caplog.text
+    assert "nav_error=TimeoutError" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_fetch_raises_blocked_after_repeated_navigation_errors(monkeypatch, caplog):
+    calls: list[str] = []
+    fetcher = BrowserFetcher()
+    fetcher._context = _FakeNavErrorContext(
+        [TimeoutError("timeout")] * 4,
+        calls,  # noqa: SLF001
+    )
+    fetcher._settings = _fake_settings()  # noqa: SLF001
+    monkeypatch.setattr("realestate.scrapers.browser.get_settings", _fake_settings)
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("realestate.scrapers.browser.asyncio.sleep", no_sleep)
+
+    with caplog.at_level(logging.WARNING, logger="realestate.scrapers.browser"):
+        with pytest.raises(ScraperBlocked, match="Navigation failed after 4 attempts"):
+            await fetcher.fetch("https://example.test/page")
+
+    assert len(calls) == 4
+    assert "Fetch retry exhausted" in caplog.text
+    assert "nav_error=TimeoutError" in caplog.text

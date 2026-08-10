@@ -114,6 +114,46 @@ Investment/marketing names may be kept in `attributes.investment_name` or
 
 ---
 
+## 4. Trojmiasto.pl (`source_id = "trojmiasto"`)
+
+Parses DOM cards via `selectolax` (CSS selectors). Targets the "Nieruchomości: Sprzedam"
+(real estate for sale) sections on `ogloszenia.trojmiasto.pl`.
+
+| Field | Populated? | Notes |
+|---|---|---|
+| `source_id` | Always | `"trojmiasto"` |
+| `external_id` | Always | Numeric ID from the card's `data-id` attribute; fallback to `-ogl(\d+)\.html` in the URL |
+| `url` | Always | Absolute; from the card title link |
+| `title` | Always | Text of `.list__item__content__title__name` |
+| `price` | Usually | Parsed from `.list__item__price__value span` (fallback `.list__item__picture__price__currency`); Polish formatting (NBSP thousands separator) |
+| `area_m2` | Usually | From the `powierzchnia` feature; Polish comma decimals (`61,7 m²`) |
+| `rooms` | Usually | From the `l_pokoi` feature |
+| `floor` | Usually | From the `pietro` feature; `parter` maps to `0` |
+| `city` / `district` / `street` | Best-effort | From the location subtitle via `_split_location`; see notes below |
+| `market` | Reliable | Derived from the page's `<link rel="canonical">` category: `-rynek-pierwotny` → `"primary"`, otherwise `"secondary"` |
+| `attributes.construction_year` | Usually | Year of construction (`1980 r.` → `1980`) from the `rok_budowy` feature |
+| `posted_at` | Usually | Parsed from `<time datetime>` — **this is the portal's "Zaktualizowano" (updated) timestamp, not the original post date** |
+| `images` | Usually | Thumbnails at search level; full gallery from the JSON-LD `Product.image[]` at detail level |
+| `raw` | Never | Not stored (DOM-based scraper) |
+
+### Detail page
+`parse_detail` enriches a search result from the offer page (`h1.xogIndex__title`,
+`.xogField--<name> .xogField__value` fields, and the JSON-LD `Product` block for the
+description and ordered gallery). `market` is left unset on the detail result so the
+runner preserves the search-level value.
+
+### `_split_location` semantics (best-effort)
+- `"Gdańsk Zaspa Rozstaje"` → `city="Gdańsk"`, `district="Zaspa Rozstaje"`
+- `"Gdańsk Śródmieście, Lawendowa"` → `city="Gdańsk"`, `district="Śródmieście"`, `street="Lawendowa"`
+- `"Puck, Kolejowa"` → `city="Puck"`, `street="Kolejowa"` (single part after a comma is a street)
+- `"80-180, Gdańsk"` → `city="Gdańsk"`, `street="80-180"` (postal codes never land in `district`)
+- Unknown cities degrade to `city=None`; downstream geocoding falls back to `Polska, {district}`.
+
+### Other notes
+- `build_search_url` does not translate `min_price`/`max_price`/`min_area`/`min_rooms`
+  into query parameters — filtering is best-effort and must be enforced downstream.
+- Pagination uses the portal's `strona` query parameter; page 1 has no parameter.
+
 ## General Notes
 
 ### `build_search_url` is best-effort

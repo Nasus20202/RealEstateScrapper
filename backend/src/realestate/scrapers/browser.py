@@ -88,6 +88,9 @@ class BrowserFetcher:
         for attempt in range(max_attempts):
             page = await self._context.new_page()
             retry_after: float | None = None
+            status: int | None = None
+            html = ""
+            nav_error: Exception | None = None
             try:
                 response = await page.goto(
                     url,
@@ -105,32 +108,48 @@ class BrowserFetcher:
                     except Exception:  # noqa: BLE001 - header is an optional hint
                         retry_after = None
                 html = await page.content()
+            except Exception as exc:  # noqa: BLE001 - transient navigation failures are retried
+                # Timeouts and network errors (e.g. net::ERR_NETWORK_CHANGED)
+                # surface as exceptions rather than HTTP statuses. Treat them
+                # like retryable block/error responses so a transient stall
+                # does not abort the whole scrape run.
+                nav_error = exc
             finally:
                 await page.close()
 
             blocked = is_blocked(html)
-            retryable = (status is not None and _is_retryable_status(status)) or blocked
+            retryable = (
+                nav_error is not None
+                or (status is not None and _is_retryable_status(status))
+                or blocked
+            )
             if not retryable:
                 return html
 
             if attempt == max_attempts - 1:
                 logger.warning(
-                    "Fetch retry exhausted status=%s blocked=%s attempts=%s url=%s",
+                    "Fetch retry exhausted status=%s blocked=%s nav_error=%s attempts=%s url=%s",
                     status,
                     blocked,
+                    type(nav_error).__name__ if nav_error is not None else None,
                     max_attempts,
                     url,
                 )
                 if status == 429:
                     raise ScraperBlocked(f"429 Too Many Requests: {url}")
+                if nav_error is not None:
+                    raise ScraperBlocked(
+                        f"Navigation failed after {max_attempts} attempts: {url}"
+                    ) from nav_error
                 raise ScraperBlocked(f"Blocked (status={status}): {url}")
 
             delay = _backoff_delay(attempt, retry_after, self._settings)
             logger.warning(
-                "Fetch retryable status=%s blocked=%s attempt=%s next_attempt=%s "
+                "Fetch retryable status=%s blocked=%s nav_error=%s attempt=%s next_attempt=%s "
                 "delay_seconds=%.2f retry_after=%s url=%s",
                 status,
                 blocked,
+                type(nav_error).__name__ if nav_error is not None else None,
                 attempt + 1,
                 attempt + 2,
                 delay,
