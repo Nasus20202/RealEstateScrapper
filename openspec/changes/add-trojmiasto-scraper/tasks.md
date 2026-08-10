@@ -29,4 +29,4 @@
 - [x] 5.1 Run `uv run ruff check .` and `uv run ruff format .` from `backend/` and fix any violations
 - [x] 5.2 Run the full backend suite `uv run pytest` and confirm it passes
 - [x] 5.3 Run `openspec validate --changes` from the repo root and confirm the change is valid
-- [ ] 5.4 Commit the scraper, fixtures, tests, doc entry, browser-fetch fix, and OpenSpec change artifacts
+- [x] 5.4 Commit the scraper, fixtures, tests, doc entry, browser-fetch fix, and OpenSpec change artifacts
