@@ -17,7 +17,7 @@ The system SHALL run scraper searches page by page, stop on the first empty page
 - **THEN** the collected scrape result contains at most one item for that `(source_id, external_id)` pair
 
 ### Requirement: Browser Fetch Throttling and Block Detection
-The scraper browser fetcher SHALL enforce a minimum delay between requests, use the configured navigation wait strategy and timeout, retry transient block/error responses with exponential backoff, and raise a block condition when anti-bot pages are detected after retries are exhausted.
+The scraper browser fetcher SHALL enforce a minimum delay between requests, use the configured navigation wait strategy and timeout, retry transient block/error responses and transient navigation failures with exponential backoff, and raise a block condition when anti-bot pages are detected or retries are exhausted.
 
 #### Scenario: Anti-bot responses surface as blocked scrapes
 - **WHEN** fetched page content matches configured anti-bot markers without expected listing content markers
@@ -26,6 +26,10 @@ The scraper browser fetcher SHALL enforce a minimum delay between requests, use 
 #### Scenario: Rate-limited responses are retried with backoff
 - **WHEN** the response status is a retryable block status (`403`, `401`, `429`, or `5xx`)
 - **THEN** the browser fetcher waits an exponential backoff delay (honoring `Retry-After` when present) and retries before succeeding or raising as blocked
+
+#### Scenario: Transient navigation failures are retried with backoff
+- **WHEN** the page navigation fails with a transient error (a navigation timeout or a network error) rather than returning an HTTP response
+- **THEN** the browser fetcher waits an exponential backoff delay and retries, and if the failures persist past `scraper_max_retries`, raises a scraper-blocked condition instead of aborting the scrape run
 
 ### Requirement: Normalization and Incremental Sync
 The system SHALL normalize raw scraper records into canonical listings, compute a `raw_hash` for change detection, best-effort geocode missing coordinates, and incrementally sync each source into the database. Geocoding failures are best-effort: the geocoder retries transient HTTP and transport errors with exponential backoff, and on exhaustion (or a permanent error) returns no coordinates for that listing instead of failing the scrape.
