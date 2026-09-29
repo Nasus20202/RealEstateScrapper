@@ -101,15 +101,16 @@ describe("ListingsPage", () => {
     renderPage();
     await screen.findByText(/Znaleziono: 0/);
 
-    await userEvent.click(screen.getByLabelText("Gdańsk"));
+    // Filter options and sources load from separate requests, so wait for them.
+    await userEvent.click(await screen.findByLabelText("Gdańsk"));
     await userEvent.type(screen.getByLabelText("Cena maks."), "500000");
     await userEvent.type(screen.getByLabelText("Cena/m² min."), "7000");
     await userEvent.type(screen.getByLabelText("Search"), "balkon");
     await userEvent.type(screen.getByLabelText("Pokoje min."), "2");
 
-    await userEvent.click(screen.getByLabelText("Wrzeszcz"));
-    await userEvent.click(screen.getByLabelText("Oliwa"));
-    await userEvent.click(screen.getByLabelText("hossa"));
+    await userEvent.click(await screen.findByLabelText("Wrzeszcz"));
+    await userEvent.click(await screen.findByLabelText("Oliwa"));
+    await userEvent.click(await screen.findByLabelText("hossa"));
     await userEvent.type(screen.getByLabelText("Zapytanie (NL)"), "blisko morza");
     await userEvent.click(screen.getByRole("button", { name: "Szukaj" }));
 
