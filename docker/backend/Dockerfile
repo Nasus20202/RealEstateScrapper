@@ -1,5 +1,5 @@
 # Backend API (FastAPI + Playwright/chromium)
-FROM python:3.14.7-slim
+FROM python:3.14.8-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /usr/local/bin/uv
 
