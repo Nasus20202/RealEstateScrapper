@@ -14,7 +14,7 @@ permissions:
 jobs:
   check:
     name: Lint, test, build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       EMBEDDING_DIM: "2048"
