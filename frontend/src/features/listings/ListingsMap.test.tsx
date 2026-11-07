@@ -23,16 +23,11 @@ vi.mock("react-leaflet", () => ({
   useMapEvents: () => null,
 }));
 
-vi.mock("leaflet", () => ({
-  default: {
-    heatLayer: vi.fn(() => ({
-      addTo: vi.fn(),
-      remove: vi.fn(),
-    })),
-  },
+vi.mock("leaflet.heat", () => ({
+  HeatLayer: vi.fn(function HeatLayerMock() {
+    return { addTo: vi.fn(), remove: vi.fn() };
+  }),
 }));
-
-vi.mock("leaflet.heat", () => ({}));
 
 import { ListingsMap } from "./ListingsMap";
 
@@ -121,9 +116,9 @@ describe("ListingsMap", () => {
   });
 
   it("renders heatmap from listing points when hex API returns empty", async () => {
-    const L = await import("leaflet");
+    const { HeatLayer } = await import("leaflet.heat");
     renderHeatMap([listing({ id: 1, lat: 54.35, lon: 18.65 })]);
-    expect(L.default.heatLayer).toHaveBeenCalledWith(
+    expect(HeatLayer).toHaveBeenCalledWith(
       [[54.35, 18.65, expect.any(Number)]],
       expect.objectContaining({ radius: 42 }),
     );
