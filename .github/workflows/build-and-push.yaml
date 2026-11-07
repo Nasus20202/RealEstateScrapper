@@ -14,7 +14,9 @@ permissions:
 jobs:
   check:
     name: Lint, test, build
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest now resolves to Ubuntu 26.04, which Playwright 1.60
+    # does not support for `install --with-deps`.
+    runs-on: ubuntu-24.04
 
     env:
       EMBEDDING_DIM: "2048"

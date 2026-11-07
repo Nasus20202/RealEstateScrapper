@@ -24,13 +24,11 @@ vi.mock("react-leaflet", () => ({
   useMapEvents: () => null,
 }));
 
-vi.mock("leaflet", () => ({
-  default: {
-    heatLayer: vi.fn(() => ({ addTo: vi.fn(), remove: vi.fn() })),
-  },
+vi.mock("leaflet.heat", () => ({
+  HeatLayer: vi.fn(function HeatLayerMock() {
+    return { addTo: vi.fn(), remove: vi.fn() };
+  }),
 }));
-
-vi.mock("leaflet.heat", () => ({}));
 
 const BASE = "/api";
 

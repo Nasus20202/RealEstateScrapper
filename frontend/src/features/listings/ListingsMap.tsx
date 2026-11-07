@@ -1,7 +1,6 @@
 // frontend/src/features/listings/ListingsMap.tsx
 import { useEffect, useMemo, useState } from "react";
-import L from "leaflet";
-import "leaflet.heat";
+import { HeatLayer as HeatLayerPlugin } from "leaflet.heat";
 import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
 import { useMap, useMapEvents } from "react-leaflet";
 import { Link } from "react-router-dom";
@@ -204,7 +203,7 @@ function HeatLayer({ points, metric }: { points: HeatPoint[]; metric: MapMetric 
   const map = useMap();
 
   useEffect(() => {
-    const layer = L.heatLayer(points, {
+    const layer = new HeatLayerPlugin(points, {
       radius: metric === "heat_count" ? 34 : 42,
       blur: metric === "heat_count" ? 26 : 32,
       maxZoom: 17,
