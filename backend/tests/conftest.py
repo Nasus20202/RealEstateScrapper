@@ -1,3 +1,4 @@
+import docker
 import pytest
 import pytest_asyncio
 from testcontainers.core.image import DockerImage
@@ -16,6 +17,20 @@ def _clear_settings_cache():
 
 @pytest.fixture(scope="session")
 def pg_url() -> str:
+    # On self-hosted runners, Docker state persists between CI runs. Remove any
+    # stale containers and the test image so the build below doesn't fail with
+    # "AlreadyExists: image ... already exists".
+    client = docker.from_env()
+    for container in client.containers.list(all=True, filters={"ancestor": "realestate-db:test"}):
+        try:
+            container.remove(force=True)
+        except docker.errors.APIError:
+            pass
+    try:
+        client.images.remove("realestate-db:test", force=True)
+    except docker.errors.ImageNotFound, docker.errors.APIError:
+        pass
+
     with DockerImage(
         path="..",
         dockerfile_path="docker/db/Dockerfile",
