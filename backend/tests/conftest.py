@@ -1,7 +1,6 @@
 import docker
 import pytest
 import pytest_asyncio
-from testcontainers.core.image import DockerImage
 from testcontainers.postgres import PostgresContainer
 
 from realestate.config import get_settings
@@ -17,37 +16,41 @@ def _clear_settings_cache():
 
 @pytest.fixture(scope="session")
 def pg_url() -> str:
-    # On self-hosted runners, Docker state persists between CI runs and can end
-    # up inconsistent (image "exists" but cannot be accessed: "No such image").
-    # Remove all stale containers and every realestate-db image (incl. dangling
-    # ones by ID), then prune dangling images/containers so the build starts
-    # from a clean slate.
+    # Self-hosted runners keep Docker state between runs, and testcontainers'
+    # DockerImage build (delete-then-tag) is racy on this daemon: it keeps
+    # hitting "AlreadyExists: image ... already exists". Build the test DB
+    # image directly with the docker SDK (no cache, force-remove) so we fully
+    # control the build, then run PostgresContainer against it.
     client = docker.from_env()
-    for container in client.containers.list(all=True, filters={"ancestor": "realestate-db:test"}):
-        try:
-            container.remove(force=True)
-        except docker.errors.APIError:
-            pass
-    for image in client.images.list(filters={"reference": "realestate-db:*"}):
-        try:
-            client.images.remove(image.id, force=True)
-        except docker.errors.APIError:
-            pass
+    tag = "realestate-db:test"
+
+    try:
+        client.images.remove(tag, force=True)
+    except docker.errors.ImageNotFound:
+        pass
     try:
         client.images.prune(filters={"dangling": True})
-        client.containers.prune()
     except docker.errors.APIError:
         pass
 
-    with DockerImage(
+    client.images.build(
         path="..",
-        dockerfile_path="docker/db/Dockerfile",
-        tag="realestate-db:test",
-        clean_up=False,
-    ):
-        with PostgresContainer("realestate-db:test") as pg:
+        dockerfile="docker/db/Dockerfile",
+        tag=tag,
+        nocache=True,
+        rm=True,
+        forcerm=True,
+    )
+
+    try:
+        with PostgresContainer(tag) as pg:
             raw = pg.get_connection_url()  # postgresql+psycopg2://...
             yield raw.replace("postgresql+psycopg2", "postgresql+asyncpg")
+    finally:
+        try:
+            client.images.remove(tag, force=True)
+        except docker.errors.APIError:
+            pass
 
 
 @pytest_asyncio.fixture
