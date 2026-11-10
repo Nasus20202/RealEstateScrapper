@@ -1,3 +1,5 @@
+import os
+
 import docker
 import pytest
 import pytest_asyncio
@@ -21,8 +23,11 @@ def pg_url() -> str:
     # hitting "AlreadyExists: image ... already exists". Build the test DB
     # image directly with the docker SDK (no cache, force-remove) so we fully
     # control the build, then run PostgresContainer against it.
+    # Under pytest-xdist every worker runs this session fixture, so each worker
+    # gets its own tag; a shared tag makes parallel builds collide.
     client = docker.from_env()
-    tag = "realestate-db:test"
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
+    tag = f"realestate-db:test-{worker}"
 
     try:
         client.images.remove(tag, force=True)
